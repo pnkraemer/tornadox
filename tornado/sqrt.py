@@ -1,12 +1,12 @@
 """Square-root transition utility functions."""
 
-import jax.numpy as jnp
 import jax
+import jax.numpy as jnp
 
-def predict(A, SC, SQ):
+
+def propagate_cholesky_factor(A, SC, SQ):
     """Compute Cholesky factor of A @ SC @ SC.T @ A.T + SQ @ SQ.T"""
     S1 = A @ SC
-
     stacked_up = jnp.vstack((S1.T, SQ.T))
     upper_sqrtm = jnp.linalg.qr(stacked_up, mode="r")
     lower_sqrtm = upper_sqrtm.T
@@ -22,7 +22,7 @@ def tril_to_positive_tril(tril_mat):
     d = jnp.sign(diag)
 
     # Like numpy, JAX assigns sign 0 to 0.0, which eliminate entire rows in the operation below.
-    d = jax.ops.index_add(d, d==0, 1.0)
+    d = jax.ops.index_add(d, d == 0, 1.0)
 
     # Fast(er) multiplication with a diagonal matrix from the right via broadcasting.
     with_pos_diag = tril_mat * d[None, :]
