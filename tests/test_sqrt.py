@@ -20,7 +20,6 @@ def test_propagate_cholesky_factor(iwp):
     some_chol1 = process_noise_cholesky.copy()
     some_chol2 = process_noise_cholesky.copy()
 
-
     # First test: Non-optional S2
     chol = tornado.sqrt.propagate_cholesky_factor(
         S1=(transition_matrix @ some_chol1), S2=process_noise_cholesky
@@ -34,10 +33,8 @@ def test_propagate_cholesky_factor(iwp):
     assert jnp.all(jnp.diag(chol) > 0)
 
     # Second test: Optional S2
-    chol = tornado.sqrt.propagate_cholesky_factor(
-        S1=(transition_matrix @ some_chol2)
-    )
-    cov =  transition_matrix @ some_chol2 @ some_chol2.T @ transition_matrix.T
+    chol = tornado.sqrt.propagate_cholesky_factor(S1=(transition_matrix @ some_chol2))
+    cov = transition_matrix @ some_chol2 @ some_chol2.T @ transition_matrix.T
 
     # Relax tolerance because ill-conditioned...
     assert jnp.allclose(chol @ chol.T, cov)
