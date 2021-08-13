@@ -24,6 +24,13 @@ jobs:
       run: |
         pip install isort
         tox -e isort
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/setup-python@v2
+      with:
+        python-version: "3.x"
+    - uses: actions/checkout@v2
     - name: Run tests with pytest
       run: |
         pip install pytest
