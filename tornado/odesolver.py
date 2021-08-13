@@ -1,11 +1,9 @@
 """ODE solver interface."""
 
 from abc import ABC, abstractmethod
-from collections import abc
-from typing import Iterable, Optional, Union
+from typing import Iterable
 
 import numpy as np
-from probnum import problems
 
 
 class ODESolver(ABC):

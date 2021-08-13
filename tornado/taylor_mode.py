@@ -1,5 +1,4 @@
 import jax.numpy as jnp
-from jax.config import config
 from jax.experimental.jet import jet
 
 from tornado import rv
@@ -53,7 +52,7 @@ class TaylorModeInitialization:
 
     Print the results.
 
-    >>> print(prior.transition.proj2coord(0) @ improved_initrv.mean)
+    >>> print(prior.proj2coord(0) @ improved_initrv.mean)
     [ 0.994       0.          0.         -2.00158511]
     >>> print(improved_initrv.mean)
     [ 9.94000000e-01  0.00000000e+00 -3.15543023e+02  0.00000000e+00
@@ -74,7 +73,7 @@ class TaylorModeInitialization:
 
     Print the results.
 
-    >>> print(prior.transition.proj2coord(0) @ improved_initrv.mean)
+    >>> print(prior.proj2coord(0) @ improved_initrv.mean)
     [2. 0.]
     >>> print(improved_initrv.mean)
     [    2.     0.    -2.    60.     0.    -2.    60. -1798.]
@@ -82,12 +81,9 @@ class TaylorModeInitialization:
     [0. 0. 0. 0. 0. 0. 0. 0.]
     """
 
-    def __init__(self):
-        super().__init__(is_exact=True, requires_jax=True)
-
     def __call__(self, ivp, prior) -> rv.MultivariateNormal:
 
-        num_derivatives = prior.transition.num_derivatives
+        num_derivatives = prior.num_derivatives
 
         dt = jnp.array([1.0])
 
