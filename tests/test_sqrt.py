@@ -30,9 +30,11 @@ def test_propagate_cholesky_factor(iwp):
     assert jnp.allclose(chol @ chol.T, cov)
     assert jnp.allclose(jnp.linalg.cholesky(cov), chol)
 
+    assert jnp.all(jnp.diag(chol) > 0)
+
 
 def test_tril_to_positive_tril():
-
+    """Assert that the weird sign(0)=0 behaviour is made up for."""
     matrix = jnp.array(
         [
             [1.0, 0.0, 0.0],
