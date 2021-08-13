@@ -1,2 +1,2 @@
 # tornado
-Solve ODEs probabilistically, and fast like the wind.
+Solve ODEs probabilistically, fully differentiably, and fast like the wind.
