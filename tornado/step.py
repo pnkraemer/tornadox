@@ -1,7 +1,9 @@
 """Stepsize selection strategies."""
 
-import jax.numpy as jnp
 import abc
+
+import jax.numpy as jnp
+
 
 def propose_first_dt(ivp):
     norm_y0 = jnp.linalg.norm(ivp.y0)
@@ -16,18 +18,14 @@ class StepRule(abc.ABC):
         self.first_dt = first_dt
 
     @abc.abstractmethod
-    def suggest(
-        self,  previous_dt, scaled_error_estimate, local_convergence_rate=None
-    ):
+    def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         raise NotImplementedError
 
     @abc.abstractmethod
     def is_accepted(self, scaled_error_estimate):
         raise NotImplementedError
 
-    def errorest_to_norm(
-            self, unscaled_error_estimate, reference_state
-    ):
+    def errorest_to_norm(self, unscaled_error_estimate, reference_state):
         raise NotImplementedError
 
 
@@ -38,27 +36,27 @@ class ConstantSteps(StepRule):
         self.dt = dt
         super().__init__(first_dt=dt)
 
-    def suggest(
-        self,  previous_dt, scaled_error_estimate, local_convergence_rate=None
-    ):
+    def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         return self.dt
 
     def is_accepted(self, scaled_error_estimate):
         return True
 
-    def errorest_to_norm(
-            self, unscaled_error_estimate, reference_state
-    ):
+    def errorest_to_norm(self, unscaled_error_estimate, reference_state):
         # Return NaN to make sure this quantity is not used further below
         return jnp.nan
 
 
-
 class AdaptiveSteps(StepRule):
-
     def __init__(
         self,
-        first_dt, abstol, reltol, max_changes = (0.2, 10.0), safety_scale= 0.95, min_step = 1e-15, max_step = 1e15
+        first_dt,
+        abstol,
+        reltol,
+        max_changes=(0.2, 10.0),
+        safety_scale=0.95,
+        min_step=1e-15,
+        max_step=1e15,
     ):
         super().__init__(first_dt=first_dt)
         self.abstol = abstol
@@ -68,9 +66,7 @@ class AdaptiveSteps(StepRule):
         self.min_step = min_step
         self.max_step = max_step
 
-    def suggest(
-            self, previous_dt, scaled_error_estimate, local_convergence_rate=None
-    ):
+    def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         if local_convergence_rate is None:
             raise ValueError("Please provide a local convergence rate.")
 
@@ -96,11 +92,11 @@ class AdaptiveSteps(StepRule):
     def is_accepted(self, scaled_error_estimate):
         return scaled_error_estimate < 1
 
-    def errorest_to_norm(
-            self, unscaled_error_estimate, reference_state
-    ):
+    def errorest_to_norm(self, unscaled_error_estimate, reference_state):
         if unscaled_error_estimate.shape != reference_state.shape:
-            raise ValueError("Unscaled error estimate needs same shape as reference state.")
+            raise ValueError(
+                "Unscaled error estimate needs same shape as reference state."
+            )
         tolerance = self.abstol + self.reltol * reference_state
         ratio = unscaled_error_estimate / tolerance
         dim = len(ratio) if ratio.ndim > 0 else 1
