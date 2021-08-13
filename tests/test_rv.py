@@ -14,4 +14,4 @@ def test_rv():
 
     assert isinstance(normal, tornado.rv.MultivariateNormal)
 
-    
+    assert jax.numpy.allclose(normal.cov, cov_cholesky @ cov_cholesky.T)
