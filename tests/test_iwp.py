@@ -39,17 +39,21 @@ def qh_22_ibm(dt):
 
 
 def test_non_preconditioned_system_matrices(dt, iwp, ah_22_ibm, qh_22_ibm):
-    state_transition_matrix, process_noise_cov_chol = iwp.discretize(dt)
+    state_transition_matrix, process_noise_cov_chol = iwp.non_preconditioned_discretize(
+        dt
+    )
 
     assert jnp.allclose(state_transition_matrix, ah_22_ibm)
     assert jnp.allclose(process_noise_cov_chol @ process_noise_cov_chol.T, qh_22_ibm)
 
 
 def test_preconditioned_system_matrices(dt, iwp):
-    precond_state_trans_mat = iwp.preconditioned_transition_matrix
-    precond_proc_noice_chol = iwp.preconditioned_cholesky_process_noise
+    precond_state_trans_mat, precond_proc_noice_chol = iwp.preconditioned_discretize
 
-    non_precond_state_trans_mat, non_precond_proc_noice_chol = iwp.discretize(dt)
+    (
+        non_precond_state_trans_mat,
+        non_precond_proc_noice_chol,
+    ) = iwp.non_preconditioned_discretize(dt)
 
     precond, precond_inv = iwp.nordsieck_preconditioner(dt)
     assert jnp.allclose(
