@@ -4,10 +4,12 @@ import jax
 import jax.numpy as jnp
 
 
-def propagate_cholesky_factor(A, SC, SQ):
+def propagate_cholesky_factor(S1, S2=None):
     """Compute Cholesky factor of A @ SC @ SC.T @ A.T + SQ @ SQ.T"""
-    S1 = A @ SC
-    stacked_up = jnp.vstack((S1.T, SQ.T))
+    if S2 is not None:
+        stacked_up = jnp.vstack((S1.T, S2.T))
+    else:
+        stacked_up = jnp.vstack(S1.T)
     upper_sqrtm = jnp.linalg.qr(stacked_up, mode="r")
     lower_sqrtm = upper_sqrtm.T
     return tril_to_positive_tril(lower_sqrtm)
