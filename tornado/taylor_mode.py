@@ -112,17 +112,7 @@ class TaylorModeInitialization:
         def derivs_to_normal_randvar(derivs, num_derivatives_in_prior):
             """Finalize the output in terms of creating a suitably sized random
             variable."""
-            # TODO will be added back in future PR
-            # all_derivs = (
-            #     randprocs.markov.integrator.convert.convert_derivwise_to_coordwise(
-            #         jnp.asarray(derivs),
-            #         num_derivatives=num_derivatives_in_prior,
-            #         wiener_process_dimension=ivp.y0.shape[0],
-            #     )
-            # )
 
-            # Wrap all inputs through np.asarray, because 'Normal's
-            # do not like JAX 'DeviceArray's
             return rv.MultivariateNormal(
                 mean=jnp.asarray(derivs),
                 cov_cholesky=jnp.asarray(jnp.diag(jnp.zeros(len(derivs)))),

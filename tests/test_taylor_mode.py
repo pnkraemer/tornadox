@@ -91,13 +91,6 @@ class TestTaylorModeInitialization:
     def test_call(self, any_order):
         threebody_ivp = tornado.ivp.threebody()
 
-        # expected = randprocs.markov.integrator.convert.convert_derivwise_to_coordwise(
-        #     _known_initial_derivatives.THREEBODY_INITS[
-        #         : threebody_ivp.dimension * (any_order + 1)
-        #     ],
-        #     num_derivatives=any_order,
-        #     wiener_process_dimension=threebody_ivp.dimension,
-        # )
         expected = THREEBODY_INITS[: threebody_ivp.dimension * (any_order + 1)]
 
         prior = self._construct_prior(
