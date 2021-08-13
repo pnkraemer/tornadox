@@ -23,7 +23,7 @@ def test_constant_steps():
     assert steprule.is_accepted(scaled_error_estimate=0.1)
 
     # "None" does not matter here, these quantities are not used.
-    assert jnp.isnan(steprule.errorest_to_norm(None, None))
+    assert jnp.isnan(steprule.scale_error_estimate(None, None))
 
 
 def test_adaptive_steps():
@@ -53,7 +53,7 @@ def test_adaptive_steps():
     # Error estimation to scaled norm 1d
     unscaled_error_estimate = jnp.array([0.5])
     reference_state = jnp.array([2.0])
-    E = steprule.errorest_to_norm(
+    E = steprule.scale_error_estimate(
         unscaled_error_estimate=unscaled_error_estimate, reference_state=reference_state
     )
     scaled_error = unscaled_error_estimate / (abstol + reltol * reference_state)
@@ -62,7 +62,7 @@ def test_adaptive_steps():
     # Error estimation to scaled norm 2d
     unscaled_error_estimate = jnp.array([0.5, 0.6])
     reference_state = jnp.array([2.0, 3.0])
-    E = steprule.errorest_to_norm(
+    E = steprule.scale_error_estimate(
         unscaled_error_estimate=unscaled_error_estimate, reference_state=reference_state
     )
     scaled_error = jnp.linalg.norm(
