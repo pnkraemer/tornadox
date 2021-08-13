@@ -62,6 +62,14 @@ def test_preconditioned_system_matrices(dt, iwp):
     assert jnp.allclose(precond @ precond_proc_noice_chol, non_precond_proc_noice_chol)
 
 
+def test_projection_matrices(iwp):
+    P = iwp.make_projection_matrix(0)
+    assert isinstance(P, jnp.ndarray)
+    d, q = iwp.wiener_process_dimension, iwp.num_derivatives
+    assert P.shape == (d, q + 1)
+    assert (P == 1).sum() == d
+
+
 def test_reorder_states():
     # Transition handles reordering
     iwp = tornado.iwp.IntegratedWienerTransition(

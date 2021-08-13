@@ -123,7 +123,7 @@ class IntegratedWienerTransition:
 
     def make_projection_matrix(self, derivative_to_project_onto):
         """Creates a projection matrix kron(I_d, e_p)"""
-        d, q = self.num_derivatives, self.wiener_process_dimension
+        d, q = self.wiener_process_dimension, self.num_derivatives
         I_d = jnp.eye(d)
         e_p = jnp.eye(1, q + 1, derivative_to_project_onto)
         return jnp.kron(I_d, e_p)
