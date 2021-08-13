@@ -45,11 +45,12 @@ class ConstantSteps(StepRule):
 
     def is_accepted(self, scaled_error_estimate):
         return True
-    #
-    # def errorest_to_norm(
-    #         self, unscaled_error_estimate, reference_state
-    # ):
-    #     pass
+
+    def errorest_to_norm(
+            self, unscaled_error_estimate, reference_state
+    ):
+        # Return NaN to make sure this quantity is not used further below
+        return jnp.nan
 
 
 

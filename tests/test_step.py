@@ -20,6 +20,9 @@ def test_constant_steps():
     assert proposed == 0.1
     assert steprule.is_accepted(scaled_error_estimate=0.1)
 
+    # "None" does not matter here, these quantities are not used.
+    assert jnp.isnan(steprule.errorest_to_norm(None, None))
+
 def test_adaptive_steps():
     abstol = 0.1
     reltol = 0.01
