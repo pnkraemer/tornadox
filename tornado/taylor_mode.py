@@ -109,12 +109,15 @@ class TaylorModeInitialization:
             stacked_ode_eval = jnp.concatenate((dx_ravelled, dt))
             return stacked_ode_eval
 
-        def derivs_to_normal_randvar(derivs, num_derivatives_in_prior):
+        def derivs_to_normal_randvar(derivs):
             """Finalize the output in terms of creating a suitably sized random
             variable."""
+            all_derivs = prior.reorder_state_from_derivative_to_coordinate(
+                jnp.asarray(derivs)
+            )
 
             return rv.MultivariateNormal(
-                mean=jnp.asarray(derivs),
+                mean=jnp.asarray(all_derivs),
                 cov_cholesky=jnp.asarray(jnp.diag(jnp.zeros(len(derivs)))),
             )
 
@@ -124,9 +127,7 @@ class TaylorModeInitialization:
         # Corner case 1: num_derivatives == 0
         derivs.extend(ivp.y0)
         if num_derivatives == 0:
-            return derivs_to_normal_randvar(
-                derivs=derivs, num_derivatives_in_prior=num_derivatives
-            )
+            return derivs_to_normal_randvar(derivs=derivs)
 
         # Corner case 2: num_derivatives == 1
         initial_series = (jnp.ones_like(extended_state),)
@@ -137,9 +138,7 @@ class TaylorModeInitialization:
         )
         derivs.extend(initial_taylor_coefficient[:-1])
         if num_derivatives == 1:
-            return derivs_to_normal_randvar(
-                derivs=derivs, num_derivatives_in_prior=num_derivatives
-            )
+            return derivs_to_normal_randvar(derivs=derivs)
 
         # Order > 1
         for _ in range(1, num_derivatives):
@@ -153,6 +152,4 @@ class TaylorModeInitialization:
                 series=(taylor_coefficients,),
             )
             derivs.extend(remaining_taylor_coefficents[-2][:-1])
-        return derivs_to_normal_randvar(
-            derivs=derivs, num_derivatives_in_prior=num_derivatives
-        )
+        return derivs_to_normal_randvar(derivs=derivs)

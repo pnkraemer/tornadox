@@ -1,11 +1,11 @@
 """Tests for Taylor-mode initialization."""
-import numpy as np
+import jax.numpy as jnp
 import pytest
 
 import tornado
 
 # The usual initial values and parameters for the three-body problem
-THREEBODY_INITS = np.array(
+THREEBODY_INITS = jnp.array(
     [
         0.9939999999999999946709294817992486059665679931640625,
         0.0,
@@ -91,13 +91,15 @@ class TestTaylorModeInitialization:
     def test_call(self, any_order):
         threebody_ivp = tornado.ivp.threebody()
 
-        expected = THREEBODY_INITS[: threebody_ivp.dimension * (any_order + 1)]
-
         prior = self._construct_prior(
             order=any_order, spatialdim=threebody_ivp.dimension, t0=threebody_ivp.t0
+        )
+
+        expected = prior.reorder_state_from_derivative_to_coordinate(
+            THREEBODY_INITS[: threebody_ivp.dimension * (any_order + 1)]
         )
 
         received_rv = self.taylor_init(ivp=threebody_ivp, prior=prior)
 
         assert isinstance(received_rv, tornado.rv.MultivariateNormal)
-        np.testing.assert_allclose(received_rv.mean, expected)
+        assert jnp.allclose(received_rv.mean, expected)
