@@ -33,5 +33,5 @@ jobs:
     - uses: actions/checkout@v2
     - name: Run tests with pytest
       run: |
-        pip install pytest
+        pip install tox
         tox -e py3
