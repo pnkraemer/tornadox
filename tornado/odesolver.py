@@ -5,27 +5,18 @@ from collections import abc
 from typing import Iterable, Optional, Union
 
 import numpy as np
-
 from probnum import problems
 
 
 class ODESolver(ABC):
     """Interface for ODE solvers in ProbNum."""
 
-    def __init__(
-        self,
-        steprule,
-        solver_order
-    ):
+    def __init__(self, steprule, solver_order):
         self.steprule = steprule
         self.solver_order = solver_order  # e.g.: RK45 has order=5, IBM(q) has order=q
         self.num_steps = 0
 
-    def solution_generator(
-        self,
-        ivp,
-        stop_at=None
-    ):
+    def solution_generator(self, ivp, stop_at=None):
         """Generate ODE solver steps."""
 
         time_stopper = self._process_event_inputs(stop_at_locations=stop_at)
@@ -47,7 +38,6 @@ class ODESolver(ABC):
     @staticmethod
     def _process_event_inputs(stop_at_locations):
         """Process callbacks and time-stamps into a format suitable for solve()."""
-
 
         if stop_at_locations is not None:
             time_stopper = _TimeStopper(stop_at_locations)
@@ -92,7 +82,6 @@ class ODESolver(ABC):
     @abstractmethod
     def attempt_step(self, state, dt):
         raise NotImplementedError
-
 
 
 class _TimeStopper:
