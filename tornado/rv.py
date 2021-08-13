@@ -5,9 +5,11 @@ import dataclasses
 
 import jax.numpy
 
+
 @dataclasses.dataclass
 class MultivariateNormal:
     """Multivariate normal distributions."""
+
     mean: jax.numpy.ndarray
     cov_cholesky: jax.numpy.ndarray
 
