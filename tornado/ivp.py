@@ -1,11 +1,11 @@
 """Initial value problems and examples."""
 
 
-from typing import Callable, Union, Optional
-import jax.numpy as jnp
-import jax
 import dataclasses
+from typing import Callable, Optional, Union
 
+import jax
+import jax.numpy as jnp
 
 
 @dataclasses.dataclass
@@ -18,7 +18,6 @@ class InitialValueProblem:
     y0: Union[float, jnp.ndarray]
     df: Callable[[float, jnp.ndarray], jnp.ndarray]
 
-
     @property
     def dimension(self):
         if jnp.isscalar(self.y0):
@@ -26,9 +25,7 @@ class InitialValueProblem:
         return self.y0.shape[0]
 
 
-
 def vanderpol(t0=0.0, tmax=30, y0=None, stiffness_constant=1e1):
-
 
     if y0 is None:
         y0 = jnp.array([2.0, 0.0])
@@ -43,6 +40,5 @@ def vanderpol(t0=0.0, tmax=30, y0=None, stiffness_constant=1e1):
 
     def jac(t, y):
         return df(y)
-
 
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=jac)
