@@ -25,7 +25,7 @@ class StepRule(abc.ABC):
     def is_accepted(self, scaled_error_estimate):
         raise NotImplementedError
 
-    def errorest_to_norm(self, unscaled_error_estimate, reference_state):
+    def scale_error_estimate(self, unscaled_error_estimate, reference_state):
         raise NotImplementedError
 
 
@@ -42,7 +42,7 @@ class ConstantSteps(StepRule):
     def is_accepted(self, scaled_error_estimate):
         return True
 
-    def errorest_to_norm(self, unscaled_error_estimate, reference_state):
+    def scale_error_estimate(self, unscaled_error_estimate, reference_state):
         # Return NaN to make sure this quantity is not used further below
         return jnp.nan
 
@@ -92,7 +92,7 @@ class AdaptiveSteps(StepRule):
     def is_accepted(self, scaled_error_estimate):
         return scaled_error_estimate < 1
 
-    def errorest_to_norm(self, unscaled_error_estimate, reference_state):
+    def scale_error_estimate(self, unscaled_error_estimate, reference_state):
         if unscaled_error_estimate.shape != reference_state.shape:
             raise ValueError(
                 "Unscaled error estimate needs same shape as reference state."
