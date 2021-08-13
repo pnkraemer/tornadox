@@ -60,3 +60,22 @@ def test_preconditioned_system_matrices(dt, iwp):
         precond @ precond_state_trans_mat @ precond_inv, non_precond_state_trans_mat
     )
     assert jnp.allclose(precond @ precond_proc_noice_chol, non_precond_proc_noice_chol)
+
+
+def test_reorder_states():
+    # Transition handles reordering
+    iwp = tornado.iwp.IntegratedWienerTransition(
+        num_derivatives=1, wiener_process_dimension=3
+    )
+
+    # 11 ~ derivative of 1, 22 ~ derivative of 2
+    arr = jnp.array([1, 2, 3, 11, 22, 33])
+
+    new_arr = iwp.reorder_state_from_derivative_to_coordinate(arr)
+    expected = jnp.array([1, 11, 2, 22, 3, 33])
+    for r, e in zip(new_arr, expected):
+        assert r == e
+
+    old_arr = iwp.reorder_state_from_coordinate_to_derivative(new_arr)
+    for r, e in zip(old_arr, arr):
+        assert r == e
