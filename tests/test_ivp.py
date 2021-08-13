@@ -22,6 +22,7 @@ def test_f(ivp):
 
 @pytest.mark.parametrize("ivp", IVPs)
 def test_df(ivp):
-    df = ivp.df(ivp.t0, ivp.y0)
-    assert isinstance(df, jax.numpy.ndarray)
-    assert df.shape == (ivp.y0.shape[0], ivp.y0.shape[0])
+    if ivp.df is not None:
+        df = ivp.df(ivp.t0, ivp.y0)
+        assert isinstance(df, jax.numpy.ndarray)
+        assert df.shape == (ivp.y0.shape[0], ivp.y0.shape[0])

@@ -16,7 +16,7 @@ class InitialValueProblem:
     t0: float
     tmax: float
     y0: Union[float, jnp.ndarray]
-    df: Callable[[float, jnp.ndarray], jnp.ndarray]
+    df: Optional[Callable[[float, jnp.ndarray], jnp.ndarray]]
 
     @property
     def dimension(self):
