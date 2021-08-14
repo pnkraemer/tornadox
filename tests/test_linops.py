@@ -28,3 +28,11 @@ def test_block_diagonal():
     assert isinstance(new, jnp.ndarray)
     assert new.shape == arr.shape
     assert jnp.allclose(new, expected)
+
+    # Sum of two block diagonals works
+    B1 = tornado.linops.BlockDiagonal.from_arrays(A, B)
+    B2 = tornado.linops.BlockDiagonal.from_arrays(B, A)
+    new = B1 + B2
+    expected = B1.todense() + B2.todense()
+    assert isinstance(new, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(new.todense(), expected)

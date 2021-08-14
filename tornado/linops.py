@@ -31,12 +31,15 @@ class BlockDiagonal:
             array_stack = self.array_stack @ other.array_stack
             return BlockDiagonal(array_stack)
 
-        # Only matvec works now!
-        assert isinstance(other, jnp.ndarray)
-        assert other.ndim == 1
+        if isinstance(other, jnp.ndarray) and other.ndim == 1:
 
-        reshaped_array = other.reshape((self.num_blocks, -1))
-        block_matmul = jnp.einsum("ijk,ik->ij", self.array_stack, reshaped_array)
-        return block_matmul.reshape((-1,))
+            reshaped_array = other.reshape((self.num_blocks, -1))
+            block_matmul = jnp.einsum("ijk,ik->ij", self.array_stack, reshaped_array)
+            return block_matmul.reshape((-1,))
+        return NotImplemented
 
-
+    def __add__(self, other):
+        if isinstance(other, BlockDiagonal):
+            array_stack = self.array_stack + other.array_stack
+            return BlockDiagonal(array_stack)
+        return NotImplemented
