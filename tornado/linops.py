@@ -1,12 +1,13 @@
 """Linear operators and sparse matrices."""
 
 
-import jax.scipy.linalg
 import jax.numpy as jnp
+import jax.scipy.linalg
 
 
 class BlockDiagonal:
     """Block-diagonal matrices where the blocks have all equal shape."""
+
     def __init__(self, array_stack):
         self._array_stack = array_stack
 
