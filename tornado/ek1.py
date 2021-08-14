@@ -117,10 +117,10 @@ class DiagonalEK1(odesolver.ODESolver):
         )
 
     def attempt_step(self, state, dt):
-        # Extract system matrices
         d = self.iwp.wiener_process_dimension
         n = self.iwp.num_derivatives + 1
 
+        # Assemble preconditioner
         P_1d, Pinv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
         P = linops.BlockDiagonal(jnp.stack([P_1d] * d))
         Pinv = linops.BlockDiagonal(jnp.stack([Pinv_1d] * d))
@@ -129,6 +129,7 @@ class DiagonalEK1(odesolver.ODESolver):
         assert P.array_stack.shape == (d, n, n)
         assert Pinv.array_stack.shape == (d, n, n)
 
+        # Assemble projection-preconditioner combo
         P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d @ P_1d] * d))
         P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d @ P_1d] * d))
         assert isinstance(P0, linops.BlockDiagonal)
@@ -136,6 +137,7 @@ class DiagonalEK1(odesolver.ODESolver):
         assert P0.array_stack.shape == (d, 1, n)
         assert P1.array_stack.shape == (d, 1, n)
 
+        # Extract system matrices
         A, SQ = self.iwp.preconditioned_discretize_1d
         A = linops.BlockDiagonal(jnp.stack([A] * d))
         SQ = linops.BlockDiagonal(jnp.stack([SQ] * d))
@@ -144,11 +146,12 @@ class DiagonalEK1(odesolver.ODESolver):
         assert A.array_stack.shape == (d, n, n)
         assert SQ.array_stack.shape == (d, n, n)
 
+        # Extract previous states and pull them into "preconditioned space"
         m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_cholesky
         assert isinstance(SC, linops.BlockDiagonal)
         assert SC.array_stack.shape == (d, n, n)
 
-        # Prediction
+        # Make prediction
         m_pred = A @ m
         SC_pred = linops.BlockDiagonal(
             jnp.stack(
@@ -172,13 +175,13 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(diag_J, linops.BlockDiagonal)
         assert diag_J.array_stack.shape == (d, 1, 1)
 
-        # Create linearisation
+        # Create linearised observation model
         H = P1 - diag_J @ P0
-        b = J @ m_at - f
+        b = diag_J @ m_at - f
         assert isinstance(H, linops.BlockDiagonal)
         assert H.array_stack.shape == (d, 1, n)
 
-        # Update
+        # Update covariance
         cov_cholesky = linops.BlockDiagonal(
             jnp.stack(
                 [
@@ -190,6 +193,7 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(cov_cholesky, linops.BlockDiagonal)
         assert cov_cholesky.array_stack.shape == (d, n, n)
 
+        # Compute Kalman gain
         Kgain = linops.BlockDiagonal(
             jnp.stack(
                 [
@@ -201,9 +205,11 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(Kgain, linops.BlockDiagonal)
         assert Kgain.array_stack.shape == (d, n, 1)
 
+        # Update mean
         z = H @ m_pred + b
         new_mean = m_pred - Kgain @ z
 
+        # Push mean and covariance back into "normal space"
         new_mean = P @ new_mean
         cov_cholesky = P @ cov_cholesky
         assert isinstance(cov_cholesky, linops.BlockDiagonal)
