@@ -38,3 +38,9 @@ def test_block_diagonal():
     expected = B1.todense() + B2.todense()
     assert isinstance(new, tornado.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
+
+    # Transpose works as expected
+    trans = B1.T
+    expected = B1.todense().T
+    assert isinstance(trans, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(trans.todense(), expected)

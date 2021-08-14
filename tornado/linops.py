@@ -26,6 +26,12 @@ class BlockDiagonal:
     def num_blocks(self):
         return self._array_stack.shape[0]
 
+    @property
+    def T(self):
+        assert self.array_stack.ndim == 3
+        transposed_array_stack = jnp.transpose(self.array_stack, axes=(0, 2, 1))
+        return BlockDiagonal(array_stack=transposed_array_stack)
+
     @classmethod
     def from_arrays(cls, *arrays):
         """Same interface as jax.scipy.linalg.block_diag(). Can be used for tests."""
