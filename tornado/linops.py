@@ -57,3 +57,9 @@ class BlockDiagonal:
             array_stack = self.array_stack + other.array_stack
             return BlockDiagonal(array_stack)
         return NotImplemented
+
+    def __sub__(self, other):
+        if isinstance(other, BlockDiagonal):
+            array_stack = self.array_stack - other.array_stack
+            return BlockDiagonal(array_stack)
+        return NotImplemented

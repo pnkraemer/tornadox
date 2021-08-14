@@ -39,6 +39,14 @@ def test_block_diagonal():
     assert isinstance(new, tornado.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
 
+    # Difference of two block diagonals works
+    B1 = tornado.linops.BlockDiagonal.from_arrays(A, B)
+    B2 = tornado.linops.BlockDiagonal.from_arrays(B, A)
+    new = B1 - B2
+    expected = B1.todense() - B2.todense()
+    assert isinstance(new, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(new.todense(), expected)
+
     # Transpose works as expected
     trans = B1.T
     expected = B1.todense().T
