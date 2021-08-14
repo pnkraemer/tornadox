@@ -53,3 +53,31 @@ def test_tril_to_positive_tril():
     )
     result = tornado.sqrt.tril_to_positive_tril(matrix)
     assert jnp.allclose(matrix, result)
+
+
+def test_update_sqrt(iwp):
+    """Test the square-root updates."""
+    # Use sqrt(Q) as a dummy for a sqrt(C)
+    A, SC = iwp.preconditioned_discretize_1d
+
+    # Check square and non-square!
+    for H in [A, A[:1]]:
+        SC_new, kalman_gain, innov_chol = tornado.sqrt.update_sqrt(H, SC)
+
+        # expected:
+        S = H @ SC @ SC.T @ H.T
+        K = SC @ SC.T @ H.T @ jnp.linalg.inv(S)
+        C = SC @ SC.T - K @ S @ K.T
+
+        # Test SC
+        assert jnp.allclose(SC_new @ SC_new.T, C)
+        assert jnp.allclose(SC_new, jnp.tril(SC_new))
+        assert jnp.all(jnp.diag(SC_new) >= 0)
+
+        # Test K
+        assert jnp.allclose(K, kalman_gain)
+
+        # Test S
+        assert jnp.allclose(innov_chol @ innov_chol.T, S)
+        assert jnp.allclose(innov_chol, jnp.tril(innov_chol))
+        assert jnp.all(jnp.diag(innov_chol) >= 0)
