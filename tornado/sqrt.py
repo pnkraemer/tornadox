@@ -44,8 +44,12 @@ def update_sqrt(transition_matrix, cov_cholesky):
 
     Returns
     -------
-    jnp.array
-        Cholesky factor of the posterior covariance
+    jnp.ndarray
+        Cholesky factor of the posterior covariance. Shape (d_out, d_out).
+    jnp.ndarray
+        Kalman gain. Shape (d_in, d_out).
+    jnp.ndarray
+        Cholesky factor of the innovation covariance matrix. Shape (d_out, d_out).
     """
     output_dim, input_dim = transition_matrix.shape
     zeros_bottomleft = jnp.zeros((output_dim, input_dim))
