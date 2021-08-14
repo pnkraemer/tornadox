@@ -175,27 +175,15 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(H, linops.BlockDiagonal)
         assert H.array_stack.shape == (d, 1, n)
 
-        # Update covariance
-        cov_cholesky = linops.BlockDiagonal(
-            jnp.stack(
-                [
-                    sqrt.update_sqrt(h, sc_pred)[0]
-                    for (h, sc_pred) in zip(H.array_stack, SC_pred.array_stack)
-                ]
-            )
+        # Update covariance and Kalman gain
+        cov_cholesky_stack, Kgain_stack, _ = sqrt.batched_update_sqrt(
+            H.array_stack, SC_pred.array_stack
         )
+        cov_cholesky = linops.BlockDiagonal(cov_cholesky_stack)
+        Kgain = linops.BlockDiagonal(Kgain_stack)
+
         assert isinstance(cov_cholesky, linops.BlockDiagonal)
         assert cov_cholesky.array_stack.shape == (d, n, n)
-
-        # Compute Kalman gain
-        Kgain = linops.BlockDiagonal(
-            jnp.stack(
-                [
-                    sqrt.update_sqrt(h, sc_pred)[1]
-                    for (h, sc_pred) in zip(H.array_stack, SC_pred.array_stack)
-                ]
-            )
-        )
         assert isinstance(Kgain, linops.BlockDiagonal)
         assert Kgain.array_stack.shape == (d, n, 1)
 
