@@ -31,7 +31,8 @@ def test_reference_ek1_constant_steps():
     assert jnp.allclose(final_y_scipy, final_y_ek1, rtol=1e-3, atol=1e-3)
 
 
-def test_diagonal_ek1():
+def test_diagonal_ek1_constant_steps():
+    # only "constant steps", because there is no error estimation yet.
     ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
 
     steps = tornado.step.ConstantSteps(0.1)
@@ -42,8 +43,18 @@ def test_diagonal_ek1():
         num_derivatives=4, ode_dimension=2, steprule=steps
     )
 
+    # Initialize works as expected
     init_ref = reference_ek1.initialize(ivp=ivp)
     init_diag = diagonal_ek1.initialize(ivp=ivp)
+    assert jnp.allclose(init_diag.t, init_ref.t)
     assert jnp.allclose(init_diag.y.mean, init_ref.y.mean)
     assert isinstance(init_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
-    assert jnp.allclose(init_diag.y.mean, init_ref.y.mean)
+    assert jnp.allclose(init_diag.y.cov_cholesky.todense(), init_ref.y.cov_cholesky)
+
+    # Attempt step works as expected
+    step_ref = reference_ek1.attempt_step(state=init_ref, dt=0.12345)
+    step_diag = diagonal_ek1.attempt_step(state=init_diag, dt=0.12345)
+    assert jnp.allclose(init_diag.t, init_ref.t)
+    assert jnp.allclose(step_diag.y.mean, step_ref.y.mean)
+    assert isinstance(step_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(step_diag.y.cov_cholesky, step_ref.y.cov_cholesky)
