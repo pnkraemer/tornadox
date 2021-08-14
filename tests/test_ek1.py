@@ -12,7 +12,7 @@ def test_reference_ek1_constant_steps():
     As long as this test passes, we can test the more efficient solvers against this one here.
     """
 
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
+    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
     scipy_sol = solve_ivp(ivp.f, t_span=(ivp.t0, ivp.tmax), y0=ivp.y0)
     final_t_scipy = scipy_sol.t[-1]
     final_y_scipy = scipy_sol.y[:, -1]
@@ -29,3 +29,21 @@ def test_reference_ek1_constant_steps():
     final_y_ek1 = ek1.P0 @ state.y.mean
     assert jnp.allclose(final_t_scipy, final_t_ek1)
     assert jnp.allclose(final_y_scipy, final_y_ek1, rtol=1e-3, atol=1e-3)
+
+
+def test_diagonal_ek1():
+    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
+
+    steps = tornado.step.ConstantSteps(0.1)
+    reference_ek1 = tornado.ek1.ReferenceEK1(
+        num_derivatives=4, ode_dimension=2, steprule=steps
+    )
+    diagonal_ek1 = tornado.ek1.DiagonalEK1(
+        num_derivatives=4, ode_dimension=2, steprule=steps
+    )
+
+    init_ref = reference_ek1.initialize(ivp=ivp)
+    init_diag = diagonal_ek1.initialize(ivp=ivp)
+    assert jnp.allclose(init_diag.y.mean, init_ref.y.mean)
+    assert isinstance(init_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(init_diag.y.mean, init_ref.y.mean)

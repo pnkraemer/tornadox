@@ -5,7 +5,7 @@ import dataclasses
 
 import jax.numpy as jnp
 
-from tornado import ivp, iwp, odesolver, rv, sqrt, taylor_mode
+from tornado import ivp, iwp, linops, odesolver, rv, sqrt, taylor_mode
 
 
 @dataclasses.dataclass
@@ -73,6 +73,22 @@ class ReferenceEK1(odesolver.ODESolver):
         return ODEFilterState(
             ivp=state.ivp,
             t=t,
+            y=new_rv,
+            error_estimate=None,
+            reference_state=None,
+        )
+
+
+class DiagonalEK1(ReferenceEK1):
+    def initialize(self, ivp):
+        initial_rv = self.tm(ivp=ivp, prior=self.iwp)
+        mean = initial_rv.mean
+        d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
+        cov_cholesky = linops.BlockDiagonal(array_stack=jnp.zeros((d, n, n)))
+        new_rv = rv.MultivariateNormal(mean, cov_cholesky)
+        return ODEFilterState(
+            ivp=ivp,
+            t=ivp.t0,
             y=new_rv,
             error_estimate=None,
             reference_state=None,
