@@ -19,6 +19,8 @@ class ODEFilterState:
 
 
 class ReferenceEK1(odesolver.ODESolver):
+    """Naive, reference EK1 implementation. Use this to test against."""
+
     def __init__(self, num_derivatives, ode_dimension, steprule):
         super().__init__(steprule=steprule, solver_order=num_derivatives)
 
