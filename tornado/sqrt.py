@@ -2,6 +2,7 @@
 
 import jax
 import jax.numpy as jnp
+import jax.scipy.linalg
 
 
 def propagate_cholesky_factor(S1, S2=None):
@@ -29,3 +30,42 @@ def tril_to_positive_tril(tril_mat):
     # Fast(er) multiplication with a diagonal matrix from the right via broadcasting.
     with_pos_diag = tril_mat * d[None, :]
     return with_pos_diag
+
+
+def update_sqrt(transition_matrix, cov_cholesky):
+    """Compute the update step with noise-free linear observation models in square-root form.
+
+    Parameters
+    ----------
+    transition_matrix
+        Transition matrix. Shape (d_out, d_in)
+    cov_cholesky
+        Cholesky factor of the current (usually, the predicted) covariance. Shape (d_in, d_in)
+
+    Returns
+    -------
+    jnp.ndarray
+        Cholesky factor of the posterior covariance. Shape (d_out, d_out).
+    jnp.ndarray
+        Kalman gain. Shape (d_in, d_out).
+    jnp.ndarray
+        Cholesky factor of the innovation covariance matrix. Shape (d_out, d_out).
+    """
+    output_dim, input_dim = transition_matrix.shape
+    zeros_bottomleft = jnp.zeros((output_dim, input_dim))
+    zeros_bottomright = jnp.zeros((input_dim, input_dim))
+
+    blockmat = jnp.block(
+        [
+            [cov_cholesky.T @ transition_matrix.T, cov_cholesky.T],
+            [zeros_bottomleft.T, zeros_bottomright.T],
+        ]
+    )
+    big_triu = jnp.linalg.qr(blockmat, mode="r")
+    R3 = big_triu[
+        output_dim : (output_dim + input_dim), output_dim : (output_dim + input_dim)
+    ]
+    R1 = big_triu[:output_dim, :output_dim]
+    R2 = big_triu[:output_dim, output_dim:]
+    gain = jax.scipy.linalg.solve_triangular(R1, R2, lower=False).T
+    return tril_to_positive_tril(R3.T), gain, tril_to_positive_tril(R1.T)
