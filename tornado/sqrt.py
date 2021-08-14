@@ -78,3 +78,13 @@ def update_sqrt(transition_matrix, cov_cholesky):
     R2 = big_triu[:output_dim, output_dim:]
     gain = jax.scipy.linalg.solve_triangular(R1, R2, lower=False).T
     return tril_to_positive_tril(R3.T), gain, tril_to_positive_tril(R1.T)
+
+
+def batched_update_sqrt(batched_transition_matrix, batched_cov_cholesky):
+    cov_chol, kgain, innov_chol = [], [], []
+    for (A, SC) in zip(batched_transition_matrix, batched_cov_cholesky):
+        c, k, s = update_sqrt(A, SC)
+        cov_chol.append(c)
+        kgain.append(k)
+        innov_chol.append(s)
+    return jnp.stack(cov_chol), jnp.stack(kgain), jnp.stack(innov_chol)
