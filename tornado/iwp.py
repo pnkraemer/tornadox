@@ -130,7 +130,6 @@ class IntegratedWienerTransition:
         """Creates a projection matrix e_p"""
         return jnp.eye(1, self.num_derivatives + 1, derivative_to_project_onto)
 
-
     @property
     def state_dimension(self):
         return self.wiener_process_dimension * (self.num_derivatives + 1)
