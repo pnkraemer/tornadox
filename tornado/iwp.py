@@ -121,7 +121,7 @@ class IntegratedWienerTransition:
 
         return (state_trans_mat, proc_noise_cov_cholesky)
 
-    def make_projection_matrix(self, derivative_to_project_onto):
+    def projection_matrix(self, derivative_to_project_onto):
         """Creates a projection matrix kron(I_d, e_p)"""
         I_d = jnp.eye(self.wiener_process_dimension)
         return jnp.kron(I_d, self.projection_matrix_1d(derivative_to_project_onto))
