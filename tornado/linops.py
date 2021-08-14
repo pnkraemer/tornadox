@@ -6,7 +6,14 @@ import jax.scipy.linalg
 
 
 class BlockDiagonal:
-    """Block-diagonal matrices where the blocks have all equal shape."""
+    """Block-diagonal matrices where the blocks have all equal shape.
+
+    Parameters
+    ----------
+    array_stack
+        Stack of blocks (which are jax.ndarray objects).
+        Shape (N, K, L) which implies that there are N blocks, each of which has shape (K, L).
+    """
 
     def __init__(self, array_stack):
         self._array_stack = array_stack
