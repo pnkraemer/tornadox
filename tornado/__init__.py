@@ -2,6 +2,6 @@
 
 from jax.config import config
 
-from . import ivp, iwp, odesolver, rv, sqrt, step, taylor_mode
+from . import ivp, iwp, odesolver, rv, sqrt, step, taylor_mode, linops
 
 config.update("jax_enable_x64", True)
