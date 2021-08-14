@@ -7,7 +7,10 @@ import tornado
 
 
 def test_reference_ek1():
-    """Assert the solver returns a similar solution to SciPy."""
+    """Assert the reference solver returns a similar solution to SciPy.
+
+    As long as this test passes, we can test the more efficient solvers against this one here.
+    """
 
     ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
     scipy_sol = solve_ivp(ivp.f, t_span=(ivp.t0, ivp.tmax), y0=ivp.y0)

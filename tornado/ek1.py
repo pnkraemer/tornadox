@@ -53,9 +53,12 @@ class ReferenceEK1(odesolver.ODESolver):
         SC_pred = sqrt.propagate_cholesky_factor(A @ SC, SQ)
 
         t = state.t + dt
-        J = state.ivp.df(t, self.P0 @ m_pred)
+        m_at = self.P0 @ m_pred
+        f = state.ivp.f(t, m_at)
+        J = state.ivp.df(t, m_at)
         H = self.P1 - J @ self.P0
-        z = self.P1 @ m_pred - state.ivp.f(t, self.P0 @ m_pred)
+        b = J @ m_at - f
+        z = H @ m_pred + b
 
         cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
         new_mean = m_pred - Kgain @ z
