@@ -28,7 +28,7 @@ class BlockDiagonal:
 
     @classmethod
     def from_arrays(cls, *arrays):
-        """Same interface as jax.scipy.linalg.block_diagonal(). Can be used for tests."""
+        """Same interface as jax.scipy.linalg.block_diag(). Can be used for tests."""
         return cls(jnp.stack(arrays))
 
     def todense(self):
