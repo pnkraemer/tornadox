@@ -22,7 +22,7 @@ def test_propagate_cholesky_factor(iwp):
 
     # First test: Non-optional S2
     chol = tornado.sqrt.propagate_cholesky_factor(
-        S1=(transition_matrix @ some_chol1), S2=process_noise_cholesky
+        S1=(transition_matrix @ some_chol1), S2=some_chol2
     )
     cov = (
         transition_matrix @ some_chol1 @ some_chol1.T @ transition_matrix.T
@@ -30,15 +30,6 @@ def test_propagate_cholesky_factor(iwp):
     )
     assert jnp.allclose(chol @ chol.T, cov)
     assert jnp.allclose(jnp.linalg.cholesky(cov), chol)
-    assert jnp.all(jnp.diag(chol) > 0)
-
-    # Second test: Optional S2
-    chol = tornado.sqrt.propagate_cholesky_factor(S1=(transition_matrix @ some_chol2))
-    cov = transition_matrix @ some_chol2 @ some_chol2.T @ transition_matrix.T
-
-    # Relax tolerance because ill-conditioned...
-    assert jnp.allclose(chol @ chol.T, cov)
-    assert jnp.allclose(jnp.linalg.cholesky(cov), chol, rtol=1e-4, atol=1e-4)
     assert jnp.all(jnp.diag(chol) > 0)
 
 
@@ -56,7 +47,7 @@ def test_propagate_batched_cholesky_factors(iwp):
 
     # First test: Non-optional S2
     chol = tornado.sqrt.propagate_batched_cholesky_factor(
-        batched_S1=(A @ some_chol1).array_stack, batched_S2=some_chol2.array_stack
+        (A @ some_chol1).array_stack, some_chol2.array_stack
     )
     chol_as_bd = tornado.linops.BlockDiagonal(chol)
     reference = tornado.sqrt.propagate_cholesky_factor(
@@ -64,15 +55,16 @@ def test_propagate_batched_cholesky_factors(iwp):
     )
     assert jnp.allclose(chol_as_bd.todense(), reference)
 
-    # Second test: Optional S2
-    chol = tornado.sqrt.propagate_batched_cholesky_factor(
-        batched_S1=(A @ some_chol1).array_stack
-    )
-    chol_as_bd = tornado.linops.BlockDiagonal(chol)
-    reference = tornado.sqrt.propagate_cholesky_factor(
-        A.todense() @ some_chol1.todense()
-    )
-    assert jnp.allclose(chol_as_bd.todense(), reference)
+    # # Second test: Optional S2
+    # chol = tornado.sqrt.propagate_batched_cholesky_factor(
+    #     batched_S1=(A @ some_chol1).array_stack
+    # )
+    # chol_as_bd = tornado.linops.BlockDiagonal(chol)
+    # reference = tornado.sqrt.propagate_cholesky_factor(
+    #     A.todense() @ some_chol1.todense()
+    # )
+    # assert jnp.allclose(chol_as_bd.todense(), reference)
+    #
 
 
 def test_tril_to_positive_tril():
@@ -134,14 +126,15 @@ def test_batched_update_sqrt(iwp):
         )
 
         chol, K, S = tornado.sqrt.batched_update_sqrt(
-            batched_transition_matrix=A.array_stack,
-            batched_cov_cholesky=some_chol.array_stack,
+            A.array_stack,
+            some_chol.array_stack,
         )
+        print(chol.shape, K.shape, S.shape)
         assert isinstance(chol, jnp.ndarray)
         assert isinstance(K, jnp.ndarray)
         assert isinstance(S, jnp.ndarray)
-        assert chol.shape == (3, d, d)
         assert K.shape == (3, d, transition_matrix.shape[0])
+        assert chol.shape == (3, d, d)
         assert S.shape == (3, transition_matrix.shape[0], transition_matrix.shape[0])
 
         chol_as_bd = tornado.linops.BlockDiagonal(chol)

@@ -5,16 +5,7 @@ import jax.numpy as jnp
 import jax.scipy.linalg
 
 
-def propagate_batched_cholesky_factor(batched_S1, batched_S2=None):
-    """Propagate Cholesky factors for batches of matrix-square-roots."""
-    if batched_S2 is None:
-        return jnp.stack([propagate_cholesky_factor(s1) for s1 in batched_S1])
-    return jnp.stack(
-        [propagate_cholesky_factor(s1, s2) for s1, s2 in zip(batched_S1, batched_S2)]
-    )
-
-
-def propagate_cholesky_factor(S1, S2=None):
+def propagate_cholesky_factor(S1, S2):
     """Compute Cholesky factor of A @ SC @ SC.T @ A.T + SQ @ SQ.T"""
     if S2 is not None:
         stacked_up = jnp.vstack((S1.T, S2.T))
@@ -25,22 +16,29 @@ def propagate_cholesky_factor(S1, S2=None):
     return tril_to_positive_tril(lower_sqrtm)
 
 
+# Batch the propagation function with jax.vmap magic.
+propagate_batched_cholesky_factor = jax.vmap(
+    propagate_cholesky_factor, in_axes=(0, 0), out_axes=0
+)
+
+
 def tril_to_positive_tril(tril_mat):
     r"""Orthogonally transform a lower-triangular matrix into a lower-triangular matrix with positive diagonal.
     In other words, make it a valid lower Cholesky factor.
     The name of the function is based on `np.tril`.
     """
     diag = jnp.diag(tril_mat)
-    d = jnp.sign(diag)
 
-    # Like numpy, JAX assigns sign 0 to 0.0, which eliminate entire rows in the operation below.
-    d = jax.ops.index_add(d, d == 0, 1.0)
+    # Like numpy, JAX assigns sign 0 to 0.0, which would eliminate entire rows
+    # in the operation below. By adding a machine precision epsilon, there is no 0.
+    d = jnp.sign(diag + jnp.finfo(diag[0].dtype).eps)
 
     # Fast(er) multiplication with a diagonal matrix from the right via broadcasting.
     with_pos_diag = tril_mat * d[None, :]
     return with_pos_diag
 
 
+@jax.jit
 def update_sqrt(transition_matrix, cov_cholesky):
     """Compute the update step with noise-free linear observation models in square-root form.
 
@@ -80,6 +78,12 @@ def update_sqrt(transition_matrix, cov_cholesky):
     return tril_to_positive_tril(R3.T), gain, tril_to_positive_tril(R1.T)
 
 
+# Todo: replace with a jax.vmap somehow
+# The difficulty are the multiple outputs.
+# Without the innov chol, cov_chol and kgain could be stacked together, vmapped, and extracted cleverly
+# With all three however, this does not work, because there is no consistent way of
+# stacking shapes (d, d), (d, l), (l, l) into a single array?!
+# Therefore, do this with a loop for now and let jax.jit do the magic if speed was desired.
 def batched_update_sqrt(batched_transition_matrix, batched_cov_cholesky):
     cov_chol, kgain, innov_chol = [], [], []
     for (A, SC) in zip(batched_transition_matrix, batched_cov_cholesky):
