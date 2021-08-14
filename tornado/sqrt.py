@@ -33,6 +33,20 @@ def tril_to_positive_tril(tril_mat):
 
 
 def update_sqrt(transition_matrix, cov_cholesky):
+    """Compute the update step with noise-free linear observation models in square-root form.
+
+    Parameters
+    ----------
+    transition_matrix
+        Transition matrix. Shape (d_out, d_in)
+    cov_cholesky
+        Cholesky factor of the current (usually, the predicted) covariance. Shape (d_in, d_in)
+
+    Returns
+    -------
+    jnp.array
+        Cholesky factor of the posterior covariance
+    """
     output_dim, input_dim = transition_matrix.shape
     zeros_bottomleft = jnp.zeros((output_dim, input_dim))
     zeros_bottomright = jnp.zeros((input_dim, input_dim))
@@ -50,7 +64,7 @@ def update_sqrt(transition_matrix, cov_cholesky):
     R1 = big_triu[:output_dim, :output_dim]
     R2 = big_triu[:output_dim, output_dim:]
     gain = jax.scipy.linalg.solve_triangular(R1, R2, lower=False).T
-    return tril_to_positive_tril(R3.T), gain
+    return tril_to_positive_tril(R3.T), gain, tril_to_positive_tril(R1.T)
 
 
 """
