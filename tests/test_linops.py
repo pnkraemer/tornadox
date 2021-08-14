@@ -11,5 +11,11 @@ def test_block_diagonal():
     B = jnp.arange(10, 19).reshape((3, 3))
     dense = jax.scipy.linalg.block_diag(A, B)
 
+    # todense() works correctly
     sparse = tornado.linops.BlockDiagonal(A, B)
     assert jnp.allclose(sparse.todense(), dense)
+
+    # matmul() works correctly with other linops
+    new = sparse @ sparse
+    expected = jax.scipy.linalg.block_diag(A @ A, B @ B)
+    assert jnp.allclose(new.todense(), expected)
