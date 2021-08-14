@@ -1,6 +1,5 @@
 """EK1 solvers."""
 
-
 import dataclasses
 
 import jax.numpy as jnp
@@ -28,8 +27,8 @@ class ReferenceEK1(odesolver.ODESolver):
         self.iwp = iwp.IntegratedWienerTransition(
             num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
         )
-        self.P0 = self.iwp.make_projection_matrix(0)
-        self.P1 = self.iwp.make_projection_matrix(1)
+        self.P0 = self.iwp.projection_matrix(0)
+        self.P1 = self.iwp.projection_matrix(1)
 
         # Initialization strategy
         self.tm = taylor_mode.TaylorModeInitialization()
@@ -79,7 +78,24 @@ class ReferenceEK1(odesolver.ODESolver):
         )
 
 
-class DiagonalEK1(ReferenceEK1):
+class DiagonalEK1(odesolver.ODESolver):
+    def __init__(self, num_derivatives, ode_dimension, steprule):
+        super().__init__(steprule=steprule, solver_order=num_derivatives)
+
+        # Prior integrated Wiener process
+        self.iwp = iwp.IntegratedWienerTransition(
+            num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
+        )
+        self.P0_1d = self.iwp.projection_matrix_1d(0)
+        self.P1_1d = self.iwp.projection_matrix_1d(1)
+
+        d = self.iwp.wiener_process_dimension
+        self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d] * d))
+        self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d] * d))
+
+        # Initialization strategy
+        self.tm = taylor_mode.TaylorModeInitialization()
+
     def initialize(self, ivp):
         initial_rv = self.tm(ivp=ivp, prior=self.iwp)
         mean = initial_rv.mean
@@ -89,6 +105,89 @@ class DiagonalEK1(ReferenceEK1):
         return ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
+            y=new_rv,
+            error_estimate=None,
+            reference_state=None,
+        )
+
+    def attempt_step(self, state, dt):
+        # Extract system matrices
+        d = self.iwp.wiener_process_dimension
+        n = self.iwp.num_derivatives + 1
+        P, Pinv = self.iwp.nordsieck_preconditioner_1d(dt)
+        m, SC = state.y.mean, state.y.cov_cholesky
+        A, SQ = self.iwp.preconditioned_discretize_1d
+        A = P @ A @ Pinv
+        SQ = P @ SQ
+
+        A = linops.BlockDiagonal(jnp.stack([A] * d))
+        SQ = linops.BlockDiagonal(jnp.stack([SQ] * d))
+        assert isinstance(A, linops.BlockDiagonal)
+        assert isinstance(SQ, linops.BlockDiagonal)
+        assert A.array_stack.shape == (d, n, n)
+        assert SQ.array_stack.shape == (d, n, n)
+
+        # Prediction
+        m_pred = A @ m
+        SC_pred = linops.BlockDiagonal(
+            jnp.stack(
+                [
+                    sqrt.propagate_cholesky_factor(a @ sc, sq)
+                    for (a, sc, sq) in zip(
+                        A.array_stack, SC.array_stack, SQ.array_stack
+                    )
+                ]
+            )
+        )
+        assert isinstance(SC_pred, linops.BlockDiagonal)
+        assert SC_pred.array_stack.shape == (d, n, n)
+
+        # Evaluate ODE
+        t = state.t + dt
+        m_at = self.P0 @ m_pred
+        f = state.ivp.f(t, m_at)
+        J = state.ivp.df(t, m_at)
+        diag_J = linops.BlockDiagonal(jnp.diag(J).reshape((-1, 1, 1)))
+        assert isinstance(diag_J, linops.BlockDiagonal)
+        assert diag_J.array_stack.shape == (d, 1, 1)
+
+        # Create linearisation
+        H = self.P1 - diag_J @ self.P0
+        b = J @ m_at - f
+        assert isinstance(H, linops.BlockDiagonal)
+        assert H.array_stack.shape == (d, 1, n)
+
+        # Update
+        cov_cholesky = linops.BlockDiagonal(
+            jnp.stack(
+                [
+                    sqrt.update_sqrt(h, sc_pred)[0]
+                    for (h, sc_pred) in zip(H.array_stack, SC_pred.array_stack)
+                ]
+            )
+        )
+        assert isinstance(cov_cholesky, linops.BlockDiagonal)
+        assert cov_cholesky.array_stack.shape == (d, n, n)
+
+        Kgain = linops.BlockDiagonal(
+            jnp.stack(
+                [
+                    sqrt.update_sqrt(h, sc_pred)[1]
+                    for (h, sc_pred) in zip(H.array_stack, SC_pred.array_stack)
+                ]
+            )
+        )
+        assert isinstance(Kgain, linops.BlockDiagonal)
+        assert Kgain.array_stack.shape == (d, n, 1)
+
+        z = H @ m_pred + b
+        new_mean = m_pred - Kgain @ z
+        new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
+
+        # Return new state
+        return ODEFilterState(
+            ivp=state.ivp,
+            t=t,
             y=new_rv,
             error_estimate=None,
             reference_state=None,
