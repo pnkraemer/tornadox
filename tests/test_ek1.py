@@ -6,7 +6,7 @@ from scipy.integrate import solve_ivp
 import tornado
 
 
-def test_reference_ek1():
+def test_reference_ek1_constant_steps():
     """Assert the reference solver returns a similar solution to SciPy.
 
     As long as this test passes, we can test the more efficient solvers against this one here.
