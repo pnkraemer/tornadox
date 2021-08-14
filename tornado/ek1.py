@@ -120,18 +120,33 @@ class DiagonalEK1(odesolver.ODESolver):
         # Extract system matrices
         d = self.iwp.wiener_process_dimension
         n = self.iwp.num_derivatives + 1
-        P, Pinv = self.iwp.nordsieck_preconditioner_1d(dt)
-        m, SC = state.y.mean, state.y.cov_cholesky
-        A, SQ = self.iwp.preconditioned_discretize_1d
-        A = P @ A @ Pinv
-        SQ = P @ SQ
 
+        P_1d, Pinv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
+        P = linops.BlockDiagonal(jnp.stack([P_1d] * d))
+        Pinv = linops.BlockDiagonal(jnp.stack([Pinv_1d] * d))
+        assert isinstance(P, linops.BlockDiagonal)
+        assert isinstance(Pinv, linops.BlockDiagonal)
+        assert P.array_stack.shape == (d, n, n)
+        assert Pinv.array_stack.shape == (d, n, n)
+
+        P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d @ P_1d] * d))
+        P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d @ P_1d] * d))
+        assert isinstance(P0, linops.BlockDiagonal)
+        assert isinstance(P1, linops.BlockDiagonal)
+        assert P0.array_stack.shape == (d, 1, n)
+        assert P1.array_stack.shape == (d, 1, n)
+
+        A, SQ = self.iwp.preconditioned_discretize_1d
         A = linops.BlockDiagonal(jnp.stack([A] * d))
         SQ = linops.BlockDiagonal(jnp.stack([SQ] * d))
         assert isinstance(A, linops.BlockDiagonal)
         assert isinstance(SQ, linops.BlockDiagonal)
         assert A.array_stack.shape == (d, n, n)
         assert SQ.array_stack.shape == (d, n, n)
+
+        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_cholesky
+        assert isinstance(SC, linops.BlockDiagonal)
+        assert SC.array_stack.shape == (d, n, n)
 
         # Prediction
         m_pred = A @ m
@@ -150,7 +165,7 @@ class DiagonalEK1(odesolver.ODESolver):
 
         # Evaluate ODE
         t = state.t + dt
-        m_at = self.P0 @ m_pred
+        m_at = P0 @ m_pred
         f = state.ivp.f(t, m_at)
         J = state.ivp.df(t, m_at)
         diag_J = linops.BlockDiagonal(jnp.diag(J).reshape((-1, 1, 1)))
@@ -158,7 +173,7 @@ class DiagonalEK1(odesolver.ODESolver):
         assert diag_J.array_stack.shape == (d, 1, 1)
 
         # Create linearisation
-        H = self.P1 - diag_J @ self.P0
+        H = P1 - diag_J @ P0
         b = J @ m_at - f
         assert isinstance(H, linops.BlockDiagonal)
         assert H.array_stack.shape == (d, 1, n)
@@ -188,9 +203,14 @@ class DiagonalEK1(odesolver.ODESolver):
 
         z = H @ m_pred + b
         new_mean = m_pred - Kgain @ z
-        new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
+
+        new_mean = P @ new_mean
+        cov_cholesky = P @ cov_cholesky
+        assert isinstance(cov_cholesky, linops.BlockDiagonal)
+        assert cov_cholesky.array_stack.shape == (d, n, n)
 
         # Return new state
+        new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
         return ODEFilterState(
             ivp=state.ivp,
             t=t,
