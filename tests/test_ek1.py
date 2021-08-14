@@ -69,9 +69,8 @@ def test_diagonal_ek1_constant_steps():
     assert jnp.allclose(init_diag.t, init_ref.t)
     assert jnp.allclose(step_diag.y.mean, step_ref.y.mean)
     assert isinstance(step_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
-
-    print(step_diag.y.cov_cholesky.todense())
-    print()
-    print(step_ref.y.cov_cholesky)
-    print(step_diag.y.cov_cholesky.array_stack)
-    assert jnp.allclose(step_diag.y.cov_cholesky.todense(), step_ref.y.cov_cholesky)
+    assert jnp.allclose(
+        (step_diag.y.cov_cholesky @ step_diag.y.cov_cholesky.T).todense(),
+        step_ref.y.cov_cholesky @ step_ref.y.cov_cholesky.T,
+    )
+    assert jnp.all(jnp.diag(step_diag.y.cov_cholesky.todense()) >= 0.0)

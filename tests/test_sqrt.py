@@ -9,7 +9,7 @@ import tornado
 @pytest.fixture
 def iwp():
     return tornado.iwp.IntegratedWienerTransition(
-        wiener_process_dimension=1, num_derivatives=2
+        wiener_process_dimension=1, num_derivatives=1
     )
 
 
@@ -44,14 +44,14 @@ def test_propagate_cholesky_factor(iwp):
 
 def test_propagate_batched_cholesky_factors(iwp):
     transition_matrix, process_noise_cholesky = iwp.preconditioned_discretize_1d
-    A = tornado.linops.BlockDiagonal(jnp.stack([transition_matrix] * 5))
+    A = tornado.linops.BlockDiagonal(jnp.stack([transition_matrix] * 3))
 
     # dummy cholesky factor
     some_chol1 = tornado.linops.BlockDiagonal(
-        jnp.stack([process_noise_cholesky.copy()] * 5)
+        jnp.stack([process_noise_cholesky.copy()] * 3)
     )
     some_chol2 = tornado.linops.BlockDiagonal(
-        jnp.stack([process_noise_cholesky.copy()] * 5)
+        jnp.stack([process_noise_cholesky.copy()] * 3)
     )
 
     # First test: Non-optional S2
@@ -128,9 +128,9 @@ def test_batched_update_sqrt(iwp):
     H, process_noise_cholesky = iwp.preconditioned_discretize_1d
     d = process_noise_cholesky.shape[0]
     for transition_matrix in [H, H[:1]]:
-        A = tornado.linops.BlockDiagonal(jnp.stack([transition_matrix] * 5))
+        A = tornado.linops.BlockDiagonal(jnp.stack([transition_matrix] * 3))
         some_chol = tornado.linops.BlockDiagonal(
-            jnp.stack([process_noise_cholesky.copy()] * 5)
+            jnp.stack([process_noise_cholesky.copy()] * 3)
         )
 
         chol, K, S = tornado.sqrt.batched_update_sqrt(
@@ -140,9 +140,9 @@ def test_batched_update_sqrt(iwp):
         assert isinstance(chol, jnp.ndarray)
         assert isinstance(K, jnp.ndarray)
         assert isinstance(S, jnp.ndarray)
-        assert chol.shape == (5, d, d)
-        assert K.shape == (5, d, transition_matrix.shape[0])
-        assert S.shape == (5, transition_matrix.shape[0], transition_matrix.shape[0])
+        assert chol.shape == (3, d, d)
+        assert K.shape == (3, d, transition_matrix.shape[0])
+        assert S.shape == (3, transition_matrix.shape[0], transition_matrix.shape[0])
 
         chol_as_bd = tornado.linops.BlockDiagonal(chol)
         K_as_bd = tornado.linops.BlockDiagonal(K)
@@ -150,6 +150,16 @@ def test_batched_update_sqrt(iwp):
         ref_chol, ref_K, ref_S = tornado.sqrt.update_sqrt(
             A.todense(), some_chol.todense()
         )
-        assert jnp.allclose(chol_as_bd.todense(), ref_chol)
+
         assert jnp.allclose(K_as_bd.todense(), ref_K)
-        assert jnp.allclose(S_as_bd.todense(), ref_S)
+
+        # The Cholesky-factor of positive semi-definite matrices is only unique
+        # up to column operations (e.g. column reordering), i.e. there could be slightly
+        # different Cholesky factors in batched and non-batched versions.
+        # Therefore, we only check that the results are valid Cholesky factors themselves
+        assert jnp.allclose((S_as_bd @ S_as_bd.T).todense(), ref_S @ ref_S.T)
+        assert jnp.all(jnp.diag(S_as_bd.todense()) >= 0.0)
+        assert jnp.allclose(
+            (chol_as_bd @ chol_as_bd.T).todense(), ref_chol @ ref_chol.T
+        )
+        assert jnp.all(jnp.diag(chol_as_bd.todense()) >= 0.0)
