@@ -153,16 +153,10 @@ class DiagonalEK1(odesolver.ODESolver):
 
         # Make prediction
         m_pred = A @ m
-        SC_pred = linops.BlockDiagonal(
-            jnp.stack(
-                [
-                    sqrt.propagate_cholesky_factor(a @ sc, sq)
-                    for (a, sc, sq) in zip(
-                        A.array_stack, SC.array_stack, SQ.array_stack
-                    )
-                ]
-            )
+        batched_sc_pred = sqrt.propagate_batched_cholesky_factor(
+            (A @ SC).array_stack, SQ.array_stack
         )
+        SC_pred = linops.BlockDiagonal(batched_sc_pred)
         assert isinstance(SC_pred, linops.BlockDiagonal)
         assert SC_pred.array_stack.shape == (d, n, n)
 

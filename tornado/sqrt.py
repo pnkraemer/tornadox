@@ -5,6 +5,15 @@ import jax.numpy as jnp
 import jax.scipy.linalg
 
 
+def propagate_batched_cholesky_factor(batched_S1, batched_S2=None):
+    """Propagate Cholesky factors for batches of matrix-square-roots."""
+    if batched_S2 is None:
+        return jnp.stack([propagate_cholesky_factor(s1) for s1 in batched_S1])
+    return jnp.stack(
+        [propagate_cholesky_factor(s1, s2) for s1, s2 in zip(batched_S1, batched_S2)]
+    )
+
+
 def propagate_cholesky_factor(S1, S2=None):
     """Compute Cholesky factor of A @ SC @ SC.T @ A.T + SQ @ SQ.T"""
     if S2 is not None:
@@ -69,11 +78,3 @@ def update_sqrt(transition_matrix, cov_cholesky):
     R2 = big_triu[:output_dim, output_dim:]
     gain = jax.scipy.linalg.solve_triangular(R1, R2, lower=False).T
     return tril_to_positive_tril(R3.T), gain, tril_to_positive_tril(R1.T)
-
-
-def propagate_batched_cholesky_factor(batched_S1, batched_S2=None):
-    if batched_S2 is None:
-        return jnp.stack([propagate_cholesky_factor(s1) for s1 in batched_S1])
-    return jnp.stack(
-        [propagate_cholesky_factor(s1, s2) for s1, s2 in zip(batched_S1, batched_S2)]
-    )

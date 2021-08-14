@@ -113,13 +113,3 @@ def test_propagate_batched_cholesky_factors(iwp):
     assert jnp.allclose(jnp.linalg.cholesky(cov), chol)
     for c in chol:
         assert jnp.all(jnp.diag(c) > 0)
-
-    #
-    # # Second test: Optional S2
-    # chol = tornado.sqrt.propagate_cholesky_factor(S1=(transition_matrix @ some_chol2))
-    # cov = transition_matrix @ some_chol2 @ some_chol2.T @ transition_matrix.T
-    #
-    # # Relax tolerance because ill-conditioned...
-    # assert jnp.allclose(chol @ chol.T, cov)
-    # assert jnp.allclose(jnp.linalg.cholesky(cov), chol, rtol=1e-4, atol=1e-4)
-    # assert jnp.all(jnp.diag(chol) > 0)
