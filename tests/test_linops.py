@@ -12,10 +12,19 @@ def test_block_diagonal():
     dense = jax.scipy.linalg.block_diag(A, B)
 
     # todense() works correctly
-    sparse = tornado.linops.BlockDiagonal(A, B)
+    sparse = tornado.linops.BlockDiagonal.from_arrays(A, B)
     assert jnp.allclose(sparse.todense(), dense)
 
     # matmul() works correctly with other linops
-    new = sparse @ sparse
     expected = jax.scipy.linalg.block_diag(A @ A, B @ B)
+    new = sparse @ sparse
+    assert isinstance(new, tornado.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
+
+    # matvec() works correctly with jax.numpy.array
+    arr = jnp.arange(0, dense.shape[0])
+    new = sparse @ arr
+    expected = dense @ arr
+    assert isinstance(new, jnp.ndarray)
+    assert new.shape == arr.shape
+    assert jnp.allclose(new, expected)
