@@ -8,8 +8,15 @@ import jax.numpy as jnp
 class BlockDiagonal:
     """Block-diagonal matrices where the blocks have all equal shape."""
     def __init__(self, array_stack):
+        self._array_stack = array_stack
 
-        self.array_stack = array_stack
+    @property
+    def array_stack(self):
+        return self._array_stack
+
+    @property
+    def num_blocks(self):
+        return self._array_stack.shape[0]
 
     @classmethod
     def from_arrays(cls, *arrays):
@@ -27,10 +34,8 @@ class BlockDiagonal:
         assert isinstance(other, jnp.ndarray)
         assert other.ndim == 1
 
-        num_elements = self.array_stack.shape[0]
-        reshaped = other.reshape((num_elements, -1))
-        multiplied = jnp.einsum("ijk,ik->ij", self.array_stack, reshaped)
-
-        return multiplied.reshape((-1,))
+        reshaped_array = other.reshape((self.num_blocks, -1))
+        block_matmul = jnp.einsum("ijk,ik->ij", self.array_stack, reshaped_array)
+        return block_matmul.reshape((-1,))
 
 
