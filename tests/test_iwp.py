@@ -63,7 +63,7 @@ def test_preconditioned_system_matrices(dt, iwp):
 
 
 def test_projection_matrices(iwp):
-    P = iwp.make_projection_matrix(0)
+    P = iwp.projection_matrix(0)
     assert isinstance(P, jnp.ndarray)
     d, q = iwp.wiener_process_dimension, iwp.num_derivatives
     assert P.shape == (d, q + 1)
