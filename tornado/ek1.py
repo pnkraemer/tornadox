@@ -28,8 +28,8 @@ class ReferenceEK1(odesolver.ODESolver):
         self.iwp = iwp.IntegratedWienerTransition(
             num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
         )
-        self.P0 = self.iwp.make_projection_matrix(0)
-        self.P1 = self.iwp.make_projection_matrix(1)
+        self.P0 = self.iwp.projection_matrix(0)
+        self.P1 = self.iwp.projection_matrix(1)
 
         # Initialization strategy
         self.tm = taylor_mode.TaylorModeInitialization()
