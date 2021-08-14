@@ -81,3 +81,34 @@ def test_update_sqrt(iwp):
         assert jnp.allclose(innov_chol @ innov_chol.T, S)
         assert jnp.allclose(innov_chol, jnp.tril(innov_chol))
         assert jnp.all(jnp.diag(innov_chol) >= 0)
+
+
+def test_propagate_batched_cholesky_factors(iwp):
+    transition_matrix, process_noise_cholesky = iwp.preconditioned_discretize_1d
+
+    # dummy cholesky factor
+    some_chol1 = jnp.stack([process_noise_cholesky.copy()] * 5)
+    some_chol2 = jnp.stack([process_noise_cholesky.copy()] * 5)
+
+    # First test: Non-optional S2
+    chol = tornado.sqrt.propagate_batched_cholesky_factor(
+        batched_S1=some_chol1, batched_S2=some_chol2
+    )
+    some_chol1_T = jnp.transpose(some_chol1, axes=(0, 2, 1))
+    some_chol2_T = jnp.transpose(some_chol2, axes=(0, 2, 1))
+    cov = some_chol1 @ some_chol1_T + some_chol2 @ some_chol2_T
+
+    assert jnp.allclose(chol @ jnp.transpose(chol, axes=(0, 2, 1)), cov)
+    assert jnp.allclose(jnp.linalg.cholesky(cov), chol)
+    for c in chol:
+        assert jnp.all(jnp.diag(c) > 0)
+
+    #
+    # # Second test: Optional S2
+    # chol = tornado.sqrt.propagate_cholesky_factor(S1=(transition_matrix @ some_chol2))
+    # cov = transition_matrix @ some_chol2 @ some_chol2.T @ transition_matrix.T
+    #
+    # # Relax tolerance because ill-conditioned...
+    # assert jnp.allclose(chol @ chol.T, cov)
+    # assert jnp.allclose(jnp.linalg.cholesky(cov), chol, rtol=1e-4, atol=1e-4)
+    # assert jnp.all(jnp.diag(chol) > 0)
