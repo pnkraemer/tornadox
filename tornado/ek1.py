@@ -45,8 +45,11 @@ class ReferenceEK1(odesolver.ODESolver):
 
     def attempt_step(self, state, dt):
         # Extract system matrices
-        m, SC = state.y.mean, state.y.cov_cholesky
-        A, SQ = self.iwp.non_preconditioned_discretize(dt)
+        P, Pinv = self.iwp.nordsieck_preconditioner(dt=dt)
+        P0 = self.P0 @ P
+        P1 = self.P1 @ P
+        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_cholesky
+        A, SQ = self.iwp.preconditioned_discretize
 
         # Prediction
         m_pred = A @ m
@@ -54,18 +57,21 @@ class ReferenceEK1(odesolver.ODESolver):
 
         # Evaluate ODE
         t = state.t + dt
-        m_at = self.P0 @ m_pred
+        m_at = P0 @ m_pred
         f = state.ivp.f(t, m_at)
         J = state.ivp.df(t, m_at)
 
         # Create linearisation
-        H = self.P1 - J @ self.P0
+        H = P1 - J @ P0
         b = J @ m_at - f
 
         # Update
         cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
         z = H @ m_pred + b
         new_mean = m_pred - Kgain @ z
+
+        cov_cholesky = P @ cov_cholesky
+        new_mean = P @ new_mean
         new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
 
         # Return new state
