@@ -18,7 +18,7 @@ class ODEFilterState:
     reference_state: jnp.ndarray
 
 
-class EK1(odesolver.ODESolver):
+class ReferenceEK1(odesolver.ODESolver):
     def __init__(self, num_derivatives, ode_dimension, steprule):
         super().__init__(steprule=steprule, solver_order=num_derivatives)
 
