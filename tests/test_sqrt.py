@@ -103,6 +103,17 @@ def test_propagate_batched_cholesky_factors(iwp):
     for c in chol:
         assert jnp.all(jnp.diag(c) > 0)
 
+    # Second test: Optional S2
+    some_chol = some_chol1 @ some_chol2
+    chol = tornado.sqrt.propagate_batched_cholesky_factor(batched_S1=some_chol)
+    some_chol_T = jnp.transpose(some_chol, axes=(0, 2, 1))
+    cov = some_chol @ some_chol_T
+
+    assert jnp.allclose(chol @ jnp.transpose(chol, axes=(0, 2, 1)), cov)
+    assert jnp.allclose(jnp.linalg.cholesky(cov), chol)
+    for c in chol:
+        assert jnp.all(jnp.diag(c) > 0)
+
     #
     # # Second test: Optional S2
     # chol = tornado.sqrt.propagate_cholesky_factor(S1=(transition_matrix @ some_chol2))
