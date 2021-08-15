@@ -176,22 +176,41 @@ class DiagonalEK1(odesolver.ODESolver):
         assert H.array_stack.shape == (d, 1, n)
 
         # Update covariance and Kalman gain
-        cov_cholesky_stack, Kgain_stack, innov_chol_stack = sqrt.batched_update_sqrt(
-            H.array_stack, SC_pred.array_stack
-        )
-        cov_cholesky = linops.BlockDiagonal(cov_cholesky_stack)
-        Kgain = linops.BlockDiagonal(Kgain_stack)
-        innov_chol = linops.BlockDiagonal(innov_chol_stack)
-        assert isinstance(cov_cholesky, linops.BlockDiagonal)
-        assert cov_cholesky.array_stack.shape == (d, n, n)
-        assert isinstance(Kgain, linops.BlockDiagonal)
-        assert Kgain.array_stack.shape == (d, n, 1)
+        # This might be done more efficiently without the update_sqrt()
+        # function, since H has the block-diagonal structure, and thus
+        # S has block-diagonal structure, and is a valid Cholesky factor
+        # without QR decomposition.
+        S_sqrtm = H @ SC_pred
+        assert isinstance(S_sqrtm, linops.BlockDiagonal)
+        assert S_sqrtm.array_stack.shape == (d, 1, n)
+        S = S_sqrtm @ S_sqrtm.T
+        assert isinstance(S, linops.BlockDiagonal)
+        assert S.array_stack.shape == (d, 1, 1)
+        innov_chol = linops.BlockDiagonal(jnp.sqrt(S.array_stack))
         assert isinstance(innov_chol, linops.BlockDiagonal)
         assert innov_chol.array_stack.shape == (d, 1, 1)
 
+        # S is diagonal!
+        # We can compute the correction really cheaply (like in the EK0, actually)
+        crosscov = SC_pred @ S_sqrtm.T
+        kalman_gain = linops.BlockDiagonal(crosscov.array_stack / S.array_stack)
+        assert isinstance(kalman_gain, linops.BlockDiagonal)
+        assert kalman_gain.array_stack.shape == (d, n, 1)
+
+        # Update covariance
+        I = linops.BlockDiagonal(jnp.stack([jnp.eye(n, n)] * d))
+        cov_sqrtm = (I - kalman_gain @ H) @ SC_pred
+        # The following step is only required if we want a Cholesky factor, actually.
+        # If matrix-square-roots suffice, skip this (which will save a QR decomposition).
+        # For now, we do it though because it seems a bit early for this kind of optimisation.
+        cov_cholesky_stack = sqrt.batched_sqrtm_to_cholesky(cov_sqrtm.T.array_stack)
+        cov_cholesky = linops.BlockDiagonal(cov_cholesky_stack)
+        assert isinstance(cov_cholesky, linops.BlockDiagonal)
+        assert cov_cholesky.array_stack.shape == (d, n, n)
+
         # Update mean
         z = H @ m_pred + b
-        new_mean = m_pred - Kgain @ z
+        new_mean = m_pred - kalman_gain @ z
         assert isinstance(z, jnp.ndarray)
         assert z.shape == (d,)
         assert isinstance(new_mean, jnp.ndarray)

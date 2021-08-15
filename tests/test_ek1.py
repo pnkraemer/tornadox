@@ -108,7 +108,7 @@ def test_diagonal_ek1_adaptive_steps():
     assert step_diag.y.mean.shape == (d * (n + 1),)
     assert step_diag.reference_state.shape == (d,)
     assert step_diag.error_estimate.shape == (d,)
-    assert jnp.all(step_diag.reference_state > 0)
+    assert jnp.all(step_diag.reference_state >= 0)
 
 
 def test_diagonal_ek1_adaptive_steps_full_solve():
