@@ -74,3 +74,37 @@ def test_diagonal_ek1_constant_steps():
         step_ref.y.cov_cholesky @ step_ref.y.cov_cholesky.T,
     )
     assert jnp.all(jnp.diag(step_diag.y.cov_cholesky.todense()) >= 0.0)
+
+
+def test_diagonal_ek1_adaptive_steps():
+    # only "constant steps", because there is no error estimation yet.
+    old_ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
+
+    # Diagonal Jacobian
+    new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
+    ivp = tornado.ivp.InitialValueProblem(
+        f=old_ivp.f,
+        df=new_df,
+        t0=old_ivp.t0,
+        tmax=old_ivp.tmax,
+        y0=old_ivp.y0,
+    )
+
+    steps = tornado.step.ConstantSteps(0.1)
+    diagonal_ek1 = tornado.ek1.DiagonalEK1(
+        num_derivatives=4, ode_dimension=2, steprule=steps
+    )
+    init_diag = diagonal_ek1.initialize(ivp=ivp)
+    assert isinstance(init_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
+
+    # Attempt step works as expected
+    d = diagonal_ek1.iwp.wiener_process_dimension
+    n = diagonal_ek1.iwp.num_derivatives
+    step_diag = diagonal_ek1.attempt_step(state=init_diag, dt=0.12345)
+    assert isinstance(step_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
+    assert isinstance(step_diag.y.mean, jnp.ndarray)
+    assert isinstance(step_diag.reference_state, jnp.ndarray)
+    assert isinstance(step_diag.error_estimate, jnp.ndarray)
+    assert step_diag.y.mean.shape == (d * (n + 1),)
+    assert step_diag.y.reference_state.shape == (d,)
+    assert step_diag.y.error_estimate.shape == (d,)
