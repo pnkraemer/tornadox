@@ -8,6 +8,7 @@ import tornado
 
 @pytest.fixture
 def iwp():
+    """Steal system matrices from an IWP transition."""
     return tornado.iwp.IntegratedWienerTransition(
         wiener_process_dimension=1, num_derivatives=1
     )
@@ -15,6 +16,7 @@ def iwp():
 
 @pytest.fixture
 def H_and_SQ(iwp, measurement_style):
+    """Measurement model via IWP system matrices."""
     H, SQ = iwp.preconditioned_discretize_1d
 
     if measurement_style == "full":
@@ -24,16 +26,19 @@ def H_and_SQ(iwp, measurement_style):
 
 @pytest.fixture
 def SC(iwp):
+    """Initial covariance via IWP process noise."""
     return iwp.preconditioned_discretize_1d[1]
 
 
 @pytest.fixture
 def batch_size():
-    return 3
+    """Batch size > 1. Test batched transitions."""
+    return 5
 
 
 @pytest.mark.parametrize("measurement_style", ["full", "partial"])
 def test_propagate_cholesky_factor(H_and_SQ, SC, measurement_style):
+    """Assert that sqrt propagation coincides with non-sqrt propagation."""
     H, SQ = H_and_SQ
 
     # First test: Non-optional S2
@@ -48,6 +53,7 @@ def test_propagate_cholesky_factor(H_and_SQ, SC, measurement_style):
 def test_batched_propagate_cholesky_factors(
     H_and_SQ, SC, measurement_style, batch_size
 ):
+    """Batched propagation coincides with non-batched propagation."""
 
     H, SQ = H_and_SQ
     H = tornado.linops.BlockDiagonal(jnp.stack([H] * batch_size))
@@ -64,6 +70,7 @@ def test_batched_propagate_cholesky_factors(
 
 @pytest.mark.parametrize("measurement_style", ["full", "partial"])
 def test_batched_sqrtm_to_cholesky(H_and_SQ, SC, measurement_style, batch_size):
+    """Sqrtm-to-cholesky is the same for batched and non-batched."""
     H, SQ = H_and_SQ
     d = H.shape[0]
     H = tornado.linops.BlockDiagonal(jnp.stack([H] * batch_size))
@@ -79,7 +86,7 @@ def test_batched_sqrtm_to_cholesky(H_and_SQ, SC, measurement_style, batch_size):
 
 @pytest.mark.parametrize("measurement_style", ["full", "partial"])
 def test_update_sqrt(H_and_SQ, SC, measurement_style):
-    """Test the square-root updates."""
+    """Sqrt-update coincides with non-square-root update."""
 
     H, _ = H_and_SQ
 
@@ -112,6 +119,7 @@ def test_update_sqrt(H_and_SQ, SC, measurement_style):
 
 @pytest.mark.parametrize("measurement_style", ["full", "partial"])
 def test_batched_update_sqrt(H_and_SQ, SC, measurement_style, batch_size):
+    """Batched updated coincides with non-batched update."""
     H, _ = H_and_SQ
     d_out, d_in = H.shape
     H = tornado.linops.BlockDiagonal(jnp.stack([H] * batch_size))
@@ -147,7 +155,7 @@ def test_batched_update_sqrt(H_and_SQ, SC, measurement_style, batch_size):
 
 
 def test_tril_to_positive_tril():
-    """Assert that the weird sign(0)=0 behaviour is made up for."""
+    """Assert that the weird sign(0)=0 behaviour is accounted for!"""
     matrix = jnp.array(
         [
             [1.0, 0.0, 0.0],
