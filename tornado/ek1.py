@@ -4,7 +4,7 @@ import dataclasses
 
 import jax.numpy as jnp
 
-from tornado import ivp, iwp, linops, odesolver, rv, sqrt, taylor_mode
+from tornado import ivp, iwp, linops, odesolver, rv, sqrt, step, taylor_mode
 
 
 @dataclasses.dataclass
@@ -211,30 +211,32 @@ class DiagonalEK1(odesolver.ODESolver):
         cov_sqrtm = P @ cov_sqrtm
         assert isinstance(cov_sqrtm, linops.BlockDiagonal)
         assert cov_sqrtm.array_stack.shape == (d, n, n)
+        if isinstance(self.steprule, step.AdaptiveSteps):
+            # Calibrate
+            innov_stds = innov_chol.array_stack[:, 0, 0]  # (was shape (d,1,1))
+            s = z / innov_stds
+            sigma_squared_increment = s.T @ s / d
+            assert isinstance(sigma_squared_increment, jnp.ndarray)
+            assert sigma_squared_increment.shape == ()
 
-        # Calibrate
-        innov_stds = innov_chol.array_stack[:, 0, 0]  # (was shape (d,1,1))
-        s = z / innov_stds
-        sigma_squared_increment = s.T @ s / d
-        assert isinstance(sigma_squared_increment, jnp.ndarray)
-        assert sigma_squared_increment.shape == ()
+            # Get innovation matrix that assumes that the previous step was error-free
+            innov_chol_new = sqrt.batched_sqrtm_to_cholesky((H @ SQ).T.array_stack)
+            assert isinstance(innov_chol_new, jnp.ndarray)
+            assert innov_chol_new.shape == (d, 1, 1), innov_chol_new.shape
 
-        # Get innovation matrix that assumes that the previous step was error-free
-        innov_chol_new = sqrt.batched_sqrtm_to_cholesky((H @ SQ).T.array_stack)
-        assert isinstance(innov_chol_new, jnp.ndarray)
-        assert innov_chol_new.shape == (d, 1, 1), innov_chol_new.shape
-
-        # Error estimate
-        innov_stds_new = innov_chol_new[:, 0, 0]
-        error_estimate = jnp.sqrt(sigma_squared_increment) * innov_stds_new
-        y1 = jnp.abs(self.P0 @ state.y.mean)
-        y2 = jnp.abs(self.P0 @ new_mean)
-        reference_state = jnp.maximum(y1, y2)
-        assert isinstance(error_estimate, jnp.ndarray)
-        assert isinstance(reference_state, jnp.ndarray)
-        assert error_estimate.shape == (d,)
-        assert reference_state.shape == (d,)
-        assert jnp.all(reference_state >= 0.0)
+            # Error estimate
+            innov_stds_new = innov_chol_new[:, 0, 0]
+            error_estimate = jnp.sqrt(sigma_squared_increment) * innov_stds_new
+            y1 = jnp.abs(self.P0 @ state.y.mean)
+            y2 = jnp.abs(self.P0 @ new_mean)
+            reference_state = jnp.maximum(y1, y2)
+            assert isinstance(error_estimate, jnp.ndarray)
+            assert isinstance(reference_state, jnp.ndarray)
+            assert error_estimate.shape == (d,)
+            assert reference_state.shape == (d,)
+            assert jnp.all(reference_state >= 0.0)
+        else:
+            error_estimate, reference_state = None, None
 
         # Return new state
         new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
