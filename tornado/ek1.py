@@ -210,13 +210,14 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(sigma_squared_increment, jnp.ndarray)
         assert sigma_squared_increment.shape == ()
 
-        # Error estimate
+        # Get innovation matrix that assumes that the previous step was error-free
         innov_chol_new = sqrt.propagate_batched_cholesky_factor(
             (H @ SQ).array_stack, S2=None
         )
         assert isinstance(innov_chol_new, linops.BlockDiagonal)
         assert innov_chol_new.array_stack.shape == (d, 1, 1)
 
+        # Error estimate
         innov_stds_new = innov_chol_new.array_stack[:, 0, 0]
         error_estimate = jnp.sqrt(sigma_squared_increment) * innov_stds_new
         y1 = jnp.abs(self.P0 @ state.y.mean)
