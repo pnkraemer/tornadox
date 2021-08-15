@@ -13,21 +13,27 @@ def iwp():
     )
 
 
-def test_propagate_cholesky_factor(iwp):
-    transition_matrix, process_noise_cholesky = iwp.preconditioned_discretize_1d
+@pytest.fixture
+def H_and_SQ(iwp, measurement_style):
+    H, SQ = iwp.preconditioned_discretize_1d
 
-    # dummy cholesky factor
-    some_chol1 = process_noise_cholesky.copy()
-    some_chol2 = process_noise_cholesky.copy()
+    if measurement_style == "full":
+        return H, SQ
+    return H[:1], SQ[:1, :1]
+
+
+@pytest.fixture
+def SC(iwp):
+    return iwp.preconditioned_discretize_1d[1]
+
+
+@pytest.mark.parametrize("measurement_style", ["full", "partial"])
+def test_propagate_cholesky_factor(H_and_SQ, SC, measurement_style):
+    H, SQ = H_and_SQ
 
     # First test: Non-optional S2
-    chol = tornado.sqrt.propagate_cholesky_factor(
-        S1=(transition_matrix @ some_chol1), S2=some_chol2
-    )
-    cov = (
-        transition_matrix @ some_chol1 @ some_chol1.T @ transition_matrix.T
-        + process_noise_cholesky @ process_noise_cholesky.T
-    )
+    chol = tornado.sqrt.propagate_cholesky_factor(S1=(H @ SC), S2=SQ)
+    cov = H @ SC @ SC.T @ H.T + SQ @ SQ.T
     assert jnp.allclose(chol @ chol.T, cov)
     assert jnp.allclose(jnp.linalg.cholesky(cov), chol)
     assert jnp.all(jnp.diag(chol) > 0)
