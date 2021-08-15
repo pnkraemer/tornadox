@@ -76,7 +76,7 @@ def test_diagonal_ek1_constant_steps():
 
 
 def test_diagonal_ek1_adaptive_steps():
-    # only "constant steps", because there is no error estimation yet.
+    """Error estimation is only computed for adaptive steps. This test computes the result of attempt_step()."""
     old_ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
 
     # Diagonal Jacobian
@@ -89,7 +89,7 @@ def test_diagonal_ek1_adaptive_steps():
         y0=old_ivp.y0,
     )
 
-    steps = tornado.step.ConstantSteps(0.1)
+    steps = tornado.step.AdaptiveSteps(0.1, abstol=1e-1, reltol=1e-1)
     diagonal_ek1 = tornado.ek1.DiagonalEK1(
         num_derivatives=4, ode_dimension=2, steprule=steps
     )
