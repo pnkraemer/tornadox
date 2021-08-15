@@ -212,7 +212,7 @@ class DiagonalEK1(odesolver.ODESolver):
 
         # Get innovation matrix that assumes that the previous step was error-free
         innov_chol_new = sqrt.propagate_batched_cholesky_factor(
-            (H @ SQ).array_stack, S2=None
+            (H @ SQ).array_stack, None
         )
         assert isinstance(innov_chol_new, linops.BlockDiagonal)
         assert innov_chol_new.array_stack.shape == (d, 1, 1)

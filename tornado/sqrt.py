@@ -17,7 +17,7 @@ def propagate_cholesky_factor(S1, S2):
 
 
 # Batch the propagation function with jax.vmap magic.
-propagate_batched_cholesky_factor = jax.vmap(
+batched_propagate_cholesky_factor = jax.vmap(
     propagate_cholesky_factor, in_axes=(0, 0), out_axes=0
 )
 

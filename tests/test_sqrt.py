@@ -33,7 +33,7 @@ def test_propagate_cholesky_factor(iwp):
     assert jnp.all(jnp.diag(chol) > 0)
 
 
-def test_propagate_batched_cholesky_factors(iwp):
+def test_batched_propagate_cholesky_factors(iwp):
     transition_matrix, process_noise_cholesky = iwp.preconditioned_discretize_1d
     A = tornado.linops.BlockDiagonal(jnp.stack([transition_matrix] * 3))
 
@@ -46,7 +46,7 @@ def test_propagate_batched_cholesky_factors(iwp):
     )
 
     # First test: Non-optional S2
-    chol = tornado.sqrt.propagate_batched_cholesky_factor(
+    chol = tornado.sqrt.batched_propagate_cholesky_factor(
         (A @ some_chol1).array_stack, some_chol2.array_stack
     )
     chol_as_bd = tornado.linops.BlockDiagonal(chol)
