@@ -211,7 +211,14 @@ class DiagonalEK1(odesolver.ODESolver):
         assert sigma_squared_increment.shape == ()
 
         # Error estimate
-        error_estimate = jnp.sqrt(sigma_squared_increment) * innov_stds
+        innov_chol_new = sqrt.propagate_batched_cholesky_factor(
+            (H @ SQ).array_stack, S2=None
+        )
+        assert isinstance(innov_chol_new, linops.BlockDiagonal)
+        assert innov_chol_new.array_stack.shape == (d, 1, 1)
+
+        innov_stds_new = innov_chol_new.array_stack[:, 0, 0]
+        error_estimate = jnp.sqrt(sigma_squared_increment) * innov_stds_new
         y1 = jnp.abs(self.P0 @ state.y.mean)
         y2 = jnp.abs(self.P0 @ new_mean)
         reference_state = jnp.maximum(y1, y2)
