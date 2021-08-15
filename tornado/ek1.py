@@ -153,7 +153,7 @@ class DiagonalEK1(odesolver.ODESolver):
 
         # Make prediction
         m_pred = A @ m
-        batched_sc_pred = sqrt.propagate_batched_cholesky_factor(
+        batched_sc_pred = sqrt.batched_propagate_cholesky_factor(
             (A @ SC).array_stack, SQ.array_stack
         )
         SC_pred = linops.BlockDiagonal(batched_sc_pred)
@@ -211,14 +211,12 @@ class DiagonalEK1(odesolver.ODESolver):
         assert sigma_squared_increment.shape == ()
 
         # Get innovation matrix that assumes that the previous step was error-free
-        innov_chol_new = sqrt.propagate_batched_cholesky_factor(
-            (H @ SQ).array_stack, None
-        )
-        assert isinstance(innov_chol_new, linops.BlockDiagonal)
-        assert innov_chol_new.array_stack.shape == (d, 1, 1)
+        innov_chol_new = sqrt.batched_sqrtm_to_cholesky((H @ SQ).T.array_stack)
+        assert isinstance(innov_chol_new, jnp.ndarray)
+        assert innov_chol_new.shape == (d, 1, 1), innov_chol_new.shape
 
         # Error estimate
-        innov_stds_new = innov_chol_new.array_stack[:, 0, 0]
+        innov_stds_new = innov_chol_new[:, 0, 0]
         error_estimate = jnp.sqrt(sigma_squared_increment) * innov_stds_new
         y1 = jnp.abs(self.P0 @ state.y.mean)
         y2 = jnp.abs(self.P0 @ new_mean)

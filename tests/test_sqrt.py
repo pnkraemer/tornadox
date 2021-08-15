@@ -56,6 +56,25 @@ def test_batched_propagate_cholesky_factors(iwp):
     assert jnp.allclose(chol_as_bd.todense(), reference)
 
 
+def test_batched_sqrtm_to_cholesky(iwp):
+    transition_matrix, process_noise_cholesky = iwp.preconditioned_discretize_1d
+    A = tornado.linops.BlockDiagonal(jnp.stack([transition_matrix] * 3))
+    d = transition_matrix.shape[0]
+
+    # dummy cholesky factor
+    some_chol = tornado.linops.BlockDiagonal(
+        jnp.stack([process_noise_cholesky.copy()] * 3)
+    )
+    some_sqrtm = A @ some_chol
+
+    chol = tornado.sqrt.batched_sqrtm_to_cholesky(some_sqrtm.array_stack)
+    chol_as_bd = tornado.linops.BlockDiagonal(chol)
+
+    reference = tornado.sqrt.sqrtm_to_cholesky(some_sqrtm.todense())
+    assert jnp.allclose(chol_as_bd.todense(), reference)
+    assert chol_as_bd.array_stack.shape == (3, d, d)
+
+
 def test_tril_to_positive_tril():
     """Assert that the weird sign(0)=0 behaviour is made up for."""
     matrix = jnp.array(
