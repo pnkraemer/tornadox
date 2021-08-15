@@ -176,20 +176,26 @@ class DiagonalEK1(odesolver.ODESolver):
         assert H.array_stack.shape == (d, 1, n)
 
         # Update covariance and Kalman gain
-        cov_cholesky_stack, Kgain_stack, _ = sqrt.batched_update_sqrt(
+        cov_cholesky_stack, Kgain_stack, innov_chol_stack = sqrt.batched_update_sqrt(
             H.array_stack, SC_pred.array_stack
         )
         cov_cholesky = linops.BlockDiagonal(cov_cholesky_stack)
         Kgain = linops.BlockDiagonal(Kgain_stack)
-
+        innov_chol = linops.BlockDiagonal(innov_chol_stack)
         assert isinstance(cov_cholesky, linops.BlockDiagonal)
         assert cov_cholesky.array_stack.shape == (d, n, n)
         assert isinstance(Kgain, linops.BlockDiagonal)
         assert Kgain.array_stack.shape == (d, n, 1)
+        assert isinstance(innov_chol, linops.BlockDiagonal)
+        assert innov_chol.array_stack.shape == (d, 1, 1)
 
         # Update mean
         z = H @ m_pred + b
         new_mean = m_pred - Kgain @ z
+        assert isinstance(z, jnp.ndarray)
+        assert z.shape == (d,)
+        assert isinstance(new_mean, jnp.ndarray)
+        assert new_mean.shape == (d * n,)
 
         # Push mean and covariance back into "normal space"
         new_mean = P @ new_mean
@@ -197,12 +203,30 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(cov_cholesky, linops.BlockDiagonal)
         assert cov_cholesky.array_stack.shape == (d, n, n)
 
+        # Calibrate
+        innov_stds = innov_chol.array_stack[:, 0, 0]  # (was shape (d,1,1))
+        s = z / innov_stds
+        sigma_squared_increment = s.T @ s / d
+        assert isinstance(sigma_squared_increment, jnp.ndarray)
+        assert sigma_squared_increment.shape == ()
+
+        # Error estimate
+        error_estimate = jnp.sqrt(sigma_squared_increment) * innov_stds
+        y1 = jnp.abs(self.P0 @ state.y.mean)
+        y2 = jnp.abs(self.P0 @ new_mean)
+        reference_state = jnp.maximum(y1, y2)
+        assert isinstance(error_estimate, jnp.ndarray)
+        assert isinstance(reference_state, jnp.ndarray)
+        assert error_estimate.shape == (d,)
+        assert reference_state.shape == (d,)
+        assert jnp.all(reference_state >= 0.0)
+
         # Return new state
         new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
         return ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
-            error_estimate=None,
-            reference_state=None,
+            error_estimate=error_estimate,
+            reference_state=reference_state,
         )

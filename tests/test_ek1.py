@@ -106,5 +106,6 @@ def test_diagonal_ek1_adaptive_steps():
     assert isinstance(step_diag.reference_state, jnp.ndarray)
     assert isinstance(step_diag.error_estimate, jnp.ndarray)
     assert step_diag.y.mean.shape == (d * (n + 1),)
-    assert step_diag.y.reference_state.shape == (d,)
-    assert step_diag.y.error_estimate.shape == (d,)
+    assert step_diag.reference_state.shape == (d,)
+    assert step_diag.error_estimate.shape == (d,)
+    assert jnp.all(step_diag.reference_state > 0)
