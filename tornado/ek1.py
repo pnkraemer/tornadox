@@ -195,13 +195,8 @@ class DiagonalEK1(odesolver.ODESolver):
         # Update covariance
         I = linops.BlockDiagonal(jnp.stack([jnp.eye(n, n)] * d))
         cov_sqrtm = (I - kalman_gain @ H) @ SC_pred
-        # The following step is only required if we want a Cholesky factor, actually.
-        # If matrix-square-roots suffice, skip this (which will save a QR decomposition).
-        # For now, we do it though because it seems a bit early for this kind of optimisation.
-        cov_cholesky_stack = sqrt.batched_sqrtm_to_cholesky(cov_sqrtm.T.array_stack)
-        cov_cholesky = linops.BlockDiagonal(cov_cholesky_stack)
-        assert isinstance(cov_cholesky, linops.BlockDiagonal)
-        assert cov_cholesky.array_stack.shape == (d, n, n)
+        assert isinstance(cov_sqrtm, linops.BlockDiagonal)
+        assert cov_sqrtm.array_stack.shape == (d, n, n)
 
         # Update mean
         z = H @ m_pred + b
@@ -213,9 +208,9 @@ class DiagonalEK1(odesolver.ODESolver):
 
         # Push mean and covariance back into "normal space"
         new_mean = P @ new_mean
-        cov_cholesky = P @ cov_cholesky
-        assert isinstance(cov_cholesky, linops.BlockDiagonal)
-        assert cov_cholesky.array_stack.shape == (d, n, n)
+        cov_sqrtm = P @ cov_sqrtm
+        assert isinstance(cov_sqrtm, linops.BlockDiagonal)
+        assert cov_sqrtm.array_stack.shape == (d, n, n)
 
         # Calibrate
         innov_stds = innov_chol.array_stack[:, 0, 0]  # (was shape (d,1,1))
@@ -242,7 +237,7 @@ class DiagonalEK1(odesolver.ODESolver):
         assert jnp.all(reference_state >= 0.0)
 
         # Return new state
-        new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
+        new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
         return ODEFilterState(
             ivp=state.ivp,
             t=t,
