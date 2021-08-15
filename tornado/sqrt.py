@@ -7,11 +7,16 @@ import jax.scipy.linalg
 
 def propagate_cholesky_factor(S1, S2):
     """Compute Cholesky factor of A @ SC @ SC.T @ A.T + SQ @ SQ.T"""
-    if S2 is not None:
-        stacked_up = jnp.vstack((S1.T, S2.T))
-    else:
-        stacked_up = jnp.vstack(S1.T)
-    upper_sqrtm = jnp.linalg.qr(stacked_up, mode="r")
+    stacked_up = jnp.vstack((S1.T, S2.T))
+    return sqrtm_to_cholesky(stacked_up)
+
+
+def sqrtm_to_cholesky(St):
+    """Assume that St=S^\top is a 'right' matrix-square-root.
+
+    I.e. assume M = S S^\top.
+    """
+    upper_sqrtm = jnp.linalg.qr(St, mode="r")
     lower_sqrtm = upper_sqrtm.T
     return tril_to_positive_tril(lower_sqrtm)
 
@@ -20,6 +25,7 @@ def propagate_cholesky_factor(S1, S2):
 batched_propagate_cholesky_factor = jax.vmap(
     propagate_cholesky_factor, in_axes=(0, 0), out_axes=0
 )
+batched_sqrtm_to_cholesky = jax.vmap(sqrtm_to_cholesky, in_axes=0, out_axes=0)
 
 
 def tril_to_positive_tril(tril_mat):
