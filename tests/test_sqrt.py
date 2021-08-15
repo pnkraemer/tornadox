@@ -74,7 +74,7 @@ def test_batched_sqrtm_to_cholesky(H_and_SQ, SC, measurement_style, batch_size):
 
     reference = tornado.sqrt.sqrtm_to_cholesky((H @ SC).T.todense())
     assert jnp.allclose(chol_as_bd.todense(), reference)
-    assert chol_as_bd.array_stack.shape == (3, d, d)
+    assert chol_as_bd.array_stack.shape == (batch_size, d, d)
 
 
 @pytest.mark.parametrize("measurement_style", ["full", "partial"])
@@ -82,6 +82,7 @@ def test_update_sqrt(H_and_SQ, SC, measurement_style):
     """Test the square-root updates."""
 
     H, _ = H_and_SQ
+
     SC_new, kalman_gain, innov_chol = tornado.sqrt.update_sqrt(H, SC)
     assert isinstance(SC_new, jnp.ndarray)
     assert isinstance(kalman_gain, jnp.ndarray)
@@ -109,47 +110,40 @@ def test_update_sqrt(H_and_SQ, SC, measurement_style):
     assert jnp.all(jnp.diag(innov_chol) >= 0)
 
 
-def test_batched_update_sqrt(iwp):
+@pytest.mark.parametrize("measurement_style", ["full", "partial"])
+def test_batched_update_sqrt(H_and_SQ, SC, measurement_style, batch_size):
+    H, _ = H_and_SQ
+    d_out, d_in = H.shape
+    H = tornado.linops.BlockDiagonal(jnp.stack([H] * batch_size))
+    SC = tornado.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
 
-    H, process_noise_cholesky = iwp.preconditioned_discretize_1d
-    d = process_noise_cholesky.shape[0]
-    for transition_matrix in [H, H[:1]]:
-        A = tornado.linops.BlockDiagonal(jnp.stack([transition_matrix] * 3))
-        some_chol = tornado.linops.BlockDiagonal(
-            jnp.stack([process_noise_cholesky.copy()] * 3)
-        )
+    chol, K, S = tornado.sqrt.batched_update_sqrt(
+        H.array_stack,
+        SC.array_stack,
+    )
+    assert isinstance(chol, jnp.ndarray)
+    assert isinstance(K, jnp.ndarray)
+    assert isinstance(S, jnp.ndarray)
+    assert K.shape == (batch_size, d_in, d_out)
+    assert chol.shape == (batch_size, d_in, d_in)
+    assert S.shape == (batch_size, d_out, d_out)
 
-        chol, K, S = tornado.sqrt.batched_update_sqrt(
-            A.array_stack,
-            some_chol.array_stack,
-        )
-        print(chol.shape, K.shape, S.shape)
-        assert isinstance(chol, jnp.ndarray)
-        assert isinstance(K, jnp.ndarray)
-        assert isinstance(S, jnp.ndarray)
-        assert K.shape == (3, d, transition_matrix.shape[0])
-        assert chol.shape == (3, d, d)
-        assert S.shape == (3, transition_matrix.shape[0], transition_matrix.shape[0])
+    ref_chol, ref_K, ref_S = tornado.sqrt.update_sqrt(H.todense(), SC.todense())
+    chol_as_bd = tornado.linops.BlockDiagonal(chol)
+    K_as_bd = tornado.linops.BlockDiagonal(K)
+    S_as_bd = tornado.linops.BlockDiagonal(S)
 
-        chol_as_bd = tornado.linops.BlockDiagonal(chol)
-        K_as_bd = tornado.linops.BlockDiagonal(K)
-        S_as_bd = tornado.linops.BlockDiagonal(S)
-        ref_chol, ref_K, ref_S = tornado.sqrt.update_sqrt(
-            A.todense(), some_chol.todense()
-        )
+    # K can be compared elementwise, S and chol not (see below).
+    assert jnp.allclose(K_as_bd.todense(), ref_K)
 
-        assert jnp.allclose(K_as_bd.todense(), ref_K)
-
-        # The Cholesky-factor of positive semi-definite matrices is only unique
-        # up to column operations (e.g. column reordering), i.e. there could be slightly
-        # different Cholesky factors in batched and non-batched versions.
-        # Therefore, we only check that the results are valid Cholesky factors themselves
-        assert jnp.allclose((S_as_bd @ S_as_bd.T).todense(), ref_S @ ref_S.T)
-        assert jnp.all(jnp.diag(S_as_bd.todense()) >= 0.0)
-        assert jnp.allclose(
-            (chol_as_bd @ chol_as_bd.T).todense(), ref_chol @ ref_chol.T
-        )
-        assert jnp.all(jnp.diag(chol_as_bd.todense()) >= 0.0)
+    # The Cholesky-factor of positive semi-definite matrices is only unique
+    # up to column operations (e.g. column reordering), i.e. there could be slightly
+    # different Cholesky factors in batched and non-batched versions.
+    # Therefore, we only check that the results are valid Cholesky factors themselves
+    assert jnp.allclose((S_as_bd @ S_as_bd.T).todense(), ref_S @ ref_S.T)
+    assert jnp.all(jnp.diag(S_as_bd.todense()) >= 0.0)
+    assert jnp.allclose((chol_as_bd @ chol_as_bd.T).todense(), ref_chol @ ref_chol.T)
+    assert jnp.all(jnp.diag(chol_as_bd.todense()) >= 0.0)
 
 
 def test_tril_to_positive_tril():
