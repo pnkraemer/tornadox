@@ -55,17 +55,6 @@ def test_propagate_batched_cholesky_factors(iwp):
     )
     assert jnp.allclose(chol_as_bd.todense(), reference)
 
-    # # Second test: Optional S2
-    # chol = tornado.sqrt.propagate_batched_cholesky_factor(
-    #     batched_S1=(A @ some_chol1).array_stack
-    # )
-    # chol_as_bd = tornado.linops.BlockDiagonal(chol)
-    # reference = tornado.sqrt.propagate_cholesky_factor(
-    #     A.todense() @ some_chol1.todense()
-    # )
-    # assert jnp.allclose(chol_as_bd.todense(), reference)
-    #
-
 
 def test_tril_to_positive_tril():
     """Assert that the weird sign(0)=0 behaviour is made up for."""
