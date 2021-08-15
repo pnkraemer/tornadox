@@ -175,11 +175,9 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(H, linops.BlockDiagonal)
         assert H.array_stack.shape == (d, 1, n)
 
-        # Update covariance and Kalman gain
-        # This might be done more efficiently without the update_sqrt()
-        # function, since H has the block-diagonal structure, and thus
-        # S has block-diagonal structure, and is a valid Cholesky factor
-        # without QR decomposition.
+        # Compute innovation matrix and Kalman gain
+        # Due to the block-diagonal structure in H (and in C), S is diagonal!
+        # We can compute the correction really cheaply (like in the EK0, actually)
         S_sqrtm = H @ SC_pred
         assert isinstance(S_sqrtm, linops.BlockDiagonal)
         assert S_sqrtm.array_stack.shape == (d, 1, n)
@@ -189,9 +187,6 @@ class DiagonalEK1(odesolver.ODESolver):
         innov_chol = linops.BlockDiagonal(jnp.sqrt(S.array_stack))
         assert isinstance(innov_chol, linops.BlockDiagonal)
         assert innov_chol.array_stack.shape == (d, 1, 1)
-
-        # S is diagonal!
-        # We can compute the correction really cheaply (like in the EK0, actually)
         crosscov = SC_pred @ S_sqrtm.T
         kalman_gain = linops.BlockDiagonal(crosscov.array_stack / S.array_stack)
         assert isinstance(kalman_gain, linops.BlockDiagonal)
