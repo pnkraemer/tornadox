@@ -60,20 +60,19 @@ def test_diagonal_ek1_constant_steps():
     init_diag = diagonal_ek1.initialize(ivp=ivp)
     assert jnp.allclose(init_diag.t, init_ref.t)
     assert jnp.allclose(init_diag.y.mean, init_ref.y.mean)
-    assert isinstance(init_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
-    assert jnp.allclose(init_diag.y.cov_cholesky.todense(), init_ref.y.cov_cholesky)
+    assert isinstance(init_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(init_diag.y.cov_sqrtm.todense(), init_ref.y.cov_sqrtm)
 
     # Attempt step works as expected
     step_ref = reference_ek1.attempt_step(state=init_ref, dt=0.12345)
     step_diag = diagonal_ek1.attempt_step(state=init_diag, dt=0.12345)
     assert jnp.allclose(init_diag.t, init_ref.t)
     assert jnp.allclose(step_diag.y.mean, step_ref.y.mean)
-    assert isinstance(step_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
+    assert isinstance(step_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
     assert jnp.allclose(
-        (step_diag.y.cov_cholesky @ step_diag.y.cov_cholesky.T).todense(),
-        step_ref.y.cov_cholesky @ step_ref.y.cov_cholesky.T,
+        (step_diag.y.cov_sqrtm @ step_diag.y.cov_sqrtm.T).todense(),
+        step_ref.y.cov_sqrtm @ step_ref.y.cov_sqrtm.T,
     )
-    assert jnp.all(jnp.diag(step_diag.y.cov_cholesky.todense()) >= 0.0)
 
 
 def test_diagonal_ek1_adaptive_steps():
@@ -95,13 +94,13 @@ def test_diagonal_ek1_adaptive_steps():
         num_derivatives=4, ode_dimension=2, steprule=steps
     )
     init_diag = diagonal_ek1.initialize(ivp=ivp)
-    assert isinstance(init_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
+    assert isinstance(init_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
 
     # Attempt step works as expected
     d = diagonal_ek1.iwp.wiener_process_dimension
     n = diagonal_ek1.iwp.num_derivatives
     step_diag = diagonal_ek1.attempt_step(state=init_diag, dt=0.12345)
-    assert isinstance(step_diag.y.cov_cholesky, tornado.linops.BlockDiagonal)
+    assert isinstance(step_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
     assert isinstance(step_diag.y.mean, jnp.ndarray)
     assert isinstance(step_diag.reference_state, jnp.ndarray)
     assert isinstance(step_diag.error_estimate, jnp.ndarray)

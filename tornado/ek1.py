@@ -48,7 +48,7 @@ class ReferenceEK1(odesolver.ODESolver):
         P, Pinv = self.iwp.nordsieck_preconditioner(dt=dt)
         P0 = self.P0 @ P
         P1 = self.P1 @ P
-        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_cholesky
+        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
         A, SQ = self.iwp.preconditioned_discretize
 
         # Prediction
@@ -147,7 +147,7 @@ class DiagonalEK1(odesolver.ODESolver):
         assert SQ.array_stack.shape == (d, n, n)
 
         # Extract previous states and pull them into "preconditioned space"
-        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_cholesky
+        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
         assert isinstance(SC, linops.BlockDiagonal)
         assert SC.array_stack.shape == (d, n, n)
 
