@@ -1,10 +1,11 @@
 import numpy as np
+import pytest
 import jax.numpy as jnp
 from scipy.integrate import solve_ivp
 
 
 import tornado
-from tornado.ek0 import vec_trick_mul_full, vec_trick_mul_right, EK0
+from tornado.ek0 import vec_trick_mul_full, vec_trick_mul_right, EK0, ReferenceEK0
 
 
 def test_vec_trick_mul_full():
@@ -24,26 +25,50 @@ def test_vec_trick_mul_right():
         assert np.allclose(vec_trick_mul_right(K2, v), np.kron(np.eye(d), K2) @ v)
 
 
-def test_ek0_constant_steps():
-    """Assert the solver returns a similar solution to SciPy"""
+@pytest.fixture
+def ivp():
+    return tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
 
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
-    scipy_sol = solve_ivp(
-        ivp.f, t_span=(ivp.t0, ivp.tmax), y0=ivp.y0, rtol=1e-8, atol=1e-8
-    )
-    final_t_scipy = scipy_sol.t[-1]
-    final_y_scipy = scipy_sol.y[:, -1]
 
-    # dt = jnp.mean(jnp.diff(scipy_sol.t))
-    dt = 0.01
+@pytest.fixture
+def scipy_solution(ivp):
+    return solve_ivp(ivp.f, t_span=(ivp.t0, ivp.tmax), y0=ivp.y0, rtol=1e-8, atol=1e-8)
 
-    constant_steps = tornado.step.ConstantSteps(dt)
-    solver = EK0(steprule=constant_steps, solver_order=4)
-    sol_gen = solver.solution_generator(ivp=ivp)
-    for state in sol_gen:
+
+def test_reference_ek0_constant_steps(ivp, scipy_solution):
+    scipy_final_t = scipy_solution.t[-1]
+    scipy_final_y = scipy_solution.y[:, -1]
+
+    constant_steps = tornado.step.ConstantSteps(0.01)
+    solver = ReferenceEK0(steprule=constant_steps, solver_order=4)
+    for state in solver.solution_generator(ivp=ivp):
         pass
 
-    final_t_ek0 = state.t
-    final_y_ek0 = state.y
-    assert jnp.allclose(final_t_scipy, final_t_ek0)
-    assert jnp.allclose(final_y_scipy, final_y_ek0, rtol=1e-3, atol=1e-3)
+    assert jnp.allclose(scipy_final_t, state.t)
+    assert jnp.allclose(scipy_final_y, state.y, rtol=1e-3, atol=1e-3)
+
+
+def test_ek0_constant_steps(ivp, scipy_solution):
+    scipy_final_t = scipy_solution.t[-1]
+    scipy_final_y = scipy_solution.y[:, -1]
+
+    constant_steps = tornado.step.ConstantSteps(0.01)
+    solver = EK0(steprule=constant_steps, solver_order=4)
+    for state in solver.solution_generator(ivp=ivp):
+        pass
+
+    assert jnp.allclose(scipy_final_t, state.t)
+    assert jnp.allclose(scipy_final_y, state.y, rtol=1e-3, atol=1e-3)
+
+
+def test_ek0_adaptive_steps(ivp, scipy_solution):
+    scipy_final_t = scipy_solution.t[-1]
+    scipy_final_y = scipy_solution.y[:, -1]
+
+    srule = tornado.step.AdaptiveSteps(first_dt=0.01, abstol=1e-6, reltol=1e-3)
+    solver = EK0(steprule=srule, solver_order=4)
+    for state in solver.solution_generator(ivp=ivp):
+        pass
+
+    assert jnp.allclose(scipy_final_t, state.t)
+    assert jnp.allclose(scipy_final_y, state.y, rtol=1e-3, atol=1e-3)

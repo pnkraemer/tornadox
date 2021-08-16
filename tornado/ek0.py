@@ -42,14 +42,12 @@ class ReferenceEK0(ODESolver):
         m, Cl = state.Y.mean, state.Y.cov_cholesky
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
 
-        t_new = state.t + dt
-
         # [Predict]
         mp = A @ m
         Clp = tornado.sqrt.propagate_cholesky_factor(A @ Cl, Ql)
 
         # [Measure]
-        z = self.E1 @ mp - state.ivp.f(t_new, self.E0 @ mp)
+        z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
         H = self.E1
         # Sl = H @ Clp
         # S = Sl @ Sl.T
@@ -57,7 +55,7 @@ class ReferenceEK0(ODESolver):
         # [Update]
         Cl_new, K, Sl = tornado.sqrt.update_sqrt(H, Clp)
         # K = (Clp @ Clp.T) @ H.T @ jnp.linalg.inv(S)
-        m_new = m - K @ z
+        m_new = mp - K @ z
         # Cl_new = (self.I - K @ H) @ Clp
 
         y_new = self.E0 @ m_new
@@ -65,7 +63,7 @@ class ReferenceEK0(ODESolver):
         return EK0State(
             ivp=state.ivp,
             y=y_new,
-            t=t_new,
+            t=state.t + dt,
             error_estimate=None,
             reference_state=y_new,
             Y=tornado.rv.MultivariateNormal(m_new, Cl_new),
@@ -116,18 +114,27 @@ class EK0(ODESolver):
 
         # [Predict]
         mp = vec_trick_mul_right(A, m)
-        Clp = tornado.sqrt.propagate_cholesky_factor(A @ Cl, Ql)
 
         # [Measure]
         _mp = vec_trick_mul_right(P, mp)  # Undo the preconditioning
         z = self.E1 @ _mp - state.ivp.f(t_new, self.E0 @ _mp)
         H = self.e1 @ P
-        Sl = H @ Clp
-        S = (Sl @ Sl.T)[0]
+
+        # [Calibration]
+        HQH = (H @ Ql @ Ql.T @ H.T)[0, 0]
+        # HQH = Q11(dt)  # Q(dt)[1, 1]
+        sigma_squared = z.T @ z / HQH / self.d
+        # sigma_squared = 1.0
+
+        # [Predict Covariance]
+        Clp = tornado.sqrt.propagate_cholesky_factor(
+            A @ Cl, jnp.sqrt(sigma_squared) * Ql
+        )
 
         # [Update]
-        K = Clp @ Clp.T @ H.T / S
-        m_new = m - vec_trick_mul_right(K, z)
+        # K = Clp @ Clp.T @ H.T / S
+        Cl_new, K, Sl = tornado.sqrt.update_sqrt(H, Clp)
+        m_new = mp - vec_trick_mul_right(K, z)
         Cl_new = (self.Iq1 - K @ H) @ Clp
 
         # [Undo preconditioning]
@@ -135,11 +142,17 @@ class EK0(ODESolver):
 
         y_new = self.E0 @ _m_new
 
+        error_estimate = (
+            jnp.repeat(jnp.sqrt(sigma_squared * HQH), self.d)
+            if isinstance(self.steprule, tornado.step.AdaptiveSteps)
+            else None
+        )
+
         return EK0State(
             ivp=state.ivp,
             y=y_new,
             t=t_new,
-            error_estimate=None,
+            error_estimate=error_estimate,
             reference_state=y_new,
             Y=tornado.rv.MultivariateNormal(_m_new, _Cl_new),
         )
@@ -158,34 +171,3 @@ def vec_trick_mul_right(K2, v):
     V = v.reshape(d4, v.size // d4, order="F")
     out = K2 @ V
     return out.reshape(out.size, order="F")
-
-
-if __name__ == "__main__":
-    from icecream import ic
-
-    print("EK0 development")
-
-    print("Problem setup")
-    # ivp = tornado.ivp.vanderpol(t0=0, tmax=5)
-    ivp = tornado.ivp.lotkavolterra(tmax=5)
-
-    print("Solver setup")
-    constant_steps = tornado.step.ConstantSteps(dt=0.01)
-    solver_order = 2
-    solver = ReferenceEK0(steprule=constant_steps, solver_order=solver_order)
-    solver = tornado.ek1.ReferenceEK1(solver_order, ivp.dimension, constant_steps)
-    ic(solver)
-
-    print("Solve")
-    gen_sol = solver.solution_generator(ivp)
-    times, vals = [], []
-    for i, state in enumerate(gen_sol):
-        times.append(state.t)
-        # vals.append(state.y)
-        vals.append(solver.P0 @ state.y.mean)
-    times, vals = jnp.stack(times), jnp.stack(vals)
-
-    import matplotlib.pyplot as plt
-
-    plt.plot(times, vals)
-    plt.show()
