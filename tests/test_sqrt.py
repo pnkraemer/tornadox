@@ -45,8 +45,7 @@ def test_propagate_cholesky_factor(H_and_SQ, SC, measurement_style):
     chol = tornado.sqrt.propagate_cholesky_factor(S1=(H @ SC), S2=SQ)
     cov = H @ SC @ SC.T @ H.T + SQ @ SQ.T
     assert jnp.allclose(chol @ chol.T, cov)
-    assert jnp.allclose(jnp.linalg.cholesky(cov), chol)
-    assert jnp.all(jnp.diag(chol) > 0)
+    assert jnp.allclose(jnp.tril(chol), chol)
 
 
 @pytest.mark.parametrize("measurement_style", ["full", "partial"])
@@ -106,7 +105,6 @@ def test_update_sqrt(H_and_SQ, SC, measurement_style):
     # Test SC
     assert jnp.allclose(SC_new @ SC_new.T, C)
     assert jnp.allclose(SC_new, jnp.tril(SC_new))
-    assert jnp.all(jnp.diag(SC_new) >= 0)
 
     # Test K
     assert jnp.allclose(K, kalman_gain)
@@ -114,7 +112,6 @@ def test_update_sqrt(H_and_SQ, SC, measurement_style):
     # Test S
     assert jnp.allclose(innov_chol @ innov_chol.T, S)
     assert jnp.allclose(innov_chol, jnp.tril(innov_chol))
-    assert jnp.all(jnp.diag(innov_chol) >= 0)
 
 
 @pytest.mark.parametrize("measurement_style", ["full", "partial"])
@@ -149,19 +146,4 @@ def test_batched_update_sqrt(H_and_SQ, SC, measurement_style, batch_size):
     # different Cholesky factors in batched and non-batched versions.
     # Therefore, we only check that the results are valid Cholesky factors themselves
     assert jnp.allclose((S_as_bd @ S_as_bd.T).todense(), ref_S @ ref_S.T)
-    assert jnp.all(jnp.diag(S_as_bd.todense()) >= 0.0)
     assert jnp.allclose((chol_as_bd @ chol_as_bd.T).todense(), ref_chol @ ref_chol.T)
-    assert jnp.all(jnp.diag(chol_as_bd.todense()) >= 0.0)
-
-
-def test_tril_to_positive_tril():
-    """Assert that the weird sign(0)=0 behaviour is accounted for!"""
-    matrix = jnp.array(
-        [
-            [1.0, 0.0, 0.0],
-            [-1.0, 0.0, 0.0],
-            [1.0, 2.0, 3.0],
-        ]
-    )
-    result = tornado.sqrt.tril_to_positive_tril(matrix)
-    assert jnp.allclose(matrix, result)

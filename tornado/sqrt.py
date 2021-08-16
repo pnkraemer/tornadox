@@ -18,7 +18,7 @@ def sqrtm_to_cholesky(St):
     """
     upper_sqrtm = jnp.linalg.qr(St, mode="r")
     lower_sqrtm = upper_sqrtm.T
-    return tril_to_positive_tril(lower_sqrtm)
+    return lower_sqrtm
 
 
 # Batch the propagation function with jax.vmap magic.
@@ -26,22 +26,6 @@ batched_propagate_cholesky_factor = jax.vmap(
     propagate_cholesky_factor, in_axes=(0, 0), out_axes=0
 )
 batched_sqrtm_to_cholesky = jax.vmap(sqrtm_to_cholesky, in_axes=0, out_axes=0)
-
-
-def tril_to_positive_tril(tril_mat):
-    r"""Orthogonally transform a lower-triangular matrix into a lower-triangular matrix with positive diagonal.
-    In other words, make it a valid lower Cholesky factor.
-    The name of the function is based on `np.tril`.
-    """
-    diag = jnp.diag(tril_mat)
-
-    # Like numpy, JAX assigns sign 0 to 0.0, which would eliminate entire rows
-    # in the operation below. By adding a machine precision epsilon, there is no 0.
-    d = jnp.sign(diag + jnp.finfo(diag[0].dtype).eps)
-
-    # Fast(er) multiplication with a diagonal matrix from the right via broadcasting.
-    with_pos_diag = tril_mat * d[None, :]
-    return with_pos_diag
 
 
 @jax.jit
@@ -81,7 +65,7 @@ def update_sqrt(transition_matrix, cov_cholesky):
     R1 = big_triu[:output_dim, :output_dim]
     R2 = big_triu[:output_dim, output_dim:]
     gain = jax.scipy.linalg.solve_triangular(R1, R2, lower=False).T
-    return tril_to_positive_tril(R3.T), gain, tril_to_positive_tril(R1.T)
+    return R3.T, gain, R1.T
 
 
 # Todo: replace with a jax.vmap somehow
