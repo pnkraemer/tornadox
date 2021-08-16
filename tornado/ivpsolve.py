@@ -12,7 +12,7 @@ _SOLVER_REGISTRY: Dict[str, odesolver.ODEFilter] = {
 
 
 @dataclasses.dataclass
-class ODEsolution:
+class ODESolution:
     t: Union[np.ndarray, Iterable[float]]
     y: Iterable[rv.MultivariateNormal]
 
@@ -66,7 +66,7 @@ def solve(
 
     Returns
     -------
-    solution: ODEsolution
+    solution: ODESolution
         Solution of the ODE problem.
         It contains fields:
         t :
@@ -109,4 +109,4 @@ def solve(
         res_times.append(state.t)
         res_states.append(state.y)
 
-    return ODEsolution(t=res_times, y=res_states), solver
+    return ODESolution(t=res_times, y=res_states), solver
