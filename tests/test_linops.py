@@ -42,6 +42,41 @@ def test_block_diagonal():
 
 def test_projection_matrix():
 
-    test_array = jnp.array([1, 11, 111])
     P0 = tornado.linops.DerivativeSelection(derivative=0)
+
+    # Test array
+    test_array = jnp.array([1, 11, 111])
     assert jnp.allclose(P0 @ test_array, jnp.array(1))
+
+    # Test matrix
+    test_matrix = jnp.array(
+        [
+            [11, 12, 13],
+            [21, 22, 23],
+            [31, 32, 33],
+        ]
+    )
+    assert jnp.allclose(P0 @ test_matrix, jnp.array([11, 12, 13]))
+
+    # Test batched matrix
+    test_batched_matrix = jnp.array(
+        [
+            [
+                [111, 112, 113],
+                [121, 122, 123],
+                [131, 132, 133],
+            ],
+            [
+                [211, 212, 213],
+                [221, 222, 223],
+                [231, 232, 233],
+            ],
+        ]
+    )
+    expected = jnp.array(
+        [
+            [111, 112, 113],
+            [211, 212, 213],
+        ]
+    )
+    assert jnp.allclose(P0 @ test_batched_matrix, expected)
