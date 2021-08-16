@@ -31,7 +31,7 @@ class EK0(ODESolver):
         )
 
         self.E0 = self.iwp.projection_matrix(0)
-        self.E1 = self.iwp.projection_matrix(0)
+        self.E1 = self.iwp.projection_matrix(1)
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
         self.Id = jnp.eye(self.d)
@@ -49,48 +49,35 @@ class EK0(ODESolver):
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
         Y = state.Y
-        m, Cl = Y.mean, Y.cov_cholesky
-        C = Cl @ Cl.T
+        _m, _Cl = Y.mean, Y.cov_cholesky
         A, Ql = self.A, self.Ql
 
         t_new = state.t + dt
 
         # [Preconditioners]
         P, PI = self.iwp.nordsieck_preconditioner_1d(dt)
-        m, Cl = vec_trick_mul_right(PI, m), PI @ Cl
-        _P, _PI = self.iwp.nordsieck_preconditioner(dt)
-        assert jnp.allclose(_P @ m, vec_trick_mul_right(P, m))
-        C = Cl @ Cl.T
+        m, Cl = vec_trick_mul_right(PI, _m), PI @ _Cl
 
         # [Predict]
         mp = vec_trick_mul_right(A, m)
-        Cp = A @ C @ A.T + Ql @ Ql.T
         Clp = tornado.sqrt.propagate_cholesky_factor(A @ Cl, Ql)
-        assert jnp.allclose(Cp, Clp @ Clp.T)
 
         # [Measure]
-        _mp = vec_trick_mul_right(P, mp)
+        _mp = vec_trick_mul_right(P, mp)  # Undo the preconditioning
         z = self.E1 @ _mp - state.ivp.f(t_new, self.E0 @ _mp)
         H = self.e1 @ P
-        _S = H @ Cp @ H.T
         Sl = H @ Clp
         S = (Sl @ Sl.T)[0]
-        assert jnp.allclose(_S, S)
 
         # [Update]
-        K = Cp @ H.T / S
-        _m_new = m - jnp.kron(jnp.eye(self.d), K) @ z
+        K = Clp @ Clp.T @ H.T / S
         m_new = m - vec_trick_mul_right(K, z)
-        assert jnp.allclose(_m_new, m_new)
-        C_new = Cp - K @ K.T * S
         Cl_new = (self.Iq1 - K @ H) @ Clp
-        assert jnp.allclose(C_new, Cl_new @ Cl_new.T)
 
         # [Undo preconditioning]
-        m_new, Cl_new = vec_trick_mul_right(P, m_new), P @ Cl_new
-        C = Cl @ Cl.T
+        _m_new, _Cl_new = vec_trick_mul_right(P, m_new), P @ Cl_new
 
-        y_new = self.E0 @ m_new
+        y_new = self.E0 @ _m_new
 
         return EK0State(
             ivp=state.ivp,
@@ -98,7 +85,7 @@ class EK0(ODESolver):
             t=t_new,
             error_estimate=None,
             reference_state=y_new,
-            Y=tornado.rv.MultivariateNormal(m_new, Cl_new),
+            Y=tornado.rv.MultivariateNormal(_m_new, _Cl_new),
         )
 
 
