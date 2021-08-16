@@ -5,6 +5,8 @@ import jax.numpy as jnp
 import scipy.linalg
 import scipy.special
 
+from tornado import linops
+
 
 @dataclasses.dataclass
 class IntegratedWienerTransition:
@@ -129,6 +131,9 @@ class IntegratedWienerTransition:
     def projection_matrix_1d(self, derivative_to_project_onto):
         """Creates a projection matrix e_p"""
         return jnp.eye(1, self.num_derivatives + 1, derivative_to_project_onto)
+
+    def projection_operator_1d(self, derivative_to_project_onto):
+        return linops.DerivativeSelection(derivative=derivative_to_project_onto)
 
     @property
     def state_dimension(self):

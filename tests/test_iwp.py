@@ -62,12 +62,37 @@ def test_preconditioned_system_matrices(dt, iwp):
     assert jnp.allclose(precond @ precond_proc_noice_chol, non_precond_proc_noice_chol)
 
 
-def test_projection_matrices(iwp):
-    P = iwp.projection_matrix(0)
-    assert isinstance(P, jnp.ndarray)
+# Tests for the projection matrix
+
+
+@pytest.fixture
+def projection_matrix(iwp):
+    return iwp.projection_matrix(0)
+
+
+def test_projection_matrix_type(projection_matrix):
+    assert isinstance(projection_matrix, jnp.ndarray)
+
+
+def test_projection_matrix_shape(projection_matrix, iwp):
     d, q = iwp.wiener_process_dimension, iwp.num_derivatives
-    assert P.shape == (d, q + 1)
-    assert (P == 1).sum() == d
+    assert projection_matrix.shape == (d, q + 1)
+
+
+def test_projection_matrix_num_nonzeros(projection_matrix, iwp):
+    assert (projection_matrix == 1).sum() == iwp.wiener_process_dimension
+
+
+# Tests for the projection operator
+
+
+@pytest.fixture
+def projection_operator(iwp):
+    return iwp.projection_operator_1d(0)
+
+
+def test_projection_operator(projection_operator):
+    assert isinstance(projection_operator, tornado.linops.DerivativeSelection)
 
 
 def test_reorder_states():
