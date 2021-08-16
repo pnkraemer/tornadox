@@ -32,12 +32,14 @@ class EulerAsODEFilter(tornado.odesolver.ODEFilter):
 
 
 def test_odesolver():
+    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
     constant_steps = tornado.step.ConstantSteps(dt=0.1)
     solver_order = 2
-    solver = EulerAsODEFilter(steprule=constant_steps, solver_order=solver_order)
+    solver = EulerAsODEFilter(
+        ode_dimension=ivp.dimension, steprule=constant_steps, solver_order=solver_order
+    )
     assert isinstance(solver, tornado.odesolver.ODEFilter)
 
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
     gen_sol = solver.solution_generator(ivp)
     for idx, _ in enumerate(gen_sol):
         pass
