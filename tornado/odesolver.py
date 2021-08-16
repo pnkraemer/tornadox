@@ -1,9 +1,23 @@
 """ODE solver interface."""
 
+import dataclasses
 from abc import ABC, abstractmethod
 from typing import Iterable
 
+import jax.numpy as jnp
 import numpy as np
+
+from tornado import ivp, rv
+
+
+@dataclasses.dataclass
+class ODEFilterState:
+
+    ivp: ivp.InitialValueProblem
+    t: float
+    y: rv.MultivariateNormal
+    error_estimate: jnp.ndarray
+    reference_state: jnp.ndarray
 
 
 class ODESolver(ABC):

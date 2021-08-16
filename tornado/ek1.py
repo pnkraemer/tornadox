@@ -1,21 +1,9 @@
 """EK1 solvers."""
 
-import dataclasses
-
 import jax.numpy as jnp
 import jax.scipy.linalg
 
-from tornado import ivp, iwp, linops, odesolver, rv, sqrt, step, taylor_mode
-
-
-@dataclasses.dataclass
-class ODEFilterState:
-
-    ivp: "tornado.ivp.InitialValueProblem"
-    t: float
-    y: "rv.MultivariateNormal"
-    error_estimate: jnp.ndarray
-    reference_state: jnp.ndarray
+from tornado import iwp, linops, odesolver, rv, sqrt, taylor_mode
 
 
 class ReferenceEK1(odesolver.ODESolver):
@@ -36,7 +24,7 @@ class ReferenceEK1(odesolver.ODESolver):
 
     def initialize(self, ivp):
         initial_rv = self.tm(ivp=ivp, prior=self.iwp)
-        return ODEFilterState(
+        return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             y=initial_rv,
@@ -84,7 +72,7 @@ class ReferenceEK1(odesolver.ODESolver):
         new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
 
         # Return new state
-        return ODEFilterState(
+        return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
@@ -117,7 +105,7 @@ class DiagonalEK1(odesolver.ODESolver):
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
         cov_cholesky = linops.BlockDiagonal(array_stack=jnp.zeros((d, n, n)))
         new_rv = rv.MultivariateNormal(mean, cov_cholesky)
-        return ODEFilterState(
+        return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             y=new_rv,
@@ -255,7 +243,7 @@ class DiagonalEK1(odesolver.ODESolver):
 
         # Return new state
         new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
-        return ODEFilterState(
+        return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
