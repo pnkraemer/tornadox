@@ -75,23 +75,18 @@ class ReferenceEK1(odesolver.ODEFilter):
         )
 
 
-class DiagonalEK1(odesolver.ODESolver):
+class DiagonalEK1(odesolver.ODEFilter):
     def __init__(self, num_derivatives, ode_dimension, steprule):
-        super().__init__(steprule=steprule, solver_order=num_derivatives)
-
-        # Prior integrated Wiener process
-        self.iwp = iwp.IntegratedWienerTransition(
-            num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
+        super().__init__(
+            ode_dimension=ode_dimension, steprule=steprule, solver_order=num_derivatives
         )
+
         self.P0_1d = self.iwp.projection_matrix_1d(0)
         self.P1_1d = self.iwp.projection_matrix_1d(1)
 
         d = self.iwp.wiener_process_dimension
         self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d] * d))
         self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d] * d))
-
-        # Initialization strategy
-        self.tm = taylor_mode.TaylorModeInitialization()
 
     def initialize(self, ivp):
         initial_rv = self.tm(ivp=ivp, prior=self.iwp)

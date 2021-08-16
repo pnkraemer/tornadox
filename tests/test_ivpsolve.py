@@ -45,7 +45,7 @@ def test_solve_constant(solve_method, order, time_domain, dt):
 
     assert jnp.allclose(jnp.arange(t0, tmax + dt, step=dt), solution.t)
 
-    for mean, cov_chol, cov in zip(solution.mean, solution.cov_cholesky, solution.cov):
+    for mean, cov_chol, cov in zip(solution.mean, solution.cov_sqrtm, solution.cov):
         assert mean.shape == (ivp.dimension * (order + 1),)
         assert (solver.P0 @ mean).size == ivp.dimension
         assert cov.shape == (mean.shape[0], mean.shape[0])

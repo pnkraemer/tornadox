@@ -18,7 +18,7 @@ class ODESolution:
     t: Union[jnp.ndarray, Iterable[float]]
     y: Iterable[rv.MultivariateNormal]
     means: Optional[Iterable[jnp.ndarray]] = None
-    covs_cholesky: Optional[Iterable[jnp.ndarray]] = None
+    covs_sqrtm: Optional[Iterable[jnp.ndarray]] = None
 
     @property
     def mean(self):
@@ -28,15 +28,15 @@ class ODESolution:
         return self.means
 
     @property
-    def cov_cholesky(self):
-        if self.covs_cholesky is None:
-            self.covs_cholesky = [_y.cov_cholesky for _y in self.y]
+    def cov_sqrtm(self):
+        if self.covs_sqrtm is None:
+            self.covs_sqrtm = [_y.cov_sqrtm for _y in self.y]
 
-        return self.covs_cholesky
+        return self.covs_sqrtm
 
     @functools.cached_property
     def cov(self):
-        return [_L @ _L.T for _L in self.cov_cholesky]
+        return [_L @ _L.T for _L in self.cov_sqrtm]
 
 
 def solve(
@@ -137,11 +137,11 @@ def solve(
         res_times.append(state.t)
         res_states.append(state.y)
         res_means.append(state.y.mean)
-        res_cov_chols.append(state.y.cov_cholesky)
+        res_cov_chols.append(state.y.cov_sqrtm)
 
     return (
         ODESolution(
-            t=res_times, y=res_states, means=res_means, covs_cholesky=res_cov_chols
+            t=res_times, y=res_states, means=res_means, covs_sqrtm=res_cov_chols
         ),
         solver,
     )
