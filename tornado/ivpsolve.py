@@ -41,7 +41,7 @@ class ODESolution:
 def solve(
     ivp: ivp.InitialValueProblem,
     method: str = "ek1_ref",
-    solver_order=2,
+    solver_order=5,
     adaptive: bool = True,
     dt: Optional[Union[float, step.StepRule]] = None,
     abstol: float = 1e-2,
