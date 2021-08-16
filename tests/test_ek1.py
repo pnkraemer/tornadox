@@ -71,7 +71,8 @@ def test_diagonal_ek1_constant_steps():
     assert isinstance(step_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
     received = (step_diag.y.cov_sqrtm @ step_diag.y.cov_sqrtm.T).todense()
     expected = step_ref.y.cov_sqrtm @ step_ref.y.cov_sqrtm.T
-    assert jnp.allclose(received, expected)
+    assert received.shape == expected.shape
+    assert jnp.allclose(received, expected), received - expected
 
 
 def test_diagonal_ek1_adaptive_steps():
