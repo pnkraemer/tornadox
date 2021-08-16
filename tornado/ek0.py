@@ -39,8 +39,7 @@ class ReferenceEK0(ODESolver):
 
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
-        Y = state.Y
-        m, Cl = Y.mean, Y.cov_cholesky
+        m, Cl = state.Y.mean, state.Y.cov_cholesky
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
 
         t_new = state.t + dt
@@ -52,8 +51,8 @@ class ReferenceEK0(ODESolver):
         # [Measure]
         z = self.E1 @ mp - state.ivp.f(t_new, self.E0 @ mp)
         H = self.E1
-        Sl = H @ Clp
-        S = Sl @ Sl.T
+        # Sl = H @ Clp
+        # S = Sl @ Sl.T
 
         # [Update]
         Cl_new, K, Sl = tornado.sqrt.update_sqrt(H, Clp)
@@ -83,7 +82,6 @@ class EK0(ODESolver):
             wiener_process_dimension=self.d, num_derivatives=self.q
         )
         self.A, self.Ql = self.iwp.preconditioned_discretize_1d
-        # A_full, Q_full = iwp.preconditioned_discretize
 
         Y0_full = tornado.taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
         Y0_kron = tornado.rv.MultivariateNormal(
