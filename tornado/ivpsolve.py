@@ -1,7 +1,8 @@
 import dataclasses
+import functools
 from typing import Dict, Iterable, Optional, Union
 
-import numpy as np
+import jax.numpy as jnp
 
 from tornado import ek1, ivp, odesolver, rv, step
 
@@ -11,19 +12,30 @@ _SOLVER_REGISTRY: Dict[str, odesolver.ODEFilter] = {
 }
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=False)
 class ODESolution:
-    t: Union[np.ndarray, Iterable[float]]
+    t: Union[jnp.ndarray, Iterable[float]]
     y: Iterable[rv.MultivariateNormal]
+    means: Optional[Iterable[jnp.ndarray]] = None
+    covs_cholesky: Optional[Iterable[jnp.ndarray]] = None
 
+    @property
     def mean(self):
-        return [_y.mean for _y in self.y]
+        if self.means is None:
+            self.means = [_y.mean for _y in self.y]
 
-    def std(self):
-        return [np.sqrt(np.diag(_y.cov)) for _y in self.y]
+        return self.means
 
+    @property
+    def cov_cholesky(self):
+        if self.covs_cholesky is None:
+            self.covs_cholesky = [_y.cov_cholesky for _y in self.y]
+
+        return self.covs_cholesky
+
+    @functools.cached_property
     def cov(self):
-        return [_y.cov for _y in self.y]
+        return [_L @ _L.T for _L in self.cov_cholesky]
 
 
 def solve(
@@ -104,9 +116,18 @@ def solve(
         )
 
     res_states = []
+    res_means = []
+    res_cov_chols = []
     res_times = []
     for state in solver.solution_generator(ivp=ivp):
         res_times.append(state.t)
         res_states.append(state.y)
+        res_means.append(state.y.mean)
+        res_cov_chols.append(state.y.cov_cholesky)
 
-    return ODESolution(t=res_times, y=res_states), solver
+    return (
+        ODESolution(
+            t=res_times, y=res_states, means=res_means, covs_cholesky=res_cov_chols
+        ),
+        solver,
+    )
