@@ -2,28 +2,27 @@ import dataclasses
 
 import jax.numpy as jnp
 
-import tornado
-from tornado.odesolver import ODESolver
+from tornado import ivp, iwp, odesolver, rv, sqrt, step, taylor_mode
 
 
 @dataclasses.dataclass
 class EK0State:
-    ivp: tornado.ivp.InitialValueProblem
+    ivp: ivp.InitialValueProblem
     y: jnp.array
     t: float
     error_estimate: jnp.array
     reference_state: jnp.array
-    Y: tornado.rv.MultivariateNormal
+    Y: rv.MultivariateNormal
 
 
-class ReferenceEK0(ODESolver):
+class ReferenceEK0(odesolver.ODESolver):
     def initialize(self, ivp):
         d = ivp.dimension
         q = self.solver_order
-        self.iwp = tornado.iwp.IntegratedWienerTransition(
+        self.iwp = iwp.IntegratedWienerTransition(
             wiener_process_dimension=d, num_derivatives=q
         )
-        Y0_full = tornado.taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
+        Y0_full = taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
 
         self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
@@ -45,7 +44,7 @@ class ReferenceEK0(ODESolver):
 
         # [Predict]
         mp = A @ m
-        Clp = tornado.sqrt.propagate_cholesky_factor(A @ Cl, Ql)
+        Clp = sqrt.propagate_cholesky_factor(A @ Cl, Ql)
 
         # [Measure]
         z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
@@ -54,7 +53,7 @@ class ReferenceEK0(ODESolver):
         # S = Sl @ Sl.T
 
         # [Update]
-        Cl_new, K, Sl = tornado.sqrt.update_sqrt(H, Clp)
+        Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
         # K = (Clp @ Clp.T) @ H.T @ jnp.linalg.inv(S)
         m_new = mp - K @ z
         # Cl_new = (self.I - K @ H) @ Clp
@@ -67,21 +66,21 @@ class ReferenceEK0(ODESolver):
             t=state.t + dt,
             error_estimate=None,
             reference_state=y_new,
-            Y=tornado.rv.MultivariateNormal(m_new, Cl_new),
+            Y=rv.MultivariateNormal(m_new, Cl_new),
         )
 
 
-class EK0(ODESolver):
+class EK0(odesolver.ODESolver):
     def initialize(self, ivp):
         self.d = ivp.dimension
         self.q = self.solver_order
-        self.iwp = tornado.iwp.IntegratedWienerTransition(
+        self.iwp = iwp.IntegratedWienerTransition(
             wiener_process_dimension=self.d, num_derivatives=self.q
         )
         self.A, self.Ql = self.iwp.preconditioned_discretize_1d
 
-        Y0_full = tornado.taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
-        Y0_kron = tornado.rv.MultivariateNormal(
+        Y0_full = taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
+        Y0_kron = rv.MultivariateNormal(
             Y0_full.mean, jnp.zeros((self.q + 1, self.q + 1))
         )
 
@@ -128,13 +127,11 @@ class EK0(ODESolver):
         # sigma_squared = 1.0
 
         # [Predict Covariance]
-        Clp = tornado.sqrt.propagate_cholesky_factor(
-            A @ Cl, jnp.sqrt(sigma_squared) * Ql
-        )
+        Clp = sqrt.propagate_cholesky_factor(A @ Cl, jnp.sqrt(sigma_squared) * Ql)
 
         # [Update]
         # K = Clp @ Clp.T @ H.T / S
-        Cl_new, K, Sl = tornado.sqrt.update_sqrt(H, Clp)
+        Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
         m_new = mp - vec_trick_mul_right(K, z)
         Cl_new = (self.Iq1 - K @ H) @ Clp
 
@@ -145,7 +142,7 @@ class EK0(ODESolver):
 
         error_estimate = (
             jnp.repeat(jnp.sqrt(sigma_squared * HQH), self.d)
-            if isinstance(self.steprule, tornado.step.AdaptiveSteps)
+            if isinstance(self.steprule, step.AdaptiveSteps)
             else None
         )
 
@@ -155,7 +152,7 @@ class EK0(ODESolver):
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,
-            Y=tornado.rv.MultivariateNormal(_m_new, _Cl_new),
+            Y=rv.MultivariateNormal(_m_new, _Cl_new),
         )
 
 
