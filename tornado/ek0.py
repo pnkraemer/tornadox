@@ -15,6 +15,66 @@ class EK0State:
     Y: tornado.rv.MultivariateNormal
 
 
+class ReferenceEK0(ODESolver):
+    def initialize(self, ivp):
+        d = ivp.dimension
+        q = self.solver_order
+        self.iwp = tornado.iwp.IntegratedWienerTransition(
+            wiener_process_dimension=d, num_derivatives=q
+        )
+        Y0_full = tornado.taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
+
+        self.E0 = self.iwp.projection_matrix(0)
+        self.E1 = self.iwp.projection_matrix(1)
+        self.I = jnp.eye(d * (q + 1))
+
+        return EK0State(
+            ivp=ivp,
+            y=ivp.y0,
+            t=ivp.t0,
+            error_estimate=None,
+            reference_state=ivp.y0,
+            Y=Y0_full,
+        )
+
+    def attempt_step(self, state, dt, verbose=False):
+        # [Setup]
+        Y = state.Y
+        m, Cl = Y.mean, Y.cov_cholesky
+        A, Ql = self.iwp.non_preconditioned_discretize(dt)
+
+        t_new = state.t + dt
+
+        # [Predict]
+        mp = A @ m
+        Clp = tornado.sqrt.propagate_cholesky_factor(A @ Cl, Ql)
+
+        # [Measure]
+        z = self.E1 @ mp - state.ivp.f(t_new, self.E0 @ mp)
+        H = self.E1
+        Sl = H @ Clp
+        S = Sl @ Sl.T
+
+        # [Update]
+        Cl_new, K, Sl = tornado.sqrt.update_sqrt(H, Clp)
+        # K = (Clp @ Clp.T) @ H.T @ jnp.linalg.inv(S)
+        m_new = m - K @ z
+        # Cl_new = (self.I - K @ H) @ Clp
+
+        # [Undo preconditioning]
+
+        y_new = self.E0 @ m_new
+
+        return EK0State(
+            ivp=state.ivp,
+            y=y_new,
+            t=t_new,
+            error_estimate=None,
+            reference_state=y_new,
+            Y=tornado.rv.MultivariateNormal(m_new, Cl_new),
+        )
+
+
 class EK0(ODESolver):
     def initialize(self, ivp):
         self.d = ivp.dimension
