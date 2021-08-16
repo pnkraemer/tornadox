@@ -60,8 +60,6 @@ class ReferenceEK0(ODESolver):
         m_new = m - K @ z
         # Cl_new = (self.I - K @ H) @ Clp
 
-        # [Undo preconditioning]
-
         y_new = self.E0 @ m_new
 
         return EK0State(
