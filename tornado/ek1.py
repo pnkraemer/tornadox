@@ -13,6 +13,8 @@ class ReferenceEK1(odesolver.ODEFilter):
         super().__init__(
             ode_dimension=ode_dimension, steprule=steprule, solver_order=num_derivatives
         )
+        self.P0 = self.iwp.projection_matrix(0)
+        self.P1 = self.iwp.projection_matrix(1)
 
     def initialize(self, ivp):
         initial_rv = self.tm(ivp=ivp, prior=self.iwp)

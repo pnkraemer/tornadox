@@ -32,7 +32,12 @@ def test_solve_constant(solve_method, order, time_domain, dt):
     ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
 
     solution, solver = tornado.ivpsolve.solve(
-        ivp, method=solve_method, solver_order=order, adaptive=False, dt=dt
+        ivp,
+        method=solve_method,
+        solver_order=order,
+        adaptive=False,
+        dt=dt,
+        benchmark_mode=False,
     )
 
     expected_num_steps = int((tmax - t0) / dt) + 1

@@ -32,8 +32,6 @@ class ODEFilter(ABC):
         self.iwp = iwp.IntegratedWienerTransition(
             num_derivatives=solver_order, wiener_process_dimension=ode_dimension
         )
-        self.P0 = self.iwp.projection_matrix(0)
-        self.P1 = self.iwp.projection_matrix(1)
 
         # Initialization strategy
         self.tm = taylor_mode.TaylorModeInitialization()

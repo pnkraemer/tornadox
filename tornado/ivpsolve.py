@@ -9,6 +9,7 @@ from tornado import ek1, ivp, odesolver, rv, step
 # Will be extended in the dev process
 _SOLVER_REGISTRY: Dict[str, odesolver.ODEFilter] = {
     "ek1_ref": ek1.ReferenceEK1,
+    "ek1_diag": ek1.DiagonalEK1,
 }
 
 
@@ -46,6 +47,7 @@ def solve(
     dt: Optional[Union[float, step.StepRule]] = None,
     abstol: float = 1e-2,
     reltol: float = 1e-2,
+    benchmark_mode=True,
 ):
 
     """Convenience function to solve IVPs.
@@ -75,6 +77,10 @@ def solve(
     reltol : float
         Relative tolerance   of the adaptive step-size selection scheme.
         Optional. Default is ``1e-4``.
+    benchmark_mode: bool
+        Whether or not to save the results. If True, then no intermediate results are
+        kept, save the last time point, in order to isolate the filtering itself,
+        for timing. Defaults to True.
 
     Returns
     -------
@@ -115,11 +121,19 @@ def solve(
             f"Known methods are {list(_SOLVER_REGISTRY.keys())}"
         )
 
+    solution_generator = solver.solution_generator(ivp=ivp)
+
+    if benchmark_mode:
+        for state in solution_generator:
+            pass
+        return state, solver
+
+    # If not in benchmark (e.g. for testing/debugging), save and return results.
     res_states = []
     res_means = []
     res_cov_chols = []
     res_times = []
-    for state in solver.solution_generator(ivp=ivp):
+    for state in solution_generator:
         res_times.append(state.t)
         res_states.append(state.y)
         res_means.append(state.y.mean)
