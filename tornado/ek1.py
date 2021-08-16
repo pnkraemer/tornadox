@@ -165,7 +165,9 @@ class DiagonalEK1(odesolver.ODESolver):
         m_at = P0 @ m_pred
         f = state.ivp.f(t, m_at)
         J = state.ivp.df(t, m_at)
-        diag_J = linops.BlockDiagonal(jnp.diag(J).reshape((-1, 1, 1)))
+        diag_J = linops.BlockDiagonal(
+            jnp.diag(J).reshape((-1, 1, 1))
+        )  # Approx happens here!
         assert isinstance(diag_J, linops.BlockDiagonal)
         assert diag_J.array_stack.shape == (d, 1, 1)
 
@@ -211,6 +213,7 @@ class DiagonalEK1(odesolver.ODESolver):
         cov_sqrtm = P @ cov_sqrtm
         assert isinstance(cov_sqrtm, linops.BlockDiagonal)
         assert cov_sqrtm.array_stack.shape == (d, n, n)
+
         if isinstance(self.steprule, step.AdaptiveSteps):
             # Calibrate
             innov_stds = innov_chol.array_stack[:, 0, 0]  # (was shape (d,1,1))

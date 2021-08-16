@@ -46,8 +46,9 @@ class BlockDiagonal:
             return BlockDiagonal(array_stack)
 
         if isinstance(other, jnp.ndarray) and other.ndim == 1:
-
             reshaped_array = other.reshape((self.num_blocks, -1))
+
+            # Todo: make this faster?
             block_matmul = jnp.einsum("ijk,ik->ij", self.array_stack, reshaped_array)
             return block_matmul.reshape((-1,))
         return NotImplemented
