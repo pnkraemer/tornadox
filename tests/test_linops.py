@@ -3,6 +3,7 @@
 
 import jax.numpy as jnp
 import jax.scipy.linalg
+import pytest
 
 import tornado
 
@@ -40,26 +41,33 @@ def test_block_diagonal():
     assert jnp.allclose(new.todense(), expected)
 
 
-def test_projection_matrix():
+@pytest.fixture
+def P0():
+    return tornado.linops.DerivativeSelection(derivative=0)
 
-    P0 = tornado.linops.DerivativeSelection(derivative=0)
 
-    # Test array
-    test_array = jnp.array([1, 11, 111])
-    assert jnp.allclose(P0 @ test_array, jnp.array(1))
+def test_is_operator(P0):
+    assert isinstance(P0, tornado.linops.DerivativeSelection)
 
-    # Test matrix
-    test_matrix = jnp.array(
+
+def test_array(P0):
+    array = jnp.array([1, 11, 111])
+    assert jnp.allclose(P0 @ array, jnp.array(1))
+
+
+def test_matrix(P0):
+    matrix = jnp.array(
         [
             [11, 12, 13],
             [21, 22, 23],
             [31, 32, 33],
         ]
     )
-    assert jnp.allclose(P0 @ test_matrix, jnp.array([11, 12, 13]))
+    assert jnp.allclose(P0 @ matrix, jnp.array([11, 12, 13]))
 
-    # Test batched matrix
-    test_batched_matrix = jnp.array(
+
+def test_batched_matrix(P0):
+    batched_matrix = jnp.array(
         [
             [
                 [111, 112, 113],
@@ -79,4 +87,4 @@ def test_projection_matrix():
             [211, 212, 213],
         ]
     )
-    assert jnp.allclose(P0 @ test_batched_matrix, expected)
+    assert jnp.allclose(P0 @ batched_matrix, expected)
