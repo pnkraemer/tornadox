@@ -30,8 +30,12 @@ class EK0(ODESolver):
             Y0_full.mean, jnp.zeros((self.q + 1, self.q + 1))
         )
 
-        self.e0 = self.iwp.make_projection_matrix_1d(0)
-        self.e1 = self.iwp.make_projection_matrix_1d(1)
+        self.E0 = self.iwp.projection_matrix(0)
+        self.E1 = self.iwp.projection_matrix(0)
+        self.e0 = self.iwp.projection_matrix_1d(0)
+        self.e1 = self.iwp.projection_matrix_1d(1)
+        self.Id = jnp.eye(self.d)
+        self.Iq1 = jnp.eye(self.q + 1)
 
         return EK0State(
             ivp=ivp,
@@ -42,88 +46,72 @@ class EK0(ODESolver):
             Y=Y0_kron,
         )
 
-    def attempt_step(self, state, dt):
-        print("Setup:")
+    def attempt_step(self, state, dt, verbose=False):
+        # [Setup]
         Y = state.Y
         m, Cl = Y.mean, Y.cov_cholesky
         C = Cl @ Cl.T
         A, Ql = self.A, self.Ql
-        ic(Y)
 
         t_new = state.t + dt
 
-        print("Preconditioners:")
+        # [Preconditioners]
         P, PI = self.iwp.nordsieck_preconditioner_1d(dt)
-        m, Cl = vec_trick_mul(PI, m), PI @ Cl
+        m, Cl = vec_trick_mul_right(PI, m), PI @ Cl
+        _P, _PI = self.iwp.nordsieck_preconditioner(dt)
+        assert jnp.allclose(_P @ m, vec_trick_mul_right(P, m))
         C = Cl @ Cl.T
-        # ic(P, PI)
 
-        print("Predict:")
-        # Predict mean
-        mp = vec_trick_mul(A, m)
-        # Predict cov
+        # [Predict]
+        mp = vec_trick_mul_right(A, m)
         Cp = A @ C @ A.T + Ql @ Ql.T
         Clp = tornado.sqrt.propagate_cholesky_factor(A @ Cl, Ql)
-        assert (Cp == Clp @ Clp.T).all()
-        # ic(mp, Clp)
+        assert jnp.allclose(Cp, Clp @ Clp.T)
 
-        print("Measure:")
-        z = state.ivp.f(t_new, mp)
-        e1 = self.e1
-        _S = e1 @ P @ Cp @ P @ e1.T
-        Sl = e1 @ P @ Clp
+        # [Measure]
+        _mp = vec_trick_mul_right(P, mp)
+        z = self.E1 @ _mp - state.ivp.f(t_new, self.E0 @ _mp)
+        H = self.e1 @ P
+        _S = H @ Cp @ H.T
+        Sl = H @ Clp
         S = (Sl @ Sl.T)[0]
-        ic(z, S, _S)
         assert jnp.allclose(_S, S)
 
-        """
-        Notes to self:
-
-        - Something is not working with the preconditioning yet
-        - vec_trick_mul is not happy with K@v yet
-        - I should look up the squareroot implementation once more and do it as suggested there
-        - Completely ignored so far: diffusion, error estimation, proper square-root stuff, efficient code
-        """
-
-        print("Update:")
-        K = Cp @ e1.T / S
+        # [Update]
+        K = Cp @ H.T / S
         _m_new = m - jnp.kron(jnp.eye(self.d), K) @ z
-        ic(K, mp, z, vec_trick_mul(P, _m_new))
-        m_new = m - vec_trick_mul(K, z)
+        m_new = m - vec_trick_mul_right(K, z)
+        assert jnp.allclose(_m_new, m_new)
+        C_new = Cp - K @ K.T * S
+        Cl_new = (self.Iq1 - K @ H) @ Clp
+        assert jnp.allclose(C_new, Cl_new @ Cl_new.T)
 
-        raise Exception
+        # [Undo preconditioning]
+        m_new, Cl_new = vec_trick_mul_right(P, m_new), P @ Cl_new
+        C = Cl @ Cl.T
 
-        y = state.y + dt * state.ivp.f(state.t, state.y)
-        t = state.t + dt
-        return EK0State(ivp=state.ivp, y=y, t=t, error_estimate=None, reference_state=y)
+        y_new = self.E0 @ m_new
+
+        return EK0State(
+            ivp=state.ivp,
+            y=y_new,
+            t=t_new,
+            error_estimate=None,
+            reference_state=y_new,
+            Y=tornado.rv.MultivariateNormal(m_new, Cl_new),
+        )
 
 
-def vec_trick_mul(M, v):
-    """Use the vec trick to compute M@v more efficiently"""
-    d, d = M.shape
-    D = len(v)
-
-    V = v.reshape(d, D // d, order="F")
-    return (M @ V).reshape(D, order="F")
+def vec_trick_mul_full(K1, K2, v):
+    """Use the vec trick to compute kron(K1,K2)@v more efficiently"""
+    (d1, d2), (d3, d4) = K1.shape, K2.shape
+    V = v.reshape(d4, d2, order="F")
+    return (K2 @ V @ K1.T).reshape(d1 * d3, order="F")
 
 
-if __name__ == "__main__":
-    from icecream import ic
-
-    print("EK0 development")
-
-    print("Problem setup")
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
-
-    print("Solver setup")
-    constant_steps = tornado.step.ConstantSteps(dt=0.001)
-    solver_order = 2
-    solver = EK0(steprule=constant_steps, solver_order=solver_order)
-    ic(solver)
-
-    print("Solve")
-    gen_sol = solver.solution_generator(ivp)
-    for i, state in enumerate(gen_sol):
-        ic(i)
-        ic(state.t)
-        ic(state.y)
+def vec_trick_mul_right(K2, v):
+    """Use the vec trick to compute kron(I_d,K2)@v more efficiently"""
+    d3, d4 = K2.shape
+    V = v.reshape(d4, v.size // d4, order="F")
+    out = K2 @ V
+    return out.reshape(out.size, order="F")
