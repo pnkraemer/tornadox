@@ -1,42 +1,24 @@
 """EK1 solvers."""
 
-import dataclasses
-
 import jax.numpy as jnp
 import jax.scipy.linalg
 
-from tornado import ivp, iwp, linops, odesolver, rv, sqrt, step, taylor_mode
+from tornado import iwp, linops, odesolver, rv, sqrt, taylor_mode
 
 
-@dataclasses.dataclass
-class ODEFilterState:
-
-    ivp: "tornado.ivp.InitialValueProblem"
-    t: float
-    y: "rv.MultivariateNormal"
-    error_estimate: jnp.ndarray
-    reference_state: jnp.ndarray
-
-
-class ReferenceEK1(odesolver.ODESolver):
+class ReferenceEK1(odesolver.ODEFilter):
     """Naive, reference EK1 implementation. Use this to test against."""
 
     def __init__(self, num_derivatives, ode_dimension, steprule):
-        super().__init__(steprule=steprule, solver_order=num_derivatives)
-
-        # Prior integrated Wiener process
-        self.iwp = iwp.IntegratedWienerTransition(
-            num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
+        super().__init__(
+            ode_dimension=ode_dimension, steprule=steprule, solver_order=num_derivatives
         )
         self.P0 = self.iwp.projection_matrix(0)
         self.P1 = self.iwp.projection_matrix(1)
 
-        # Initialization strategy
-        self.tm = taylor_mode.TaylorModeInitialization()
-
     def initialize(self, ivp):
         initial_rv = self.tm(ivp=ivp, prior=self.iwp)
-        return ODEFilterState(
+        return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             y=initial_rv,
@@ -84,7 +66,7 @@ class ReferenceEK1(odesolver.ODESolver):
         new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
 
         # Return new state
-        return ODEFilterState(
+        return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
@@ -93,14 +75,12 @@ class ReferenceEK1(odesolver.ODESolver):
         )
 
 
-class DiagonalEK1(odesolver.ODESolver):
+class DiagonalEK1(odesolver.ODEFilter):
     def __init__(self, num_derivatives, ode_dimension, steprule):
-        super().__init__(steprule=steprule, solver_order=num_derivatives)
-
-        # Prior integrated Wiener process
-        self.iwp = iwp.IntegratedWienerTransition(
-            num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
+        super().__init__(
+            ode_dimension=ode_dimension, steprule=steprule, solver_order=num_derivatives
         )
+
         self.P0_1d = self.iwp.projection_matrix_1d(0)
         self.P1_1d = self.iwp.projection_matrix_1d(1)
 
@@ -108,16 +88,13 @@ class DiagonalEK1(odesolver.ODESolver):
         self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d] * d))
         self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d] * d))
 
-        # Initialization strategy
-        self.tm = taylor_mode.TaylorModeInitialization()
-
     def initialize(self, ivp):
         initial_rv = self.tm(ivp=ivp, prior=self.iwp)
         mean = initial_rv.mean
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
         cov_cholesky = linops.BlockDiagonal(array_stack=jnp.zeros((d, n, n)))
         new_rv = rv.MultivariateNormal(mean, cov_cholesky)
-        return ODEFilterState(
+        return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             y=new_rv,
@@ -255,7 +232,7 @@ class DiagonalEK1(odesolver.ODESolver):
 
         # Return new state
         new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
-        return ODEFilterState(
+        return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
