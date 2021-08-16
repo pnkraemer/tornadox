@@ -7,7 +7,7 @@ from tornado import ek1, ivp, odesolver, rv, step
 
 # Will be extended in the dev process
 _SOLVER_REGISTRY: Dict[str, odesolver.ODESolver] = {
-    "ek1_diag": ek1.ReferenceEK1,
+    "ek1_ref": ek1.ReferenceEK1,
 }
 
 
@@ -28,7 +28,7 @@ class ODEsolution:
 
 def solve(
     ivp: ivp.InitialValueProblem,
-    method: str = "ek1_diag",
+    method: str = "ek1_ref",
     solver_order=2,
     adaptive: bool = True,
     dt: Optional[Union[float, step.StepRule]] = None,
@@ -92,7 +92,7 @@ def solve(
 
     # Set up solve-algorithm
     try:
-        solver = _SOLVER_REGISTRY["ek1_diag"](
+        solver = _SOLVER_REGISTRY[method](
             num_derivatives=solver_order,
             ode_dimension=ivp.dimension,
             steprule=steprule,
