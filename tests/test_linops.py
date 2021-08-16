@@ -7,6 +7,8 @@ import pytest
 
 import tornado
 
+# Tests for blockdiagonals
+
 
 @pytest.fixture
 def A():
@@ -57,3 +59,21 @@ def test_sum_block_diagonals(A, B):
     expected = B1.todense() + B2.todense()
     assert isinstance(new, tornado.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
+
+
+# Test for blockdiagonal truncation
+
+
+def test_truncate_block_diagonal(sparse_dense_blockdiag):
+    sparse, dense = sparse_dense_blockdiag
+
+    num_blocks = sparse.array_stack.shape[0]
+    block_shape = sparse.array_stack.shape[1:]
+    dense_as_array_stack = tornado.linops.truncate_block_diagonal(
+        dense, num_blocks=num_blocks, block_shape=block_shape
+    )
+    assert dense_as_array_stack.shape == (num_blocks,) + block_shape
+
+    assert jnp.allclose(
+        tornado.linops.BlockDiagonal(dense_as_array_stack).todense(), dense
+    )
