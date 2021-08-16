@@ -61,6 +61,55 @@ def test_sum_block_diagonals(A, B):
     assert jnp.allclose(new.todense(), expected)
 
 
+@pytest.fixture
+def P0():
+    return tornado.linops.DerivativeSelection(derivative=0)
+
+
+def test_is_operator(P0):
+    assert isinstance(P0, tornado.linops.DerivativeSelection)
+
+
+def test_array(P0):
+    array = jnp.array([1, 11, 111])
+    assert jnp.allclose(P0 @ array, jnp.array(1))
+
+
+def test_matrix(P0):
+    matrix = jnp.array(
+        [
+            [11, 12, 13],
+            [21, 22, 23],
+            [31, 32, 33],
+        ]
+    )
+    assert jnp.allclose(P0 @ matrix, jnp.array([11, 12, 13]))
+
+
+def test_batched_matrix(P0):
+    batched_matrix = jnp.array(
+        [
+            [
+                [111, 112, 113],
+                [121, 122, 123],
+                [131, 132, 133],
+            ],
+            [
+                [211, 212, 213],
+                [221, 222, 223],
+                [231, 232, 233],
+            ],
+        ]
+    )
+    expected = jnp.array(
+        [
+            [111, 112, 113],
+            [211, 212, 213],
+        ]
+    )
+    assert jnp.allclose(P0 @ batched_matrix, expected)
+
+
 # Test for blockdiagonal truncation
 
 

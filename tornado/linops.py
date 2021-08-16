@@ -53,6 +53,18 @@ class BlockDiagonal:
         return NotImplemented
 
 
+class DerivativeSelection:
+    """Select a derivative from a Nordsieck-vector."""
+
+    def __init__(self, derivative):
+        self._derivative = derivative
+
+    def __matmul__(self, other):
+        if other.ndim == 1:
+            return jnp.take(other, axis=0, indices=self._derivative)
+        return jnp.take(other, axis=-2, indices=self._derivative)
+
+
 # Todo: make faster?
 def truncate_block_diagonal(dense_array, num_blocks, block_shape):
     n1, n2 = block_shape
