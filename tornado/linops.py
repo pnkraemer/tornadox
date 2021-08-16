@@ -51,3 +51,14 @@ class BlockDiagonal:
             array_stack = self.array_stack + other.array_stack
             return BlockDiagonal(array_stack)
         return NotImplemented
+
+class DerivativeSelection:
+    """Select a derivative from a Nordsieck-vector."""
+
+    def __init__(self, derivative):
+        self._derivative = derivative
+
+    def __matmul__(self, other):
+
+        return jnp.take(other, axis=0, indices=self._derivative)
+

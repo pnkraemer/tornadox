@@ -38,3 +38,10 @@ def test_block_diagonal():
     expected = B1.todense() + B2.todense()
     assert isinstance(new, tornado.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
+
+
+def test_projection_matrix():
+
+    test_array = jnp.array([1, 11, 111])
+    P0 = tornado.linops.DerivativeSelection(derivative=0)
+    assert jnp.allclose(P0 @ test_array, jnp.array(1))
