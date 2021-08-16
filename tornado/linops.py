@@ -53,8 +53,8 @@ class BlockDiagonal:
         return NotImplemented
 
 
+# Todo: make faster?
 def truncate_block_diagonal(dense_array, num_blocks, block_shape):
-
     n1, n2 = block_shape
     return jnp.stack(
         [
