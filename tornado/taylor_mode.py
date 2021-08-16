@@ -44,7 +44,7 @@ class TaylorModeInitialization:
 
             return rv.MultivariateNormal(
                 mean=jnp.asarray(all_derivs),
-                cov_cholesky=jnp.asarray(jnp.diag(jnp.zeros(len(derivs)))),
+                cov_sqrtm=jnp.asarray(jnp.diag(jnp.zeros(len(derivs)))),
             )
 
         extended_state = jnp.concatenate((jnp.ravel(ivp.y0), jnp.array([ivp.t0])))

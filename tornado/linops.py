@@ -26,6 +26,12 @@ class BlockDiagonal:
     def num_blocks(self):
         return self._array_stack.shape[0]
 
+    @property
+    def T(self):
+        assert self.array_stack.ndim == 3
+        transposed_array_stack = jnp.transpose(self.array_stack, axes=(0, 2, 1))
+        return BlockDiagonal(array_stack=transposed_array_stack)
+
     @classmethod
     def from_arrays(cls, *arrays):
         """Same interface as jax.scipy.linalg.block_diag(). Can be used for tests."""
@@ -40,8 +46,9 @@ class BlockDiagonal:
             return BlockDiagonal(array_stack)
 
         if isinstance(other, jnp.ndarray) and other.ndim == 1:
-
             reshaped_array = other.reshape((self.num_blocks, -1))
+
+            # Todo: make this faster?
             block_matmul = jnp.einsum("ijk,ik->ij", self.array_stack, reshaped_array)
             return block_matmul.reshape((-1,))
         return NotImplemented
@@ -49,6 +56,12 @@ class BlockDiagonal:
     def __add__(self, other):
         if isinstance(other, BlockDiagonal):
             array_stack = self.array_stack + other.array_stack
+            return BlockDiagonal(array_stack)
+        return NotImplemented
+
+    def __sub__(self, other):
+        if isinstance(other, BlockDiagonal):
+            array_stack = self.array_stack - other.array_stack
             return BlockDiagonal(array_stack)
         return NotImplemented
 

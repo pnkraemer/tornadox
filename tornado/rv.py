@@ -11,8 +11,8 @@ class MultivariateNormal:
     """Multivariate normal distributions."""
 
     mean: jax.numpy.ndarray
-    cov_cholesky: jax.numpy.ndarray
+    cov_sqrtm: jax.numpy.ndarray
 
     @property
     def cov(self):
-        return self.cov_cholesky @ self.cov_cholesky.T
+        return self.cov_sqrtm @ self.cov_sqrtm.T

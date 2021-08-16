@@ -61,6 +61,23 @@ def test_sum_block_diagonals(A, B):
     assert jnp.allclose(new.todense(), expected)
 
 
+def test_diff_block_diagonals(A, B):
+    B1 = tornado.linops.BlockDiagonal.from_arrays(A, B)
+    B2 = tornado.linops.BlockDiagonal.from_arrays(B, A)
+    new = B1 - B2
+    expected = B1.todense() - B2.todense()
+    assert isinstance(new, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(new.todense(), expected)
+
+
+def test_transpose_block_diagonals(A, B):
+    BD = tornado.linops.BlockDiagonal.from_arrays(A, B)
+    new = BD.T
+    expected = BD.todense().T
+    assert isinstance(new, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(new.todense(), expected)
+
+
 @pytest.fixture
 def P0():
     return tornado.linops.DerivativeSelection(derivative=0)
