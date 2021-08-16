@@ -3,6 +3,7 @@
 from jax.config import config
 
 from . import (
+    ek0,
     ek1,
     ivp,
     ivpsolve,
@@ -13,7 +14,6 @@ from . import (
     sqrt,
     step,
     taylor_mode,
-    ek0,
 )
 
 config.update("jax_enable_x64", True)

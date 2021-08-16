@@ -1,11 +1,10 @@
+import jax.numpy as jnp
 import numpy as np
 import pytest
-import jax.numpy as jnp
 from scipy.integrate import solve_ivp
 
-
 import tornado
-from tornado.ek0 import vec_trick_mul_full, vec_trick_mul_right, EK0, ReferenceEK0
+from tornado.ek0 import EK0, ReferenceEK0, vec_trick_mul_full, vec_trick_mul_right
 
 
 def test_vec_trick_mul_full():
