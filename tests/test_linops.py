@@ -64,16 +64,15 @@ def test_sum_block_diagonals(A, B):
 # Test for blockdiagonal truncation
 
 
-def test_truncate_block_diagonal(sparse_dense_blockdiag):
-    sparse, dense = sparse_dense_blockdiag
-
-    num_blocks = sparse.array_stack.shape[0]
-    block_shape = sparse.array_stack.shape[1:]
+@pytest.mark.parametrize("d,n1,n2", [(5, 3, 2), (2, 3, 1)])
+def test_truncate_block_diagonal_array(d, n1, n2):
+    array_stack = jnp.arange(d * n1 * n2).reshape((d, n1, n2))
+    dense_matrix = tornado.linops.BlockDiagonal(array_stack).todense()
     dense_as_array_stack = tornado.linops.truncate_block_diagonal(
-        dense, num_blocks=num_blocks, block_shape=block_shape
+        dense_matrix, num_blocks=d, block_shape=(n1, n2)
     )
-    assert dense_as_array_stack.shape == (num_blocks,) + block_shape
-
+    assert dense_as_array_stack.shape == (d, n1, n2)
     assert jnp.allclose(
-        tornado.linops.BlockDiagonal(dense_as_array_stack).todense(), dense
+        tornado.linops.BlockDiagonal(dense_as_array_stack).todense(), dense_matrix
     )
+    assert jnp.allclose(dense_as_array_stack, array_stack)
