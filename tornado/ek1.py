@@ -3,6 +3,7 @@
 import dataclasses
 
 import jax.numpy as jnp
+import jax.scipy.linalg
 
 from tornado import ivp, iwp, linops, odesolver, rv, sqrt, step, taylor_mode
 
@@ -51,9 +52,8 @@ class ReferenceEK1(odesolver.ODESolver):
         m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
         A, SQ = self.iwp.preconditioned_discretize
 
-        # Prediction
+        # Prediction (mean)
         m_pred = A @ m
-        SC_pred = sqrt.propagate_cholesky_factor(A @ SC, SQ)
 
         # Evaluate ODE
         t = state.t + dt
@@ -65,9 +65,18 @@ class ReferenceEK1(odesolver.ODESolver):
         H = P1 - J @ P0
         b = J @ m_at - f
 
+        # Calibrate
+        z = H @ m_pred + b
+        S_chol = sqrt.sqrtm_to_cholesky((H @ SQ).T)
+        whitened_res = jax.scipy.linalg.solve_triangular(S_chol, z)
+        sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
+        sigma = jnp.sqrt(sigma_squared)
+
+        # Prediction (covariance)
+        SC_pred = sqrt.propagate_cholesky_factor(A @ SC, sigma * SQ)
+
         # Update
         cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
-        z = H @ m_pred + b
         new_mean = m_pred - Kgain @ z
 
         cov_cholesky = P @ cov_cholesky
@@ -151,14 +160,8 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(SC, linops.BlockDiagonal)
         assert SC.array_stack.shape == (d, n, n)
 
-        # Make prediction
+        # Predict [mean]
         m_pred = A @ m
-        batched_sc_pred = sqrt.batched_propagate_cholesky_factor(
-            (A @ SC).array_stack, SQ.array_stack
-        )
-        SC_pred = linops.BlockDiagonal(batched_sc_pred)
-        assert isinstance(SC_pred, linops.BlockDiagonal)
-        assert SC_pred.array_stack.shape == (d, n, n)
 
         # Evaluate ODE
         t = state.t + dt
@@ -176,6 +179,36 @@ class DiagonalEK1(odesolver.ODESolver):
         b = diag_J @ m_at - f
         assert isinstance(H, linops.BlockDiagonal)
         assert H.array_stack.shape == (d, 1, n)
+        z = H @ m_pred + b
+
+        # Calibrate
+        HSQ = H @ SQ
+        assert isinstance(HSQ, linops.BlockDiagonal)
+        assert HSQ.array_stack.shape == (d, 1, n)
+        S_local = HSQ @ HSQ.T
+        assert isinstance(S_local, linops.BlockDiagonal)
+        assert S_local.array_stack.shape == (d, 1, 1)
+        whitened_res = z / jnp.sqrt(S_local.array_stack[:, 0, 0])
+        assert whitened_res.shape == (d,)
+        sigma_squared = whitened_res.T @ whitened_res / d
+        sigma = jnp.sqrt(sigma_squared)
+        assert sigma_squared.shape == ()
+        assert sigma.shape == ()
+        assert sigma_squared >= 0.0
+        assert sigma >= 0.0
+
+        error_estimate = sigma * jnp.sqrt(S_local.array_stack[:, 0, 0])
+        assert isinstance(error_estimate, jnp.ndarray)
+        assert error_estimate.shape == (d,)
+        assert jnp.all(error_estimate >= 0.0)
+
+        # Predict [cov]
+        batched_sc_pred = sqrt.batched_propagate_cholesky_factor(
+            (A @ SC).array_stack, sigma * SQ.array_stack
+        )
+        SC_pred = linops.BlockDiagonal(batched_sc_pred)
+        assert isinstance(SC_pred, linops.BlockDiagonal)
+        assert SC_pred.array_stack.shape == (d, n, n)
 
         # Compute innovation matrix and Kalman gain
         # Due to the block-diagonal structure in H (and in C), S is diagonal!
@@ -201,7 +234,6 @@ class DiagonalEK1(odesolver.ODESolver):
         assert cov_sqrtm.array_stack.shape == (d, n, n)
 
         # Update mean
-        z = H @ m_pred + b
         new_mean = m_pred - kalman_gain @ z
         assert isinstance(z, jnp.ndarray)
         assert z.shape == (d,)
@@ -214,32 +246,12 @@ class DiagonalEK1(odesolver.ODESolver):
         assert isinstance(cov_sqrtm, linops.BlockDiagonal)
         assert cov_sqrtm.array_stack.shape == (d, n, n)
 
-        if isinstance(self.steprule, step.AdaptiveSteps):
-            # Calibrate
-            innov_stds = innov_chol.array_stack[:, 0, 0]  # (was shape (d,1,1))
-            s = z / innov_stds
-            sigma_squared_increment = s.T @ s / d
-            assert isinstance(sigma_squared_increment, jnp.ndarray)
-            assert sigma_squared_increment.shape == ()
-
-            # Get innovation matrix that assumes that the previous step was error-free
-            innov_chol_new = jnp.sqrt((H @ SQ @ SQ.T @ H.T).array_stack)
-            assert isinstance(innov_chol_new, jnp.ndarray)
-            assert innov_chol_new.shape == (d, 1, 1), innov_chol_new.shape
-
-            # Error estimate
-            innov_stds_new = innov_chol_new[:, 0, 0]
-            error_estimate = jnp.sqrt(sigma_squared_increment) * innov_stds_new
-            y1 = jnp.abs(self.P0 @ state.y.mean)
-            y2 = jnp.abs(self.P0 @ new_mean)
-            reference_state = jnp.maximum(y1, y2)
-            assert isinstance(error_estimate, jnp.ndarray)
-            assert isinstance(reference_state, jnp.ndarray)
-            assert error_estimate.shape == (d,)
-            assert reference_state.shape == (d,)
-            assert jnp.all(reference_state >= 0.0)
-        else:
-            error_estimate, reference_state = None, None
+        y1 = jnp.abs(self.P0 @ state.y.mean)
+        y2 = jnp.abs(self.P0 @ new_mean)
+        reference_state = jnp.maximum(y1, y2)
+        assert isinstance(reference_state, jnp.ndarray)
+        assert reference_state.shape == (d,)
+        assert jnp.all(reference_state >= 0.0), reference_state
 
         # Return new state
         new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
