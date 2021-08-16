@@ -36,9 +36,9 @@ def test_solve_constant(solve_method, order, time_domain, dt):
     )
 
     expected_num_steps = int((tmax - t0) / dt) + 1
-    assert len(solution.locations) == len(solution.y) == expected_num_steps
+    assert len(solution.t) == len(solution.y) == expected_num_steps
 
-    assert jnp.allclose(jnp.arange(t0, tmax + dt, step=dt), solution.locations)
+    assert jnp.allclose(jnp.arange(t0, tmax + dt, step=dt), solution.t)
 
     for mean, std, cov in zip(solution.mean(), solution.std(), solution.cov()):
         assert mean.shape == (ivp.dimension * (order + 1),) == std.shape
