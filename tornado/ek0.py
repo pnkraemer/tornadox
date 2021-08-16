@@ -162,3 +162,34 @@ def vec_trick_mul_right(K2, v):
     V = v.reshape(d4, v.size // d4, order="F")
     out = K2 @ V
     return out.reshape(out.size, order="F")
+
+
+if __name__ == "__main__":
+    from icecream import ic
+
+    print("EK0 development")
+
+    print("Problem setup")
+    # ivp = tornado.ivp.vanderpol(t0=0, tmax=5)
+    ivp = tornado.ivp.lotkavolterra(tmax=5)
+
+    print("Solver setup")
+    constant_steps = tornado.step.ConstantSteps(dt=0.01)
+    solver_order = 2
+    solver = ReferenceEK0(steprule=constant_steps, solver_order=solver_order)
+    solver = tornado.ek1.ReferenceEK1(solver_order, ivp.dimension, constant_steps)
+    ic(solver)
+
+    print("Solve")
+    gen_sol = solver.solution_generator(ivp)
+    times, vals = [], []
+    for i, state in enumerate(gen_sol):
+        times.append(state.t)
+        # vals.append(state.y)
+        vals.append(solver.P0 @ state.y.mean)
+    times, vals = jnp.stack(times), jnp.stack(vals)
+
+    import matplotlib.pyplot as plt
+
+    plt.plot(times, vals)
+    plt.show()
