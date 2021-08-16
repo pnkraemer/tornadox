@@ -220,7 +220,7 @@ class DiagonalEK1(odesolver.ODESolver):
             assert sigma_squared_increment.shape == ()
 
             # Get innovation matrix that assumes that the previous step was error-free
-            innov_chol_new = sqrt.batched_sqrtm_to_cholesky((H @ SQ).T.array_stack)
+            innov_chol_new = jnp.sqrt((H @ SQ @ SQ.T @ H.T).array_stack)
             assert isinstance(innov_chol_new, jnp.ndarray)
             assert innov_chol_new.shape == (d, 1, 1), innov_chol_new.shape
 
