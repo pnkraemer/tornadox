@@ -6,21 +6,13 @@ import jax.scipy.linalg
 from tornado import iwp, linops, odesolver, rv, sqrt, taylor_mode
 
 
-class ReferenceEK1(odesolver.ODESolver):
+class ReferenceEK1(odesolver.ODEFilter):
     """Naive, reference EK1 implementation. Use this to test against."""
 
     def __init__(self, num_derivatives, ode_dimension, steprule):
-        super().__init__(steprule=steprule, solver_order=num_derivatives)
-
-        # Prior integrated Wiener process
-        self.iwp = iwp.IntegratedWienerTransition(
-            num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
+        super().__init__(
+            ode_dimension=ode_dimension, steprule=steprule, solver_order=num_derivatives
         )
-        self.P0 = self.iwp.projection_matrix(0)
-        self.P1 = self.iwp.projection_matrix(1)
-
-        # Initialization strategy
-        self.tm = taylor_mode.TaylorModeInitialization()
 
     def initialize(self, ivp):
         initial_rv = self.tm(ivp=ivp, prior=self.iwp)

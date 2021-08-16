@@ -1,4 +1,4 @@
-"""Tests for ODESolver interfaces."""
+"""Tests for ODEFilter interfaces."""
 
 
 import dataclasses
@@ -17,7 +17,7 @@ class EulerState:
     reference_state: jnp.array
 
 
-class EulerAsODESolver(tornado.odesolver.ODESolver):
+class EulerAsODEFilter(tornado.odesolver.ODEFilter):
     def initialize(self, ivp):
         return EulerState(
             ivp=ivp, y=ivp.y0, t=ivp.t0, error_estimate=None, reference_state=ivp.y0
@@ -34,8 +34,8 @@ class EulerAsODESolver(tornado.odesolver.ODESolver):
 def test_odesolver():
     constant_steps = tornado.step.ConstantSteps(dt=0.1)
     solver_order = 2
-    solver = EulerAsODESolver(steprule=constant_steps, solver_order=solver_order)
-    assert isinstance(solver, tornado.odesolver.ODESolver)
+    solver = EulerAsODEFilter(steprule=constant_steps, solver_order=solver_order)
+    assert isinstance(solver, tornado.odesolver.ODEFilter)
 
     ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
     gen_sol = solver.solution_generator(ivp)

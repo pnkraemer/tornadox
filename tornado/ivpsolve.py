@@ -6,7 +6,7 @@ import numpy as np
 from tornado import ek1, ivp, odesolver, rv, step
 
 # Will be extended in the dev process
-_SOLVER_REGISTRY: Dict[str, odesolver.ODESolver] = {
+_SOLVER_REGISTRY: Dict[str, odesolver.ODEFilter] = {
     "ek1_ref": ek1.ReferenceEK1,
 }
 
@@ -74,7 +74,7 @@ def solve(
         y :
             Discrete-time solution at times :math:`t_1, ..., t_N`,
             as a list of random variables.
-    solver: ODESolver
+    solver: ODEFilter
         The solver object used to generate the solution.
         Via this object, projection matrices can be accessed.
     """

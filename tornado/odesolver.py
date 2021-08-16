@@ -7,7 +7,7 @@ from typing import Iterable
 import jax.numpy as jnp
 import numpy as np
 
-from tornado import ivp, rv
+from tornado import ivp, iwp, rv, taylor_mode
 
 
 @dataclasses.dataclass
@@ -20,13 +20,23 @@ class ODEFilterState:
     reference_state: jnp.ndarray
 
 
-class ODESolver(ABC):
-    """Interface for ODE solvers in ProbNum."""
+class ODEFilter(ABC):
+    """Interface for filtering-based ODE solvers in ProbNum."""
 
-    def __init__(self, steprule, solver_order):
+    def __init__(self, ode_dimension, steprule, solver_order):
         self.steprule = steprule
         self.solver_order = solver_order  # e.g.: RK45 has order=5, IBM(q) has order=q
         self.num_steps = 0
+
+        # Prior integrated Wiener process
+        self.iwp = iwp.IntegratedWienerTransition(
+            num_derivatives=solver_order, wiener_process_dimension=ode_dimension
+        )
+        self.P0 = self.iwp.projection_matrix(0)
+        self.P1 = self.iwp.projection_matrix(1)
+
+        # Initialization strategy
+        self.tm = taylor_mode.TaylorModeInitialization()
 
     def solution_generator(self, ivp, stop_at=None):
         """Generate ODE solver steps."""
