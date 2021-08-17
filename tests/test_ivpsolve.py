@@ -38,7 +38,7 @@ def test_solve_constant(solve_method, order, time_domain, dt):
             solver_order=order,
             adaptive=False,
             dt=dt,
-            on_the_fly=False,
+            save_every_step=False,
         )
 
     solution, solver = tornado.ivpsolve.solve(
@@ -47,7 +47,7 @@ def test_solve_constant(solve_method, order, time_domain, dt):
         solver_order=order,
         adaptive=False,
         dt=dt,
-        on_the_fly=False,
+        save_every_step=True,
     )
 
     expected_num_steps = int((tmax - t0) / dt) + 1

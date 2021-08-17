@@ -30,7 +30,7 @@ def solve(
     dt: Optional[Union[float, step.StepRule]] = None,
     abstol: float = 1e-2,
     reltol: float = 1e-2,
-    on_the_fly=True,
+    save_every_step=False,
 ):
 
     """Convenience function to solve IVPs.
@@ -55,10 +55,10 @@ def solve(
     reltol : float
         Relative tolerance   of the adaptive step-size selection scheme.
         Optional.
-    on_the_fly: bool
+    save_every_step: bool
         Whether or not to save all results. If True, then no intermediate results are
         kept, save the last time point, in order to isolate the filtering itself,
-        for timing. Defaults to True.
+        for timing. Optional. Per default, intermediate steps are discarded.
 
     Returns
     -------
@@ -95,7 +95,7 @@ def solve(
 
     solution_generator = solver.solution_generator(ivp=ivp)
 
-    if on_the_fly:
+    if not save_every_step:
         for state in solution_generator:
             pass
         return state, solver
