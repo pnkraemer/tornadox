@@ -26,7 +26,7 @@ def order():
 
 @pytest.fixture
 def dt():
-    return 0.1
+    return 0.05
 
 
 @pytest.fixture
@@ -37,7 +37,7 @@ def time_domain():
 def test_solve_constant(solve_method, order, time_domain, dt):
 
     t0, tmax = time_domain
-    ivp = tornado.ivp.vanderpol(t0=t0, tmax=tmax)
+    ivp = tornado.ivp.vanderpol(t0=t0, tmax=tmax, stiffness_constant=1.0)
 
     with pytest.raises(KeyError):
         tornado.ivpsolve.solve(
