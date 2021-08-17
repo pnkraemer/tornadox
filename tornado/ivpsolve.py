@@ -15,28 +15,10 @@ _SOLVER_REGISTRY: Dict[str, odesolver.ODEFilter] = {
 
 @dataclasses.dataclass(frozen=False)
 class ODESolution:
-    t: Union[jnp.ndarray, Iterable[float]]
-    y: Iterable[rv.MultivariateNormal]
-    means: Optional[Iterable[jnp.ndarray]] = None
-    covs_sqrtm: Optional[Iterable[jnp.ndarray]] = None
-
-    @property
-    def mean(self):
-        if self.means is None:
-            self.means = [_y.mean for _y in self.y]
-
-        return self.means
-
-    @property
-    def cov_sqrtm(self):
-        if self.covs_sqrtm is None:
-            self.covs_sqrtm = [_y.cov_sqrtm for _y in self.y]
-
-        return self.covs_sqrtm
-
-    @functools.cached_property
-    def cov(self):
-        return [_L @ _L.T for _L in self.cov_sqrtm]
+    t: Iterable[float]
+    mean: Iterable[jnp.ndarray]
+    cov_sqrtm: Iterable[jnp.ndarray]
+    cov: Iterable[jnp.ndarray]
 
 
 def solve(
@@ -47,7 +29,7 @@ def solve(
     dt: Optional[Union[float, step.StepRule]] = None,
     abstol: float = 1e-2,
     reltol: float = 1e-2,
-    benchmark_mode=True,
+    on_the_fly=True,
 ):
 
     """Convenience function to solve IVPs.
@@ -103,8 +85,8 @@ def solve(
             raise ValueError(
                 "Please provide absolute and relative tolerance for adaptive steps."
             )
-        firststep = dt if dt is not None else step.propose_firststep(ivp)
-        steprule = step.AdaptiveSteps(firststep=firststep, abstol=abstol, reltol=reltol)
+        first_dt = dt if dt is not None else step.propose_first_dt(ivp)
+        steprule = step.AdaptiveSteps(first_dt=first_dt, abstol=abstol, reltol=reltol)
     else:
         steprule = step.ConstantSteps(dt)
 
@@ -123,25 +105,25 @@ def solve(
 
     solution_generator = solver.solution_generator(ivp=ivp)
 
-    if benchmark_mode:
+    if on_the_fly:
         for state in solution_generator:
             pass
         return state, solver
 
     # If not in benchmark (e.g. for testing/debugging), save and return results.
-    res_states = []
     res_means = []
-    res_cov_chols = []
+    res_covs = []
+    res_cov_sqrtms = []
     res_times = []
     for state in solution_generator:
         res_times.append(state.t)
-        res_states.append(state.y)
         res_means.append(state.y.mean)
-        res_cov_chols.append(state.y.cov_sqrtm)
+        res_cov_sqrtms.append(state.y.cov_sqrtm)
+        res_covs.append(state.y.cov)
 
     return (
         ODESolution(
-            t=res_times, y=res_states, means=res_means, covs_sqrtm=res_cov_chols
+            t=res_times, mean=res_means, cov_sqrtm=res_cov_sqrtms, cov=res_covs
         ),
         solver,
     )
