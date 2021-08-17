@@ -36,7 +36,9 @@ def test_odesolver():
     constant_steps = tornado.step.ConstantSteps(dt=0.1)
     solver_order = 2
     solver = EulerAsODEFilter(
-        ode_dimension=ivp.dimension, steprule=constant_steps, solver_order=solver_order
+        ode_dimension=ivp.dimension,
+        steprule=constant_steps,
+        num_derivatives=solver_order,
     )
     assert isinstance(solver, tornado.odesolver.ODEFilter)
 
