@@ -8,13 +8,13 @@ from tornado import ivp, iwp, odesolver, rv, sqrt, step, taylor_mode
 class ReferenceEK0(odesolver.ODEFilter):
     def initialize(self, ivp):
         d = ivp.dimension
-        q = self.solver_order
+        q = self.num_derivatives
         self.iwp = iwp.IntegratedWienerTransition(
             wiener_process_dimension=d, num_derivatives=q
         )
         Y0_full = taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
 
-        self.E0 = self.iwp.projection_matrix(0)
+        self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
         self.I = jnp.eye(d * (q + 1))
 
@@ -28,7 +28,7 @@ class ReferenceEK0(odesolver.ODEFilter):
 
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
-        m, Cl = state.y.mean, state.y.cov_cholesky
+        m, Cl = state.y.mean, state.y.cov_sqrtm
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
 
         # [Predict]
@@ -61,7 +61,7 @@ class ReferenceEK0(odesolver.ODEFilter):
 class EK0(odesolver.ODEFilter):
     def initialize(self, ivp):
         self.d = ivp.dimension
-        self.q = self.solver_order
+        self.q = self.num_derivatives
         self.iwp = iwp.IntegratedWienerTransition(
             wiener_process_dimension=self.d, num_derivatives=self.q
         )
@@ -72,7 +72,7 @@ class EK0(odesolver.ODEFilter):
             Y0_full.mean, jnp.zeros((self.q + 1, self.q + 1))
         )
 
-        self.E0 = self.iwp.projection_matrix(0)
+        self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
@@ -90,7 +90,7 @@ class EK0(odesolver.ODEFilter):
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
         Y = state.y
-        _m, _Cl = y.mean, Y.cov_cholesky
+        _m, _Cl = Y.mean, Y.cov_sqrtm
         A, Ql = self.A, self.Ql
 
         t_new = state.t + dt

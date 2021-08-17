@@ -39,12 +39,14 @@ def test_reference_ek0_constant_steps(ivp, scipy_solution):
     scipy_final_y = scipy_solution.y[:, -1]
 
     constant_steps = tornado.step.ConstantSteps(0.01)
-    solver = ReferenceEK0(steprule=constant_steps, solver_order=4)
+    solver = ReferenceEK0(
+        ode_dimension=ivp.dimension, steprule=constant_steps, num_derivatives=4
+    )
     for state in solver.solution_generator(ivp=ivp):
         pass
 
     assert jnp.allclose(scipy_final_t, state.t)
-    assert jnp.allclose(scipy_final_y, state.y, rtol=1e-3, atol=1e-3)
+    assert jnp.allclose(scipy_final_y, solver.E0 @ state.y.mean, rtol=1e-3, atol=1e-3)
 
 
 def test_ek0_constant_steps(ivp, scipy_solution):
@@ -52,12 +54,14 @@ def test_ek0_constant_steps(ivp, scipy_solution):
     scipy_final_y = scipy_solution.y[:, -1]
 
     constant_steps = tornado.step.ConstantSteps(0.01)
-    solver = EK0(steprule=constant_steps, solver_order=4)
+    solver = EK0(
+        ode_dimension=ivp.dimension, steprule=constant_steps, num_derivatives=4
+    )
     for state in solver.solution_generator(ivp=ivp):
         pass
 
     assert jnp.allclose(scipy_final_t, state.t)
-    assert jnp.allclose(scipy_final_y, state.y, rtol=1e-3, atol=1e-3)
+    assert jnp.allclose(scipy_final_y, solver.E0 @ state.y.mean, rtol=1e-3, atol=1e-3)
 
 
 def test_ek0_adaptive_steps(ivp, scipy_solution):
@@ -65,9 +69,9 @@ def test_ek0_adaptive_steps(ivp, scipy_solution):
     scipy_final_y = scipy_solution.y[:, -1]
 
     srule = tornado.step.AdaptiveSteps(first_dt=0.01, abstol=1e-6, reltol=1e-3)
-    solver = EK0(steprule=srule, solver_order=4)
+    solver = EK0(ode_dimension=ivp.dimension, steprule=srule, num_derivatives=4)
     for state in solver.solution_generator(ivp=ivp):
         pass
 
     assert jnp.allclose(scipy_final_t, state.t)
-    assert jnp.allclose(scipy_final_y, state.y, rtol=1e-3, atol=1e-3)
+    assert jnp.allclose(scipy_final_y, solver.E0 @ state.y.mean, rtol=1e-3, atol=1e-3)
