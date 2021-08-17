@@ -11,9 +11,9 @@ def solve_method(request):
     return request.param
 
 
-@pytest.fixture(params=[2, 5])
-def order(request):
-    return request.param
+@pytest.fixture
+def order():
+    return 5
 
 
 @pytest.fixture
@@ -23,22 +23,22 @@ def dt():
 
 @pytest.fixture
 def time_domain():
-    return (0.0, 1.5)
+    return 0.0, 1.5
 
 
 def test_solve_constant(solve_method, order, time_domain, dt):
 
     t0, tmax = time_domain
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
+    ivp = tornado.ivp.vanderpol(t0=t0, tmax=tmax)
 
     with pytest.raises(KeyError):
-        solution, solver = tornado.ivpsolve.solve(
+        tornado.ivpsolve.solve(
             ivp,
             method="nonexisting",
             solver_order=order,
             adaptive=False,
             dt=dt,
-            benchmark_mode=False,
+            on_the_fly=False,
         )
 
     solution, solver = tornado.ivpsolve.solve(
@@ -47,12 +47,11 @@ def test_solve_constant(solve_method, order, time_domain, dt):
         solver_order=order,
         adaptive=False,
         dt=dt,
-        benchmark_mode=False,
+        on_the_fly=False,
     )
 
     expected_num_steps = int((tmax - t0) / dt) + 1
-    assert len(solution.t) == len(solution.y) == expected_num_steps
-
+    assert len(solution.t) == len(solution.mean) == expected_num_steps
     assert jnp.allclose(jnp.arange(t0, tmax + dt, step=dt), solution.t)
 
     for mean, cov_chol, cov in zip(solution.mean, solution.cov_sqrtm, solution.cov):
