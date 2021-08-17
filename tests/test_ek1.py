@@ -7,6 +7,8 @@ from scipy.integrate import solve_ivp
 
 import tornado
 
+# Tests for reference EK1
+
 
 def test_reference_ek1_constant_steps():
     """Assert the reference solver returns a similar solution to SciPy.
@@ -33,8 +35,10 @@ def test_reference_ek1_constant_steps():
     assert jnp.allclose(final_y_scipy, final_y_ek1, rtol=1e-3, atol=1e-3)
 
 
-def test_diagonal_ek1_constant_steps():
-    # only "constant steps", because there is no error estimation yet.
+# Tests for diagonal EK1
+
+
+def test_diagonal_ek1_attempt_step():
     old_ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
 
     # Diagonal Jacobian
@@ -48,11 +52,12 @@ def test_diagonal_ek1_constant_steps():
     )
 
     steps = tornado.step.ConstantSteps(0.1)
+    d, n = 2, 4
     reference_ek1 = tornado.ek1.ReferenceEK1(
-        num_derivatives=4, ode_dimension=2, steprule=steps
+        num_derivatives=n, ode_dimension=d, steprule=steps
     )
     diagonal_ek1 = tornado.ek1.DiagonalEK1(
-        num_derivatives=4, ode_dimension=2, steprule=steps
+        num_derivatives=n, ode_dimension=d, steprule=steps
     )
 
     # Initialize works as expected
@@ -73,35 +78,6 @@ def test_diagonal_ek1_constant_steps():
     expected = step_ref.y.cov_sqrtm @ step_ref.y.cov_sqrtm.T
     assert received.shape == expected.shape
     assert jnp.allclose(received, expected), received - expected
-
-
-def test_diagonal_ek1_adaptive_steps():
-    """Error estimation is only computed for adaptive steps. This test computes the result of attempt_step()."""
-    old_ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
-
-    # Diagonal Jacobian
-    new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
-    ivp = tornado.ivp.InitialValueProblem(
-        f=old_ivp.f,
-        df=new_df,
-        t0=old_ivp.t0,
-        tmax=old_ivp.tmax,
-        y0=old_ivp.y0,
-    )
-
-    steps = tornado.step.AdaptiveSteps(0.1, abstol=1e-1, reltol=1e-1)
-    diagonal_ek1 = tornado.ek1.DiagonalEK1(
-        num_derivatives=4, ode_dimension=2, steprule=steps
-    )
-    init_diag = diagonal_ek1.initialize(ivp=ivp)
-    assert isinstance(init_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
-
-    # Attempt step works as expected
-    d = diagonal_ek1.iwp.wiener_process_dimension
-    n = diagonal_ek1.iwp.num_derivatives
-    step_diag = diagonal_ek1.attempt_step(state=init_diag, dt=0.12345)
-    assert isinstance(step_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
-    assert isinstance(step_diag.y.mean, jnp.ndarray)
     assert isinstance(step_diag.reference_state, jnp.ndarray)
     assert isinstance(step_diag.error_estimate, jnp.ndarray)
     assert step_diag.y.mean.shape == (d * (n + 1),)
@@ -128,3 +104,56 @@ def test_diagonal_ek1_adaptive_steps_full_solve():
     final_y_ek1 = ek1.P0 @ state.y.mean
     assert jnp.allclose(final_t_scipy, final_t_ek1)
     assert jnp.allclose(final_y_scipy, final_y_ek1, rtol=1e-3, atol=1e-3)
+
+
+# Tests for truncated EK1 aka EK1
+
+
+def test_truncated_ek1_attempt_step():
+    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
+
+    steps = tornado.step.ConstantSteps(0.1)
+    d, n = 2, 4
+    reference_ek1 = tornado.ek1.ReferenceEK1(
+        num_derivatives=n, ode_dimension=d, steprule=steps
+    )
+    truncated_ek1 = tornado.ek1.TruncatedEK1(
+        num_derivatives=n, ode_dimension=d, steprule=steps
+    )
+
+    # Initialize works as expected
+    init_ref = reference_ek1.initialize(ivp=ivp)
+    init_trunc = truncated_ek1.initialize(ivp=ivp)
+    assert jnp.allclose(init_trunc.t, init_ref.t)
+    assert jnp.allclose(init_trunc.y.mean, init_ref.y.mean)
+    assert isinstance(init_trunc.y.cov_sqrtm, tornado.linops.BlockDiagonal)
+    assert jnp.allclose(init_trunc.y.cov_sqrtm.todense(), init_ref.y.cov_sqrtm)
+
+    # Attempt step works as expected
+    step_ref = reference_ek1.attempt_step(state=init_ref, dt=0.12345)
+    step_trunc = truncated_ek1.attempt_step(state=init_trunc, dt=0.12345)
+
+    assert jnp.allclose(step_trunc.t, step_ref.t)
+    assert jnp.allclose(step_trunc.y.mean, step_ref.y.mean)
+    assert isinstance(step_trunc.y.cov_sqrtm, tornado.linops.BlockDiagonal)
+    received = step_trunc.y.cov
+    expected_dense = step_ref.y.cov
+    expected_as_bd_array_stack = tornado.linops.truncate_block_diagonal(
+        expected_dense,
+        num_blocks=step_trunc.y.cov_sqrtm.array_stack.shape[0],
+        block_shape=step_trunc.y.cov_sqrtm.array_stack.shape[1:3],
+    )
+    expected = tornado.linops.BlockDiagonal(expected_as_bd_array_stack)
+    # Dont relax the tolerance here -- it is sharp!
+    assert jnp.allclose(
+        received.array_stack, expected.array_stack, rtol=5e-4, atol=5e-4
+    )
+    assert received.todense().shape == expected.todense().shape
+
+    # check the usual reference state and error estimation stuff
+    assert isinstance(step_trunc.reference_state, jnp.ndarray)
+    assert isinstance(step_trunc.error_estimate, jnp.ndarray)
+    assert step_trunc.y.mean.shape == (d * (n + 1),)
+    assert step_trunc.reference_state.shape == (d,)
+    assert step_trunc.error_estimate.shape == (d,)
+    assert jnp.all(step_trunc.reference_state >= 0)
