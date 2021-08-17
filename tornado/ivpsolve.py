@@ -25,7 +25,7 @@ class ODESolution:
 def solve(
     ivp: ivp.InitialValueProblem,
     method: str = "ek1_ref",
-    solver_order=5,
+    num_derivatives=5,
     adaptive: bool = True,
     dt: Optional[Union[float, step.StepRule]] = None,
     abstol: float = 1e-2,
@@ -39,8 +39,8 @@ def solve(
     ----------
     ivp:
         Initial value problem.
-    solver_order
-        Order of the solver. This amounts to choosing the number of derivatives of an integrated Wiener process prior.
+    num_derivatives
+        Number of derivatives of the integrated Wiener process prior.
     method : str, optional
         Which method is to be used.
     adaptive :
@@ -83,7 +83,7 @@ def solve(
     # Set up solve-algorithm
     try:
         solver = _SOLVER_REGISTRY[method](
-            num_derivatives=solver_order,
+            num_derivatives=num_derivatives,
             ode_dimension=ivp.dimension,
             steprule=steprule,
         )

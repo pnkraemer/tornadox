@@ -35,7 +35,7 @@ def test_solve_constant(solve_method, order, time_domain, dt):
         tornado.ivpsolve.solve(
             ivp,
             method="nonexisting",
-            solver_order=order,
+            num_derivatives=order,
             adaptive=False,
             dt=dt,
             save_every_step=False,
@@ -44,7 +44,7 @@ def test_solve_constant(solve_method, order, time_domain, dt):
     solution, solver = tornado.ivpsolve.solve(
         ivp,
         method=solve_method,
-        solver_order=order,
+        num_derivatives=order,
         adaptive=False,
         dt=dt,
         save_every_step=True,
