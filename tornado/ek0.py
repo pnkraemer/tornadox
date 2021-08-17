@@ -108,17 +108,17 @@ class EK0(odesolver.ODEFilter):
         H = self.e1 @ P
 
         # [Calibration]
-        HQH = (H @ Ql @ Ql.T @ H.T)[0, 0]
-        # HQH = Q11(dt)  # Q(dt)[1, 1]
+        _HQl = H @ Ql
+        HQH = _HQl @ _HQl.T  # scalar; to become: HQH = Q11(dt) = Q(dt)[1, 1]
         sigma_squared = z.T @ z / HQH / self.d
-        # sigma_squared = 1.0
 
         # [Predict Covariance]
         Clp = sqrt.propagate_cholesky_factor(A @ Cl, jnp.sqrt(sigma_squared) * Ql)
 
         # [Update]
-        # K = Clp @ Clp.T @ H.T / S
-        Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
+        _HClp = H @ Clp
+        S = _HClp @ _HClp.T  # scalar
+        K = Clp @ (Clp.T @ H.T) / S
         m_new = mp - vec_trick_mul_right(K, z)
         Cl_new = (self.Iq1 - K @ H) @ Clp
 
