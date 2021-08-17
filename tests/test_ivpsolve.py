@@ -6,7 +6,15 @@ import pytest
 import tornado
 
 
-@pytest.fixture(params=["ek1_reference", "ek1_diagonal", "ek1_truncated"])
+@pytest.fixture(
+    params=[
+        "ek1_reference",
+        "ek1_diagonal",
+        "ek1_truncated",
+        "ek0_reference",
+        "ek0_kronecker",
+    ]
+)
 def solve_method(request):
     return request.param
 
@@ -62,5 +70,6 @@ def test_solve_constant(solve_method, order, time_domain, dt):
             pass
         assert mean.shape == (ivp.dimension * (order + 1),)
         assert (solver.P0 @ mean).size == ivp.dimension
-        assert cov.shape == (mean.shape[0], mean.shape[0])
+        if not isinstance(solver, tornado.ek0.EK0):
+            assert cov.shape == (mean.shape[0], mean.shape[0])
         assert jnp.allclose(cov, cov_chol @ cov_chol.T)
