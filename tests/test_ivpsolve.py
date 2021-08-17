@@ -26,7 +26,7 @@ def order():
 
 @pytest.fixture
 def dt():
-    return 0.05
+    return 0.01
 
 
 @pytest.fixture
