@@ -33,8 +33,7 @@ def test_reference_ek1_constant_steps():
     assert jnp.allclose(final_y_scipy, final_y_ek1, rtol=1e-3, atol=1e-3)
 
 
-def test_diagonal_ek1_constant_steps():
-    # only "constant steps", because there is no error estimation yet.
+def test_diagonal_ek1_attempt_step():
     old_ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
 
     # Diagonal Jacobian
@@ -48,11 +47,12 @@ def test_diagonal_ek1_constant_steps():
     )
 
     steps = tornado.step.ConstantSteps(0.1)
+    d, n = 2, 4
     reference_ek1 = tornado.ek1.ReferenceEK1(
-        num_derivatives=4, ode_dimension=2, steprule=steps
+        num_derivatives=n, ode_dimension=d, steprule=steps
     )
     diagonal_ek1 = tornado.ek1.DiagonalEK1(
-        num_derivatives=4, ode_dimension=2, steprule=steps
+        num_derivatives=n, ode_dimension=d, steprule=steps
     )
 
     # Initialize works as expected
@@ -73,35 +73,6 @@ def test_diagonal_ek1_constant_steps():
     expected = step_ref.y.cov_sqrtm @ step_ref.y.cov_sqrtm.T
     assert received.shape == expected.shape
     assert jnp.allclose(received, expected), received - expected
-
-
-def test_diagonal_ek1_adaptive_steps():
-    """Error estimation is only computed for adaptive steps. This test computes the result of attempt_step()."""
-    old_ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
-
-    # Diagonal Jacobian
-    new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
-    ivp = tornado.ivp.InitialValueProblem(
-        f=old_ivp.f,
-        df=new_df,
-        t0=old_ivp.t0,
-        tmax=old_ivp.tmax,
-        y0=old_ivp.y0,
-    )
-
-    steps = tornado.step.AdaptiveSteps(0.1, abstol=1e-1, reltol=1e-1)
-    diagonal_ek1 = tornado.ek1.DiagonalEK1(
-        num_derivatives=4, ode_dimension=2, steprule=steps
-    )
-    init_diag = diagonal_ek1.initialize(ivp=ivp)
-    assert isinstance(init_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
-
-    # Attempt step works as expected
-    d = diagonal_ek1.iwp.wiener_process_dimension
-    n = diagonal_ek1.iwp.num_derivatives
-    step_diag = diagonal_ek1.attempt_step(state=init_diag, dt=0.12345)
-    assert isinstance(step_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
-    assert isinstance(step_diag.y.mean, jnp.ndarray)
     assert isinstance(step_diag.reference_state, jnp.ndarray)
     assert isinstance(step_diag.error_estimate, jnp.ndarray)
     assert step_diag.y.mean.shape == (d * (n + 1),)
