@@ -83,7 +83,7 @@ def solve(
     # Set up solve-algorithm
     try:
         solver = _SOLVER_REGISTRY[method](
-            num_derivatives=solver_order,
+            solver_order=solver_order,
             ode_dimension=ivp.dimension,
             steprule=steprule,
         )
