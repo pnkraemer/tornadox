@@ -6,7 +6,7 @@ import pytest
 import tornado
 
 
-@pytest.fixture(params=["ek1_ref", "ek1_diag"])
+@pytest.fixture(params=["ek1_ref", "ek1_diag", "ek1_truncated"])
 def solve_method(request):
     return request.param
 
