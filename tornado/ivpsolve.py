@@ -8,8 +8,8 @@ from tornado import ek1, ivp, odesolver, rv, step
 
 # Will be extended in the dev process
 _SOLVER_REGISTRY: Dict[str, odesolver.ODEFilter] = {
-    "ek1_ref": ek1.ReferenceEK1,
-    "ek1_diag": ek1.DiagonalEK1,
+    "ek1_reference": ek1.ReferenceEK1,
+    "ek1_diagonal": ek1.DiagonalEK1,
     "ek1_truncated": ek1.TruncatedEK1,
 }
 
