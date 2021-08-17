@@ -58,7 +58,7 @@ class ReferenceEK0(odesolver.ODEFilter):
         )
 
 
-class EK0(odesolver.ODEFilter):
+class KroneckerEK0(odesolver.ODEFilter):
     def initialize(self, ivp):
         self.d = ivp.dimension
         self.q = self.num_derivatives

@@ -4,7 +4,12 @@ import pytest
 from scipy.integrate import solve_ivp
 
 import tornado
-from tornado.ek0 import EK0, ReferenceEK0, vec_trick_mul_full, vec_trick_mul_right
+from tornado.ek0 import (
+    KroneckerEK0,
+    ReferenceEK0,
+    vec_trick_mul_full,
+    vec_trick_mul_right,
+)
 
 
 def test_vec_trick_mul_full():
@@ -54,7 +59,7 @@ def test_ek0_constant_steps(ivp, scipy_solution):
     scipy_final_y = scipy_solution.y[:, -1]
 
     constant_steps = tornado.step.ConstantSteps(0.01)
-    solver = EK0(
+    solver = KroneckerEK0(
         ode_dimension=ivp.dimension, steprule=constant_steps, num_derivatives=4
     )
     for state in solver.solution_generator(ivp=ivp):
@@ -69,7 +74,9 @@ def test_ek0_adaptive_steps(ivp, scipy_solution):
     scipy_final_y = scipy_solution.y[:, -1]
 
     srule = tornado.step.AdaptiveSteps(first_dt=0.01, abstol=1e-6, reltol=1e-3)
-    solver = EK0(ode_dimension=ivp.dimension, steprule=srule, num_derivatives=4)
+    solver = KroneckerEK0(
+        ode_dimension=ivp.dimension, steprule=srule, num_derivatives=4
+    )
     for state in solver.solution_generator(ivp=ivp):
         pass
 
