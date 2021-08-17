@@ -5,17 +5,7 @@ import jax.numpy as jnp
 from tornado import ivp, iwp, odesolver, rv, sqrt, step, taylor_mode
 
 
-@dataclasses.dataclass
-class EK0State:
-    ivp: ivp.InitialValueProblem
-    y: jnp.array
-    t: float
-    error_estimate: jnp.array
-    reference_state: jnp.array
-    Y: rv.MultivariateNormal
-
-
-class ReferenceEK0(odesolver.ODESolver):
+class ReferenceEK0(odesolver.ODEFilter):
     def initialize(self, ivp):
         d = ivp.dimension
         q = self.solver_order
@@ -28,18 +18,17 @@ class ReferenceEK0(odesolver.ODESolver):
         self.E1 = self.iwp.projection_matrix(1)
         self.I = jnp.eye(d * (q + 1))
 
-        return EK0State(
+        return odesolver.ODEFilterState(
             ivp=ivp,
-            y=ivp.y0,
             t=ivp.t0,
             error_estimate=None,
             reference_state=ivp.y0,
-            Y=Y0_full,
+            y=Y0_full,
         )
 
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
-        m, Cl = state.Y.mean, state.Y.cov_cholesky
+        m, Cl = state.y.mean, state.y.cov_cholesky
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
 
         # [Predict]
@@ -60,17 +49,16 @@ class ReferenceEK0(odesolver.ODESolver):
 
         y_new = self.E0 @ m_new
 
-        return EK0State(
+        return odesolver.ODEFilterState(
             ivp=state.ivp,
-            y=y_new,
             t=state.t + dt,
             error_estimate=None,
             reference_state=y_new,
-            Y=rv.MultivariateNormal(m_new, Cl_new),
+            y=rv.MultivariateNormal(m_new, Cl_new),
         )
 
 
-class EK0(odesolver.ODESolver):
+class EK0(odesolver.ODEFilter):
     def initialize(self, ivp):
         self.d = ivp.dimension
         self.q = self.solver_order
@@ -91,19 +79,18 @@ class EK0(odesolver.ODESolver):
         self.Id = jnp.eye(self.d)
         self.Iq1 = jnp.eye(self.q + 1)
 
-        return EK0State(
+        return odesolver.ODEFilterState(
             ivp=ivp,
-            y=ivp.y0,
             t=ivp.t0,
             error_estimate=None,
             reference_state=ivp.y0,
-            Y=Y0_kron,
+            y=Y0_kron,
         )
 
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
-        Y = state.Y
-        _m, _Cl = Y.mean, Y.cov_cholesky
+        Y = state.y
+        _m, _Cl = y.mean, Y.cov_cholesky
         A, Ql = self.A, self.Ql
 
         t_new = state.t + dt
@@ -146,13 +133,12 @@ class EK0(odesolver.ODESolver):
             else None
         )
 
-        return EK0State(
+        return odesolver.ODEFilterState(
             ivp=state.ivp,
-            y=y_new,
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,
-            Y=rv.MultivariateNormal(_m_new, _Cl_new),
+            y=rv.MultivariateNormal(_m_new, _Cl_new),
         )
 
 
