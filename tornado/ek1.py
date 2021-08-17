@@ -9,9 +9,11 @@ from tornado import iwp, linops, odesolver, rv, sqrt, taylor_mode
 class ReferenceEK1(odesolver.ODEFilter):
     """Naive, reference EK1 implementation. Use this to test against."""
 
-    def __init__(self, ode_dimension, steprule, solver_order):
+    def __init__(self, ode_dimension, steprule, num_derivatives):
         super().__init__(
-            ode_dimension=ode_dimension, steprule=steprule, solver_order=solver_order
+            ode_dimension=ode_dimension,
+            steprule=steprule,
+            num_derivatives=num_derivatives,
         )
         self.P0 = self.iwp.projection_matrix(0)
         self.P1 = self.iwp.projection_matrix(1)
@@ -76,9 +78,11 @@ class ReferenceEK1(odesolver.ODEFilter):
 
 
 class DiagonalEK1(odesolver.ODEFilter):
-    def __init__(self, solver_order, ode_dimension, steprule):
+    def __init__(self, num_derivatives, ode_dimension, steprule):
         super().__init__(
-            ode_dimension=ode_dimension, steprule=steprule, solver_order=solver_order
+            ode_dimension=ode_dimension,
+            steprule=steprule,
+            num_derivatives=num_derivatives,
         )
 
         self.P0_1d = self.iwp.projection_matrix_1d(0)
@@ -250,9 +254,11 @@ class TruncatedEK1(odesolver.ODEFilter):
     (This also means that for the covariance update, we use the inverse of the diagonal of S, not the diagonal of the inverse of S.)
     """
 
-    def __init__(self, solver_order, ode_dimension, steprule):
+    def __init__(self, num_derivatives, ode_dimension, steprule):
         super().__init__(
-            ode_dimension=ode_dimension, steprule=steprule, solver_order=solver_order
+            ode_dimension=ode_dimension,
+            steprule=steprule,
+            num_derivatives=num_derivatives,
         )
 
         self.P0_1d = self.iwp.projection_matrix_1d(0)

@@ -24,7 +24,7 @@ def test_reference_ek1_constant_steps():
     dt = jnp.mean(jnp.diff(scipy_sol.t))
 
     steps = tornado.step.ConstantSteps(dt)
-    ek1 = tornado.ek1.ReferenceEK1(solver_order=4, ode_dimension=2, steprule=steps)
+    ek1 = tornado.ek1.ReferenceEK1(num_derivatives=4, ode_dimension=2, steprule=steps)
     sol_gen = ek1.solution_generator(ivp=ivp)
     for state in sol_gen:
         pass
@@ -54,10 +54,10 @@ def test_diagonal_ek1_attempt_step():
     steps = tornado.step.ConstantSteps(0.1)
     d, n = 2, 4
     reference_ek1 = tornado.ek1.ReferenceEK1(
-        solver_order=n, ode_dimension=d, steprule=steps
+        num_derivatives=n, ode_dimension=d, steprule=steps
     )
     diagonal_ek1 = tornado.ek1.DiagonalEK1(
-        solver_order=n, ode_dimension=d, steprule=steps
+        num_derivatives=n, ode_dimension=d, steprule=steps
     )
 
     # Initialize works as expected
@@ -95,7 +95,7 @@ def test_diagonal_ek1_adaptive_steps_full_solve():
 
     dt = jnp.mean(jnp.diff(scipy_sol.t))
     steps = tornado.step.AdaptiveSteps(first_dt=dt, abstol=1e-3, reltol=1e-3)
-    ek1 = tornado.ek1.DiagonalEK1(solver_order=4, ode_dimension=2, steprule=steps)
+    ek1 = tornado.ek1.DiagonalEK1(num_derivatives=4, ode_dimension=2, steprule=steps)
     sol_gen = ek1.solution_generator(ivp=ivp)
     for state in sol_gen:
         pass
@@ -115,10 +115,10 @@ def test_truncated_ek1_attempt_step():
     steps = tornado.step.ConstantSteps(0.1)
     d, n = 2, 4
     reference_ek1 = tornado.ek1.ReferenceEK1(
-        solver_order=n, ode_dimension=d, steprule=steps
+        num_derivatives=n, ode_dimension=d, steprule=steps
     )
     truncated_ek1 = tornado.ek1.TruncatedEK1(
-        solver_order=n, ode_dimension=d, steprule=steps
+        num_derivatives=n, ode_dimension=d, steprule=steps
     )
 
     # Initialize works as expected

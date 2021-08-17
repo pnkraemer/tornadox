@@ -23,14 +23,16 @@ class ODEFilterState:
 class ODEFilter(ABC):
     """Interface for filtering-based ODE solvers in ProbNum."""
 
-    def __init__(self, ode_dimension, steprule, solver_order):
+    def __init__(self, ode_dimension, steprule, num_derivatives):
         self.steprule = steprule
-        self.solver_order = solver_order  # e.g.: RK45 has order=5, IBM(q) has order=q
+        self.num_derivatives = (
+            num_derivatives  # e.g.: RK45 has order=5, IBM(q) has order=q
+        )
         self.num_steps = 0
 
         # Prior integrated Wiener process
         self.iwp = iwp.IntegratedWienerTransition(
-            num_derivatives=solver_order, wiener_process_dimension=ode_dimension
+            num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
         )
 
         # Initialization strategy
@@ -84,7 +86,7 @@ class ODEFilter(ABC):
             )
             step_is_sufficiently_small = self.steprule.is_accepted(internal_norm)
             suggested_dt = self.steprule.suggest(
-                dt, internal_norm, local_convergence_rate=self.solver_order + 1
+                dt, internal_norm, local_convergence_rate=self.num_derivatives + 1
             )
 
             # Get a new step-size for the next step
