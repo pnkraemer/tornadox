@@ -127,11 +127,7 @@ class EK0(odesolver.ODEFilter):
 
         y_new = self.E0 @ _m_new
 
-        error_estimate = (
-            jnp.repeat(jnp.sqrt(sigma_squared * HQH), self.d)
-            if isinstance(self.steprule, step.AdaptiveSteps)
-            else None
-        )
+        error_estimate = jnp.repeat(jnp.sqrt(sigma_squared * HQH), self.d)
 
         return odesolver.ODEFilterState(
             ivp=state.ivp,
