@@ -38,14 +38,10 @@ class ReferenceEK0(odesolver.ODEFilter):
         # [Measure]
         z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
         H = self.E1
-        # Sl = H @ Clp
-        # S = Sl @ Sl.T
 
         # [Update]
         Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
-        # K = (Clp @ Clp.T) @ H.T @ jnp.linalg.inv(S)
         m_new = mp - K @ z
-        # Cl_new = (self.I - K @ H) @ Clp
 
         y_new = self.E0 @ m_new
 
