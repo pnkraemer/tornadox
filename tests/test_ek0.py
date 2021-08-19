@@ -51,7 +51,7 @@ def test_reference_ek0_constant_steps(ivp, scipy_solution):
         pass
 
     assert jnp.allclose(scipy_final_t, state.t)
-    assert jnp.allclose(scipy_final_y, solver.E0 @ state.y.mean, rtol=1e-3, atol=1e-3)
+    assert jnp.allclose(scipy_final_y, solver.P0 @ state.y.mean, rtol=1e-3, atol=1e-3)
 
 
 def test_ek0_constant_steps(ivp, scipy_solution):
@@ -66,7 +66,7 @@ def test_ek0_constant_steps(ivp, scipy_solution):
         pass
 
     assert jnp.allclose(scipy_final_t, state.t)
-    assert jnp.allclose(scipy_final_y, solver.E0 @ state.y.mean, rtol=1e-3, atol=1e-3)
+    assert jnp.allclose(scipy_final_y, solver.P0 @ state.y.mean, rtol=1e-3, atol=1e-3)
 
 
 def test_ek0_adaptive_steps(ivp, scipy_solution):
@@ -81,4 +81,4 @@ def test_ek0_adaptive_steps(ivp, scipy_solution):
         pass
 
     assert jnp.allclose(scipy_final_t, state.t)
-    assert jnp.allclose(scipy_final_y, solver.E0 @ state.y.mean, rtol=1e-3, atol=1e-3)
+    assert jnp.allclose(scipy_final_y, solver.P0 @ state.y.mean, rtol=1e-3, atol=1e-3)
