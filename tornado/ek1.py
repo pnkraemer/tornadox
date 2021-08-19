@@ -56,6 +56,8 @@ class ReferenceEK1(odesolver.ODEFilter):
         sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
         sigma = jnp.sqrt(sigma_squared)
 
+        error_estimate = jnp.sqrt(jnp.diag(S_chol @ S_chol.T)) * sigma
+
         # Prediction (covariance)
         SC_pred = sqrt.propagate_cholesky_factor(A @ SC, sigma * SQ)
 
@@ -67,13 +69,17 @@ class ReferenceEK1(odesolver.ODEFilter):
         new_mean = P @ new_mean
         new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
 
+        y1 = jnp.abs(self.P0 @ state.y.mean)
+        y2 = jnp.abs(self.P0 @ new_mean)
+        reference_state = jnp.maximum(y1, y2)
+
         # Return new state
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
-            error_estimate=None,
-            reference_state=None,
+            error_estimate=error_estimate,
+            reference_state=reference_state,
         )
 
 

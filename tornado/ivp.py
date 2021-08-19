@@ -69,7 +69,7 @@ def threebody(tmax=17.0652165601579625588917206249):
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=jac)
 
 
-def brusselator(N=20):
+def brusselator(N=20, t0=0.0, tmax=10.0):
     """Brusselator as in https://uk.mathworks.com/help/matlab/math/solve-stiff-odes.html.
     N=20 is the same default as in Matlab.
     """
@@ -106,8 +106,5 @@ def brusselator(N=20):
     u0 = jnp.arange(1, N + 1) / N + 1
     v0 = 3.0 * jnp.ones(N)
     y0 = jnp.concatenate([u0, v0])
-
-    t0 = 0.0
-    tmax = 10.0
 
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=jac)
