@@ -14,6 +14,10 @@ because this is the setting where the things that should be faster (slicing)
 are actually faster than the naive approaches (projmatmul).
 """
 
+# Regarding the ipython magic commands:
+# Uncomment %timeit ...
+# before copying the script into your ipython terminal.
+
 import jax
 import jax.numpy as jnp
 
@@ -26,10 +30,12 @@ print("Store mean as a (n*d,) vector")
 
 for d in [10, 100, 1_000]:
     n = 8  # nu + 1
-    fake_mean = jnp.arange(1, 1 + d*n)
+    fake_mean = jnp.arange(1, 1 + d * n)
 
     # Projection styles
-    iwp = tornado.iwp.IntegratedWienerTransition(wiener_process_dimension=d, num_derivatives=n-1)
+    iwp = tornado.iwp.IntegratedWienerTransition(
+        wiener_process_dimension=d, num_derivatives=n - 1
+    )
     E0 = iwp.projection_matrix(0)
     e0_matrix = iwp.projection_matrix_1d(0)
 
@@ -39,25 +45,25 @@ for d in [10, 100, 1_000]:
     def vec_trick_matrix(arr):
         return tornado.ek0.vec_trick_mul_right(e0_matrix, fake_mean)
 
-
     assert jnp.allclose(full_matrix(fake_mean), vec_trick_matrix(fake_mean))
 
     print(f"d={d}")
 
-    %timeit full_matrix(fake_mean).block_until_ready()
-    %timeit vec_trick_matrix(fake_mean).block_until_ready()
+    # %timeit full_matrix(fake_mean).block_until_ready()
+    # %timeit vec_trick_matrix(fake_mean).block_until_ready()
 print()
-
 
 
 print("Store mean as a (n*d,) vector and jit")
 
 for d in [10, 100, 1_000]:
     n = 8  # nu + 1
-    fake_mean = jnp.arange(1, 1 + d*n)
+    fake_mean = jnp.arange(1, 1 + d * n)
 
     # Projection styles
-    iwp = tornado.iwp.IntegratedWienerTransition(wiener_process_dimension=d, num_derivatives=n-1)
+    iwp = tornado.iwp.IntegratedWienerTransition(
+        wiener_process_dimension=d, num_derivatives=n - 1
+    )
     E0 = iwp.projection_matrix(0)
     e0_matrix = iwp.projection_matrix_1d(0)
 
@@ -69,13 +75,12 @@ for d in [10, 100, 1_000]:
     def vec_trick_matrix(arr):
         return tornado.ek0.vec_trick_mul_right(e0_matrix, fake_mean)
 
-
     assert jnp.allclose(full_matrix(fake_mean), vec_trick_matrix(fake_mean))
 
     print(f"d={d}")
 
-    %timeit full_matrix(fake_mean).block_until_ready()
-    %timeit vec_trick_matrix(fake_mean).block_until_ready()
+    # %timeit full_matrix(fake_mean).block_until_ready()
+    # %timeit vec_trick_matrix(fake_mean).block_until_ready()
 print()
 
 
@@ -84,10 +89,12 @@ print("Store mean as a (n,d) matrix")
 
 for d in [10, 100, 1_000, 10_000]:
     n = 8  # nu + 1
-    fake_mean_as_matrix = jnp.arange(1, 1 + d*n).reshape((n, d))
+    fake_mean_as_matrix = jnp.arange(1, 1 + d * n).reshape((n, d))
 
     # Projection styles
-    iwp = tornado.iwp.IntegratedWienerTransition(wiener_process_dimension=d, num_derivatives=n-1)
+    iwp = tornado.iwp.IntegratedWienerTransition(
+        wiener_process_dimension=d, num_derivatives=n - 1
+    )
     e0_matrix = iwp.projection_matrix_1d(0)
     e0_operator = iwp.projection_operator_1d(0)
 
@@ -100,15 +107,14 @@ for d in [10, 100, 1_000, 10_000]:
     def slicing(arr):
         return arr[0]
 
-
     assert jnp.allclose(matrix(fake_mean_as_matrix), operator(fake_mean_as_matrix))
     assert jnp.allclose(operator(fake_mean_as_matrix), slicing(fake_mean_as_matrix))
 
     print(f"d={d}")
 
-    %timeit matrix(fake_mean_as_matrix).block_until_ready()
-    %timeit operator(fake_mean_as_matrix).block_until_ready()
-    %timeit slicing(fake_mean_as_matrix).block_until_ready()
+    # %timeit matrix(fake_mean_as_matrix).block_until_ready()
+    # %timeit operator(fake_mean_as_matrix).block_until_ready()
+    # %timeit slicing(fake_mean_as_matrix).block_until_ready()
 print()
 
 
@@ -117,17 +123,18 @@ print("Store mean as a (n,d) matrix and jit")
 
 for d in [10, 100, 1_000, 10_000]:
     n = 8  # nu + 1
-    fake_mean_as_matrix = jnp.arange(1, 1 + d*n).reshape((n, d))
+    fake_mean_as_matrix = jnp.arange(1, 1 + d * n).reshape((n, d))
 
     # Projection styles
-    iwp = tornado.iwp.IntegratedWienerTransition(wiener_process_dimension=d, num_derivatives=n-1)
+    iwp = tornado.iwp.IntegratedWienerTransition(
+        wiener_process_dimension=d, num_derivatives=n - 1
+    )
     e0_matrix = iwp.projection_matrix_1d(0)
     e0_operator = iwp.projection_operator_1d(0)
 
     @jax.jit
     def matrix(arr):
         return e0_matrix @ arr
-
 
     @jax.jit
     def operator(arr):
@@ -137,17 +144,15 @@ for d in [10, 100, 1_000, 10_000]:
     def slicing(arr):
         return arr[0]
 
-
     assert jnp.allclose(matrix(fake_mean_as_matrix), operator(fake_mean_as_matrix))
     assert jnp.allclose(operator(fake_mean_as_matrix), slicing(fake_mean_as_matrix))
 
     print(f"d={d}")
 
-    %timeit matrix(fake_mean_as_matrix).block_until_ready()
-    %timeit operator(fake_mean_as_matrix).block_until_ready()
-    %timeit slicing(fake_mean_as_matrix).block_until_ready()
+    # %timeit matrix(fake_mean_as_matrix).block_until_ready()
+    # %timeit operator(fake_mean_as_matrix).block_until_ready()
+    # %timeit slicing(fake_mean_as_matrix).block_until_ready()
 print()
-
 
 
 # Returns the following on a generic, small laptop:

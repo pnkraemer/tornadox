@@ -34,9 +34,7 @@ repos:
     hooks:
       - id: black
         language_version: python3
-        exclude: timings/
   - repo: https://github.com/pre-commit/mirrors-isort
     rev: v5.5.4 # Make sure to use the same tag/version as specified in tox.ini.
     hooks:
       - id: isort
-        exclude: timings/
