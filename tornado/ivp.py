@@ -67,3 +67,45 @@ def threebody(tmax=17.0652165601579625588917206249):
     y0 = jnp.array([0.994, 0, 0, -2.00158510637908252240537862224])
     t0 = 0.0
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=jac)
+
+
+def brusselator(N):
+    """Brusselator as in https://uk.mathworks.com/help/matlab/math/solve-stiff-odes.html."""
+    alpha = 1.0 / 50.0
+    const = alpha * (N + 1) ** 2
+    weights = jnp.array([1.0, -2.0, 1.0])
+
+    def brusselator_rhs(y):
+
+        u, v = y[:N], y[N:]
+
+        conv_u = jnp.convolve(u, weights, mode="same")
+        conv_v = jnp.convolve(v, weights, mode="same")
+
+        u_new = 1.0 + u ** 2 * v - 4 * u + const * conv_u
+        v_new = 3 * u - u ** 2 * v + const * conv_v
+        return jnp.concatenate([u_new, v_new])
+
+    df = jax.jacfwd(brusselator_rhs)
+
+    def rhs(t, y):
+        assert y.shape == (2 * N,)
+        dy = brusselator_rhs(y)
+        assert dy.shape == (2 * N,)
+        return dy
+
+    def jac(t, y):
+        assert y.shape == (2 * N,)
+        df_ = df(y)
+        assert df_.shape == (2 * N, 2 * N)
+        return df_
+
+    u0 = jnp.arange(1, N + 1) / N + 1
+    v0 = 3.0 * jnp.ones(N)
+    y0 = jnp.concatenate([u0, v0])
+
+    t0 = 0.0
+    tmax = 10.0
+    assert y0.shape == (2 * N,)
+
+    return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=jac)
