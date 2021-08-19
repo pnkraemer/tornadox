@@ -81,8 +81,13 @@ def brusselator(N=20):
         """Evaluate the Brusselator RHS via jnp.convolve, which is equivalent to multiplication with a banded matrix."""
         u, v = y[:N], y[N:]
 
-        conv_u = jnp.convolve(u, weights, mode="same")
-        conv_v = jnp.convolve(v, weights, mode="same")
+        # Compute (1, -2, 1)-weighted average with boundary behaviour as in the Matlab link above.
+        u_pad = jnp.array([1.0])
+        v_pad = jnp.array([3.0])
+        u_ = jnp.concatenate([u_pad, u, u_pad])
+        v_ = jnp.concatenate([v_pad, v, v_pad])
+        conv_u = jnp.convolve(u_, weights, mode="valid")
+        conv_v = jnp.convolve(v_, weights, mode="valid")
 
         u_new = 1.0 + u ** 2 * v - 4 * u + const * conv_u
         v_new = 3 * u - u ** 2 * v + const * conv_v
