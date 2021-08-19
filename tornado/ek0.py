@@ -68,11 +68,9 @@ class KroneckerEK0(odesolver.ODEFilter):
             Y0_full.mean, jnp.zeros((self.q + 1, self.q + 1))
         )
 
-        self.P0 = self.E0 = self.iwp.projection_matrix(0)
-        self.E1 = self.iwp.projection_matrix(1)
+        self.P0 = self.iwp.projection_matrix(0)
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
-        self.Id = jnp.eye(self.d)
         self.Iq1 = jnp.eye(self.q + 1)
 
         return odesolver.ODEFilterState(
@@ -100,7 +98,9 @@ class KroneckerEK0(odesolver.ODEFilter):
 
         # [Measure]
         _mp = vec_trick_mul_right(P, mp)  # Undo the preconditioning
-        z = self.E1 @ _mp - state.ivp.f(t_new, self.E0 @ _mp)
+        xi = vec_trick_mul_right(self.e0, _mp)
+
+        z = vec_trick_mul_right(self.e1, _mp) - state.ivp.f(t_new, xi)
         H = self.e1 @ P
 
         # [Calibration]
@@ -121,7 +121,7 @@ class KroneckerEK0(odesolver.ODEFilter):
         # [Undo preconditioning]
         _m_new, _Cl_new = vec_trick_mul_right(P, m_new), P @ Cl_new
 
-        y_new = self.E0 @ _m_new
+        y_new = vec_trick_mul_right(self.e0, _m_new)
 
         error_estimate = jnp.repeat(jnp.sqrt(sigma_squared * HQH), self.d)
 
