@@ -69,14 +69,16 @@ def threebody(tmax=17.0652165601579625588917206249):
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=jac)
 
 
-def brusselator(N):
-    """Brusselator as in https://uk.mathworks.com/help/matlab/math/solve-stiff-odes.html."""
+def brusselator(N=20):
+    """Brusselator as in https://uk.mathworks.com/help/matlab/math/solve-stiff-odes.html.
+    N=20 is the same default as in Matlab.
+    """
     alpha = 1.0 / 50.0
     const = alpha * (N + 1) ** 2
     weights = jnp.array([1.0, -2.0, 1.0])
 
     def brusselator_rhs(y):
-
+        """Evaluate the brusselator RHS via jnp.convolve, which is equivalent to multiplication with a banded matrix."""
         u, v = y[:N], y[N:]
 
         conv_u = jnp.convolve(u, weights, mode="same")
