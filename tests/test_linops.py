@@ -78,6 +78,9 @@ def test_transpose_block_diagonals(A, B):
     assert jnp.allclose(new.todense(), expected)
 
 
+# Tests for derivative selection
+
+
 @pytest.fixture
 def P0():
     return tornado.linops.DerivativeSelection(derivative=0)
