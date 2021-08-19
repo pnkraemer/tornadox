@@ -78,7 +78,7 @@ def brusselator(N=20):
     weights = jnp.array([1.0, -2.0, 1.0])
 
     def brusselator_rhs(y):
-        """Evaluate the brusselator RHS via jnp.convolve, which is equivalent to multiplication with a banded matrix."""
+        """Evaluate the Brusselator RHS via jnp.convolve, which is equivalent to multiplication with a banded matrix."""
         u, v = y[:N], y[N:]
 
         conv_u = jnp.convolve(u, weights, mode="same")
@@ -90,16 +90,12 @@ def brusselator(N=20):
 
     df = jax.jacfwd(brusselator_rhs)
 
-    def rhs(t, y):
-        assert y.shape == (2 * N,)
+    def rhs(_, y):
         dy = brusselator_rhs(y)
-        assert dy.shape == (2 * N,)
         return dy
 
-    def jac(t, y):
-        assert y.shape == (2 * N,)
+    def jac(_, y):
         df_ = df(y)
-        assert df_.shape == (2 * N, 2 * N)
         return df_
 
     u0 = jnp.arange(1, N + 1) / N + 1
@@ -108,6 +104,5 @@ def brusselator(N=20):
 
     t0 = 0.0
     tmax = 10.0
-    assert y0.shape == (2 * N,)
 
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=jac)
