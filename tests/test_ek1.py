@@ -41,7 +41,7 @@ def num_derivatives():
 # Handy abbreviation for the long parametrize decorator
 EK1_VERSIONS = [
     tornado.ek1.ReferenceEK1,
-    # tornado.ek1.DiagonalEK1,
+    tornado.ek1.DiagonalEK1,
     tornado.ek1.TruncatedEK1,
 ]
 all_ek1_versions = pytest.mark.parametrize("ek1_version", EK1_VERSIONS)
@@ -57,7 +57,8 @@ def test_full_solve_compare_scipy(
     ek1 = ek1_version(num_derivatives=num_derivatives, ode_dimension=2, steprule=steps)
     sol_gen = ek1.solution_generator(ivp=ivp)
     for state in sol_gen:
-        pass
+        if state.t > ivp.t0:
+            pass
 
     final_t_ek1 = state.t
     final_y_ek1 = ek1.P0 @ state.y.mean
@@ -305,7 +306,7 @@ def p_1d(n):
 @pytest.fixture
 def J(m, ivp, e0):
     xi = e0 @ m
-    return ivp.df(ivp.t0, xi)
+    return jnp.diag(ivp.df(ivp.t0, xi))
 
 
 @pytest.fixture
