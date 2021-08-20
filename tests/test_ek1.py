@@ -131,21 +131,26 @@ def test_diagonal_ek1_initialize_cov_type(diagonal_initialized):
     assert isinstance(init_diag.y.cov, tornado.linops.BlockDiagonal)
 
 
-def test_diagonal_ek1_attempt_step_y_values(diagonal_stepped, ivp, num_derivatives):
+def test_diagonal_ek1_attempt_step_y_values(diagonal_stepped):
+    step_ref, step_diag = diagonal_stepped
+
+    assert jnp.allclose(step_diag.y.mean, step_ref.y.mean)
+    assert jnp.allclose(step_diag.y.cov.todense(), step_ref.y.cov)
+
+
+def test_diagonal_ek1_attempt_step_y_shapes(diagonal_stepped, ivp, num_derivatives):
     step_ref, step_diag = diagonal_stepped
     d, n = ivp.dimension, num_derivatives
 
-    assert jnp.allclose(step_diag.y.mean, step_ref.y.mean)
-    received = step_diag.y.cov.todense()
-    expected = step_ref.y.cov
-    assert received.shape == expected.shape
-    assert jnp.allclose(received, expected), received - expected
     assert step_diag.y.mean.shape == (d * (n + 1),)
+    assert step_diag.y.cov_sqrtm.todense().shape == step_ref.y.cov_sqrtm.shape
+    assert step_diag.y.cov.todense().shape == step_ref.y.cov.shape
 
 
 def test_diagonal_ek1_attempt_step_y_cov_type(diagonal_stepped):
-    step_ref, step_diag = diagonal_stepped
+    _, step_diag = diagonal_stepped
     assert isinstance(step_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
+    assert isinstance(step_diag.y.cov, tornado.linops.BlockDiagonal)
 
 
 def test_diagonal_ek1_attempt_step_error_estimate(diagonal_stepped, ivp):
