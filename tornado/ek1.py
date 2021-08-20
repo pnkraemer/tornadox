@@ -38,25 +38,24 @@ class ReferenceEK1(odesolver.ODEFilter):
 
         m_pred = reference_ek1_predict_mean(m=m, phi=A)
 
-        # Evaluate ODE
+        # Evaluate ODE and create linearisation
         t = state.t + dt
         m_at = P0 @ m_pred
         f = state.ivp.f(t, m_at)
         J = state.ivp.df(t, m_at)
-
-        # Create linearisation
         H = P1 - J @ P0
         b = J @ m_at - f
+        z = H @ m_pred + b
 
         # Calibrate
-        z = H @ m_pred + b
         sigma, error_estimate = reference_ek1_calibrate_and_estimate_error(
             h=H, sq=SQ, z=z
         )
 
+        # Predict covariance
         SC_pred = reference_ek1_predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
 
-        # Update
+        # Update (observation and correction in one sweep)
         cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
         new_mean = m_pred - Kgain @ z
 
@@ -91,9 +90,9 @@ def reference_ek1_calibrate_and_estimate_error(h, sq, z):
     s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
     whitened_res = jax.scipy.linalg.solve_triangular(s_chol, z)
     sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
-
-    error_estimate = jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
-    return jnp.sqrt(sigma_squared), error_estimate
+    sigma = jnp.sqrt(sigma_squared)
+    error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
+    return sigma, error_estimate
 
 
 class DiagonalEK1(odesolver.ODEFilter):
