@@ -66,6 +66,8 @@ def test_full_solve_compare_scipy(
 
 @pytest.fixture
 def diagonal_solver_triple(ivp, steps, num_derivatives):
+    """Assemble a combination of DiagonalEK1 and ReferenceEK1 with matching parameters."""
+
     # Diagonal Jacobian into the IVP to make the reference EK1 acknowledge it too.
     old_ivp = ivp
     new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
@@ -77,51 +79,90 @@ def diagonal_solver_triple(ivp, steps, num_derivatives):
         y0=old_ivp.y0,
     )
 
-    d, n = 2, num_derivatives
+    d, n = ivp.dimension, num_derivatives
     reference_ek1 = tornado.ek1.ReferenceEK1(
         num_derivatives=n, ode_dimension=d, steprule=steps
     )
     diagonal_ek1 = tornado.ek1.DiagonalEK1(
         num_derivatives=n, ode_dimension=d, steprule=steps
     )
+
     return diagonal_ek1, reference_ek1, ivp
 
 
-def test_diagonal_ek1_initialize(diagonal_solver_triple):
+@pytest.fixture
+def diagonal_initialized(diagonal_solver_triple):
+    """Initialize the to-be-tested EK1 and the reference EK1."""
+
     diagonal_ek1, reference_ek1, ivp = diagonal_solver_triple
 
     init_ref = reference_ek1.initialize(ivp=ivp)
     init_diag = diagonal_ek1.initialize(ivp=ivp)
 
-    assert jnp.allclose(init_diag.t, init_ref.t)
-    assert jnp.allclose(init_diag.y.mean, init_ref.y.mean)
-    assert isinstance(init_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
-    assert jnp.allclose(init_diag.y.cov_sqrtm.todense(), init_ref.y.cov_sqrtm)
+    return init_ref, init_diag
 
 
-def test_diagonal_ek1_attempt_step(diagonal_solver_triple, num_derivatives):
+@pytest.fixture
+def diagonal_stepped(diagonal_solver_triple, diagonal_initialized):
+    """Attempt a step with the to-be-tested-EK1 and the reference EK1."""
 
-    diagonal_ek1, reference_ek1, ivp = diagonal_solver_triple
-    d, n = ivp.dimension, num_derivatives
-
-    # Initialize in order to be able to reach the attempt_step functionality
-    init_ref = reference_ek1.initialize(ivp=ivp)
-    init_diag = diagonal_ek1.initialize(ivp=ivp)
+    diagonal_ek1, reference_ek1, _ = diagonal_solver_triple
+    init_ref, init_diag = diagonal_initialized
 
     step_ref = reference_ek1.attempt_step(state=init_ref, dt=0.12345)
     step_diag = diagonal_ek1.attempt_step(state=init_diag, dt=0.12345)
+
+    return step_ref, step_diag
+
+
+def test_diagonal_ek1_initialize_values(diagonal_initialized):
+    init_ref, init_diag = diagonal_initialized
+
     assert jnp.allclose(init_diag.t, init_ref.t)
+    assert jnp.allclose(init_diag.y.mean, init_ref.y.mean)
+    assert jnp.allclose(init_diag.y.cov_sqrtm.todense(), init_ref.y.cov_sqrtm)
+    assert jnp.allclose(init_diag.y.cov.todense(), init_ref.y.cov)
+
+
+def test_diagonal_ek1_initialize_cov_type(diagonal_initialized):
+    _, init_diag = diagonal_initialized
+
+    assert isinstance(init_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
+    assert isinstance(init_diag.y.cov, tornado.linops.BlockDiagonal)
+
+
+def test_diagonal_ek1_attempt_step_y_values(diagonal_stepped, ivp, num_derivatives):
+    step_ref, step_diag = diagonal_stepped
+    d, n = ivp.dimension, num_derivatives
+
     assert jnp.allclose(step_diag.y.mean, step_ref.y.mean)
-    assert isinstance(step_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
-    received = (step_diag.y.cov_sqrtm @ step_diag.y.cov_sqrtm.T).todense()
-    expected = step_ref.y.cov_sqrtm @ step_ref.y.cov_sqrtm.T
+    received = step_diag.y.cov.todense()
+    expected = step_ref.y.cov
     assert received.shape == expected.shape
     assert jnp.allclose(received, expected), received - expected
-    assert isinstance(step_diag.reference_state, jnp.ndarray)
-    assert isinstance(step_diag.error_estimate, jnp.ndarray)
     assert step_diag.y.mean.shape == (d * (n + 1),)
-    assert step_diag.reference_state.shape == (d,)
-    assert step_diag.error_estimate.shape == (d,)
+
+
+def test_diagonal_ek1_attempt_step_y_cov_type(diagonal_stepped):
+    step_ref, step_diag = diagonal_stepped
+    assert isinstance(step_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
+
+
+def test_diagonal_ek1_attempt_step_error_estimate(diagonal_stepped, ivp):
+    _, step_diag = diagonal_stepped
+
+    assert isinstance(step_diag.error_estimate, jnp.ndarray)
+    assert step_diag.error_estimate.shape == (ivp.dimension,)
+    assert jnp.all(step_diag.error_estimate >= 0)
+
+
+def test_diagonal_ek1_attempt_step_reference_state(
+    diagonal_stepped, ivp, num_derivatives
+):
+    _, step_diag = diagonal_stepped
+
+    assert isinstance(step_diag.reference_state, jnp.ndarray)
+    assert step_diag.reference_state.shape == (ivp.dimension,)
     assert jnp.all(step_diag.reference_state >= 0)
 
 
