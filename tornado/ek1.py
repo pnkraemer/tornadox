@@ -83,6 +83,10 @@ class ReferenceEK1(odesolver.ODEFilter):
         )
 
 
+def reference_ek1_predict_mean(m, phi):
+    return phi @ m
+
+
 class DiagonalEK1(odesolver.ODEFilter):
     def __init__(self, num_derivatives, ode_dimension, steprule):
         super().__init__(

@@ -216,3 +216,18 @@ def test_approx_ek1_attempt_step_y_values(approx_stepped):
     assert jnp.allclose(
         step_approx.y.cov.todense(), truncated_ref_cov, rtol=5e-4, atol=5e-4
     )
+
+
+# Tests for lower-level functions (only types and shapes, not values)
+
+
+def test_ek1_predict_mean():
+
+    n, d = 5, 3
+    m = jnp.arange(1, 1 + n * d)
+    sc = jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+    phi = jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+    sq = jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+    m = tornado.ek1.reference_ek1_predict_mean(m, phi)
+
+    assert m.shape == (n * d,)
