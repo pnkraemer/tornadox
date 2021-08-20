@@ -284,7 +284,9 @@ def diagonal_ek1_calibrate_and_estimate_error(e0_1d, e1_1d, J, sq_bd, z):
 def diagonal_ek1_observe_cov_sqrtm(e0_1d, e1_1d, J, sc_bd):
     h_sc_bd = e1_1d @ sc_bd - J @ (e0_1d @ sc_bd)  # shape (d,n)
     s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
-    return jnp.sqrt(s)
+    cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
+    kgain = cross / s[..., None, None]  # shape (d,n,1)
+    return jnp.sqrt(s), kgain
 
 
 class TruncatedEK1(odesolver.ODEFilter):

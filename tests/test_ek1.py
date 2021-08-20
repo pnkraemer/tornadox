@@ -378,11 +378,12 @@ def test_diagonal_ek1_error_estimate(diagonal_ek1_calibrated_and_error_estimated
     assert jnp.all(error_estimate >= 0.0)
 
 
-def test_diagonal_ek1_observe_cov_sqrtm(e0_1d, e1_1d, J, sc_as_bd, d):
-    ss = tornado.ek1.diagonal_ek1_observe_cov_sqrtm(
+def test_diagonal_ek1_observe_cov_sqrtm(e0_1d, e1_1d, J, sc_as_bd, d, n):
+    ss, kgain = tornado.ek1.diagonal_ek1_observe_cov_sqrtm(
         e0_1d=e0_1d,
         e1_1d=e1_1d,
         J=J,
         sc_bd=sc_as_bd,
     )
     assert ss.shape == (d,)
+    assert kgain.shape == (d, n, 1)
