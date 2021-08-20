@@ -3,26 +3,32 @@
 import dataclasses
 
 import jax.numpy as jnp
+import pytest
 from scipy.integrate import solve_ivp
 
 import tornado
 
+
+# Commonly reused fixtures
+@pytest.fixture
+def ivp():
+    return tornado.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
+
+
 # Tests for reference EK1
 
 
-def test_reference_ek1_constant_steps():
-    """Assert the reference solver returns a similar solution to SciPy.
+def test_full_solve_reference_ek0_compare_scipy(ivp):
+    """Assert the EK0 solves an ODE correctly.
 
-    As long as this test passes, we can test the more efficient solvers against this one here.
+    This makes the EK0 a valid reference to
+    check the optimised implementations against below.
     """
-
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
     scipy_sol = solve_ivp(ivp.f, t_span=(ivp.t0, ivp.tmax), y0=ivp.y0)
     final_t_scipy = scipy_sol.t[-1]
     final_y_scipy = scipy_sol.y[:, -1]
 
     dt = jnp.mean(jnp.diff(scipy_sol.t))
-
     steps = tornado.step.ConstantSteps(dt)
     ek1 = tornado.ek1.ReferenceEK1(num_derivatives=4, ode_dimension=2, steprule=steps)
     sol_gen = ek1.solution_generator(ivp=ivp)
@@ -38,9 +44,8 @@ def test_reference_ek1_constant_steps():
 # Tests for diagonal EK1
 
 
-def test_diagonal_ek1_attempt_step():
-    old_ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
-
+def test_diagonal_ek1_attempt_step(ivp):
+    old_ivp = ivp
     # Diagonal Jacobian
     new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
     ivp = tornado.ivp.InitialValueProblem(
@@ -86,9 +91,8 @@ def test_diagonal_ek1_attempt_step():
     assert jnp.all(step_diag.reference_state >= 0)
 
 
-def test_diagonal_ek1_adaptive_steps_full_solve():
+def test_diagonal_ek1_adaptive_steps_full_solve(ivp):
 
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
     scipy_sol = solve_ivp(ivp.f, t_span=(ivp.t0, ivp.tmax), y0=ivp.y0)
     final_t_scipy = scipy_sol.t[-1]
     final_y_scipy = scipy_sol.y[:, -1]
@@ -109,8 +113,7 @@ def test_diagonal_ek1_adaptive_steps_full_solve():
 # Tests for truncated EK1 aka EK1
 
 
-def test_truncated_ek1_attempt_step():
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=0.5, stiffness_constant=1.0)
+def test_truncated_ek1_attempt_step(ivp):
 
     steps = tornado.step.ConstantSteps(0.1)
     d, n = 2, 4
