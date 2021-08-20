@@ -404,3 +404,9 @@ def test_diagonal_ek1_correct_cov_sqrtm(e0_1d, e1_1d, J, observed, sc_as_bd, d, 
         kgain=kgain,
     )
     assert new_sc.shape == (d, n, n)
+
+
+def test_diagonal_ek1_correct_mean(m_as_matrix, observed, z, d, n):
+    _, kgain = observed
+    new_mean = tornado.ek1.diagonal_ek1_correct_mean(m=m_as_matrix, kgain=kgain, z=z)
+    assert new_mean.shape == (n, d)

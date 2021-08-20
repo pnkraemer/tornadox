@@ -296,6 +296,12 @@ def diagonal_ek1_correct_cov_sqrtm(e0_1d, e1_1d, J, sc_bd, kgain):
     return new_sc
 
 
+def diagonal_ek1_correct_mean(m, kgain, z):
+    correction = kgain @ z[:, None, None]  # shape (d,n,1)
+    new_mean = m - correction[:, :, 0].T  # shape (n,d)
+    return new_mean
+
+
 class TruncatedEK1(odesolver.ODEFilter):
     """Use full Jacobians for mean-updates, but truncate cleverly to enforce a block-diagonal posterior covariance.
 
