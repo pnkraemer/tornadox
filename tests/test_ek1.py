@@ -221,13 +221,36 @@ def test_approx_ek1_attempt_step_y_values(approx_stepped):
 # Tests for lower-level functions (only types and shapes, not values)
 
 
-def test_ek1_predict_mean():
+@pytest.fixture
+def n():
+    return 5
 
-    n, d = 5, 3
-    m = jnp.arange(1, 1 + n * d)
-    sc = jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
-    phi = jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
-    sq = jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
-    m = tornado.ek1.reference_ek1_predict_mean(m, phi)
 
-    assert m.shape == (n * d,)
+@pytest.fixture
+def d():
+    return 3
+
+
+@pytest.fixture
+def m(n, d):
+    return jnp.arange(1, 1 + n * d)
+
+
+@pytest.fixture
+def sc(n, d):
+    return jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+
+
+@pytest.fixture
+def phi(n, d):
+    return jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+
+
+@pytest.fixture
+def sq(n, d):
+    return jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+
+
+def test_ek1_predict_mean(m, phi, n, d):
+    mp = tornado.ek1.reference_ek1_predict_mean(m, phi)
+    assert mp.shape == (n * d,)
