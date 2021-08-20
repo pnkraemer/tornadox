@@ -1,5 +1,7 @@
 """EK1 solvers."""
 
+import functools
+
 import jax.numpy as jnp
 import jax.scipy.linalg
 
