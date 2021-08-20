@@ -254,3 +254,8 @@ def sq(n, d):
 def test_ek1_predict_mean(m, phi, n, d):
     mp = tornado.ek1.reference_ek1_predict_mean(m, phi)
     assert mp.shape == (n * d,)
+
+
+def test_ek1_predict_cov_sqrtm(sc, phi, sq, n, d):
+    scp = tornado.ek1.reference_ek1_predict_cov_sqrtm(sc, phi, sq)
+    assert scp.shape == (n * d, n * d)

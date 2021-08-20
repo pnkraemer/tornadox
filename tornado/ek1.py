@@ -36,8 +36,7 @@ class ReferenceEK1(odesolver.ODEFilter):
         m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
         A, SQ = self.iwp.preconditioned_discretize
 
-        # Prediction (mean)
-        m_pred = A @ m
+        m_pred = reference_ek1_predict_mean(m=m, phi=A)
 
         # Evaluate ODE
         t = state.t + dt
@@ -58,8 +57,7 @@ class ReferenceEK1(odesolver.ODEFilter):
 
         error_estimate = jnp.sqrt(jnp.diag(S_chol @ S_chol.T)) * sigma
 
-        # Prediction (covariance)
-        SC_pred = sqrt.propagate_cholesky_factor(A @ SC, sigma * SQ)
+        SC_pred = reference_ek1_predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
 
         # Update
         cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
@@ -85,6 +83,10 @@ class ReferenceEK1(odesolver.ODEFilter):
 
 def reference_ek1_predict_mean(m, phi):
     return phi @ m
+
+
+def reference_ek1_predict_cov_sqrtm(sc, phi, sq):
+    return sqrt.propagate_cholesky_factor(phi @ sc, sq)
 
 
 class DiagonalEK1(odesolver.ODEFilter):
