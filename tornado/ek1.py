@@ -267,6 +267,12 @@ def diagonal_ek1_predict_mean(m, phi_1d):
     return phi_1d @ m
 
 
+def diagonal_ek1_predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
+    phi_1d @ sc_bd
+    assert (phi_1d @ sc_bd).shape == sq_bd.shape
+    return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
+
+
 class TruncatedEK1(odesolver.ODEFilter):
     """Use full Jacobians for mean-updates, but truncate cleverly to enforce a block-diagonal posterior covariance.
 

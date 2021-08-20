@@ -237,8 +237,18 @@ def m(n, d):
 
 
 @pytest.fixture
-def sc(n, d):
-    return jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+def sc_1d(n):
+    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+
+
+@pytest.fixture
+def sc(sc_1d, d):
+    return jnp.kron(jnp.eye(d), sc_1d)
+
+
+@pytest.fixture
+def sc_as_bd(sc_1d, d):
+    return jnp.stack([sc_1d] * d)
 
 
 @pytest.fixture
@@ -252,8 +262,18 @@ def phi(phi_1d, d):
 
 
 @pytest.fixture
-def sq(n, d):
-    return jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+def sq_1d(n):
+    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+
+
+@pytest.fixture
+def sq(sq_1d, d):
+    return jnp.kron(jnp.eye(d), sq_1d)
+
+
+@pytest.fixture
+def sq_as_bd(sq_1d, d):
+    return jnp.stack([sq_1d] * d)
 
 
 @pytest.fixture
@@ -319,3 +339,11 @@ def test_diagonal_ek1_predict_mean(m_as_matrix, phi_1d, n, d):
 
     mp = tornado.ek1.diagonal_ek1_predict_mean(m_as_matrix, phi_1d)
     assert mp.shape == (n, d)
+
+
+def test_diagonal_ek1_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
+
+    scp = tornado.ek1.diagonal_ek1_predict_cov_sqrtm(
+        sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
+    )
+    assert scp.shape == (d, n, n)
