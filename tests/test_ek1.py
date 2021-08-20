@@ -15,10 +15,16 @@ def ivp():
     return tornado.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
 
 
+@pytest.fixture
+def steps():
+    dt = 0.1
+    return tornado.step.AdaptiveSteps(first_dt=dt, abstol=1e-3, reltol=1e-3)
+
+
 # Tests for reference EK1
 
 
-def test_full_solve_reference_ek0_compare_scipy(ivp):
+def test_full_solve_reference_ek0_compare_scipy(ivp, steps):
     """Assert the EK0 solves an ODE correctly.
 
     This makes the EK0 a valid reference to
@@ -28,8 +34,6 @@ def test_full_solve_reference_ek0_compare_scipy(ivp):
     final_t_scipy = scipy_sol.t[-1]
     final_y_scipy = scipy_sol.y[:, -1]
 
-    dt = jnp.mean(jnp.diff(scipy_sol.t))
-    steps = tornado.step.ConstantSteps(dt)
     ek1 = tornado.ek1.ReferenceEK1(num_derivatives=4, ode_dimension=2, steprule=steps)
     sol_gen = ek1.solution_generator(ivp=ivp)
     for state in sol_gen:
@@ -44,7 +48,7 @@ def test_full_solve_reference_ek0_compare_scipy(ivp):
 # Tests for diagonal EK1
 
 
-def test_diagonal_ek1_attempt_step(ivp):
+def test_diagonal_ek1_attempt_step(ivp, steps):
     old_ivp = ivp
     # Diagonal Jacobian
     new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
@@ -56,7 +60,6 @@ def test_diagonal_ek1_attempt_step(ivp):
         y0=old_ivp.y0,
     )
 
-    steps = tornado.step.ConstantSteps(0.1)
     d, n = 2, 4
     reference_ek1 = tornado.ek1.ReferenceEK1(
         num_derivatives=n, ode_dimension=d, steprule=steps
@@ -91,14 +94,12 @@ def test_diagonal_ek1_attempt_step(ivp):
     assert jnp.all(step_diag.reference_state >= 0)
 
 
-def test_diagonal_ek1_adaptive_steps_full_solve(ivp):
+def test_diagonal_ek1_adaptive_steps_full_solve(ivp, steps):
 
     scipy_sol = solve_ivp(ivp.f, t_span=(ivp.t0, ivp.tmax), y0=ivp.y0)
     final_t_scipy = scipy_sol.t[-1]
     final_y_scipy = scipy_sol.y[:, -1]
 
-    dt = jnp.mean(jnp.diff(scipy_sol.t))
-    steps = tornado.step.AdaptiveSteps(first_dt=dt, abstol=1e-3, reltol=1e-3)
     ek1 = tornado.ek1.DiagonalEK1(num_derivatives=4, ode_dimension=2, steprule=steps)
     sol_gen = ek1.solution_generator(ivp=ivp)
     for state in sol_gen:
@@ -113,9 +114,8 @@ def test_diagonal_ek1_adaptive_steps_full_solve(ivp):
 # Tests for truncated EK1 aka EK1
 
 
-def test_truncated_ek1_attempt_step(ivp):
+def test_truncated_ek1_attempt_step(ivp, steps):
 
-    steps = tornado.step.ConstantSteps(0.1)
     d, n = 2, 4
     reference_ek1 = tornado.ek1.ReferenceEK1(
         num_derivatives=n, ode_dimension=d, steprule=steps
