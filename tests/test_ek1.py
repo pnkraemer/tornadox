@@ -29,13 +29,20 @@ def scipy_solution(ivp):
     return final_t_scipy, final_y_scipy
 
 
+@pytest.fixture
+def num_derivatives():
+    return 4
+
+
 # Tests for reference EK1
 
 EK1_VERSIONS = [tornado.ek1.ReferenceEK1, tornado.ek1.DiagonalEK1]
 
 
 @pytest.mark.parametrize("ek1_version", EK1_VERSIONS)
-def test_full_solve_compare_scipy(ivp, steps, scipy_solution, ek1_version):
+def test_full_solve_compare_scipy(
+    ek1_version, ivp, steps, scipy_solution, num_derivatives
+):
     """Assert the ODEFilter solves an ODE correctly.
 
     This makes the EK0 a valid reference to
@@ -43,7 +50,7 @@ def test_full_solve_compare_scipy(ivp, steps, scipy_solution, ek1_version):
     """
     final_t_scipy, final_y_scipy = scipy_solution
 
-    ek1 = ek1_version(num_derivatives=4, ode_dimension=2, steprule=steps)
+    ek1 = ek1_version(num_derivatives=num_derivatives, ode_dimension=2, steprule=steps)
     sol_gen = ek1.solution_generator(ivp=ivp)
     for state in sol_gen:
         pass
@@ -57,7 +64,7 @@ def test_full_solve_compare_scipy(ivp, steps, scipy_solution, ek1_version):
 # Tests for diagonal EK1
 
 
-def test_diagonal_ek1_attempt_step(ivp, steps):
+def test_diagonal_ek1_attempt_step(ivp, steps, num_derivatives):
     old_ivp = ivp
     # Diagonal Jacobian
     new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
@@ -69,7 +76,7 @@ def test_diagonal_ek1_attempt_step(ivp, steps):
         y0=old_ivp.y0,
     )
 
-    d, n = 2, 4
+    d, n = 2, num_derivatives
     reference_ek1 = tornado.ek1.ReferenceEK1(
         num_derivatives=n, ode_dimension=d, steprule=steps
     )
@@ -106,9 +113,9 @@ def test_diagonal_ek1_attempt_step(ivp, steps):
 # Tests for truncated EK1 aka EK1
 
 
-def test_truncated_ek1_attempt_step(ivp, steps):
+def test_truncated_ek1_attempt_step(ivp, steps, num_derivatives):
 
-    d, n = 2, 4
+    d, n = 2, num_derivatives
     reference_ek1 = tornado.ek1.ReferenceEK1(
         num_derivatives=n, ode_dimension=d, steprule=steps
     )
