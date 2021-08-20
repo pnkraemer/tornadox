@@ -277,14 +277,24 @@ def sq_as_bd(sq_1d, d):
 
 
 @pytest.fixture
-def e0(n, d):
-    return jnp.kron(jnp.eye(d), jnp.eye(1, n))
+def e0_1d(n):
+    return jnp.eye(1, n).reshape((-1,))
 
 
 @pytest.fixture
-def e1(n, d):
+def e0(e0_1d, d):
+    return jnp.kron(jnp.eye(d), e0_1d)
+
+
+@pytest.fixture
+def e1_1d(n):
     # e_{-1} as a dummy for e1 -- only the shapes matter anyway
-    return jnp.kron(jnp.eye(d), jnp.flip(jnp.eye(1, n)))
+    return jnp.flip(jnp.eye(1, n)).reshape((-1,))
+
+
+@pytest.fixture
+def e1(e1_1d, d):
+    return jnp.kron(jnp.eye(d), e1_1d)
 
 
 @pytest.fixture
@@ -319,18 +329,18 @@ def test_reference_ek1_predict_cov_sqrtm(sc, phi, sq, n, d):
 
 
 @pytest.fixture
-def calibrated_and_error_estimated(h, sq, z):
+def reference_ek1_calibrated_and_error_estimated(h, sq, z):
     return tornado.ek1.reference_ek1_calibrate_and_estimate_error(h, sq, z)
 
 
-def test_reference_ek1_calibrate(calibrated_and_error_estimated):
-    sigma, _ = calibrated_and_error_estimated
+def test_reference_ek1_calibrate(reference_ek1_calibrated_and_error_estimated):
+    sigma, _ = reference_ek1_calibrated_and_error_estimated
     assert sigma.shape == ()
     assert sigma >= 0.0
 
 
-def test_reference_ek1_error_estimate(calibrated_and_error_estimated, d):
-    _, error_estimate = calibrated_and_error_estimated
+def test_reference_ek1_error_estimate(reference_ek1_calibrated_and_error_estimated, d):
+    _, error_estimate = reference_ek1_calibrated_and_error_estimated
     assert error_estimate.shape == (d,)
     assert jnp.all(error_estimate >= 0.0)
 
@@ -347,3 +357,32 @@ def test_diagonal_ek1_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
         sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
     )
     assert scp.shape == (d, n, n)
+
+
+@pytest.fixture
+def diagonal_ek1_calibrated_and_error_estimated(e0_1d, e1_1d, J, sq_as_bd, z):
+    return tornado.ek1.diagonal_ek1_calibrate_and_estimate_error(
+        e0_1d=e0_1d, e1_1d=e1_1d, J=J, sq_bd=sq_as_bd, z=z
+    )
+
+
+def test_diagonal_ek1_calibrate(diagonal_ek1_calibrated_and_error_estimated):
+    sigma, _ = diagonal_ek1_calibrated_and_error_estimated
+    assert sigma.shape == ()
+    assert sigma >= 0.0
+
+
+def test_diagonal_ek1_error_estimate(diagonal_ek1_calibrated_and_error_estimated, d):
+    _, error_estimate = diagonal_ek1_calibrated_and_error_estimated
+    assert error_estimate.shape == (d,)
+    assert jnp.all(error_estimate >= 0.0)
+
+
+def test_diagonal_ek1_observe_cov_sqrtm(e0_1d, e1_1d, J, sc_as_bd, d):
+    ss = tornado.ek1.diagonal_ek1_observe_cov_sqrtm(
+        e0_1d=e0_1d,
+        e1_1d=e1_1d,
+        J=J,
+        sc_bd=sc_as_bd,
+    )
+    assert ss.shape == (d,)

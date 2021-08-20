@@ -268,9 +268,23 @@ def diagonal_ek1_predict_mean(m, phi_1d):
 
 
 def diagonal_ek1_predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
-    phi_1d @ sc_bd
-    assert (phi_1d @ sc_bd).shape == sq_bd.shape
     return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
+
+
+def diagonal_ek1_calibrate_and_estimate_error(e0_1d, e1_1d, J, sq_bd, z):
+    h_sq_bd = e1_1d @ sq_bd - J @ (e0_1d @ sq_bd)  # shape (d,n)
+    s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
+    whitened_res = z / jnp.sqrt(s)  # shape (d,)
+    sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]  # shape ()
+    sigma = jnp.sqrt(sigma_squared)  # shape ()
+    error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
+    return sigma, error_estimate
+
+
+def diagonal_ek1_observe_cov_sqrtm(e0_1d, e1_1d, J, sc_bd):
+    h_sc_bd = e1_1d @ sc_bd - J @ (e0_1d @ sc_bd)  # shape (d,n)
+    s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
+    return jnp.sqrt(s)
 
 
 class TruncatedEK1(odesolver.ODEFilter):
