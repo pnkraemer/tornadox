@@ -263,6 +263,10 @@ class DiagonalEK1(odesolver.ODEFilter):
         )
 
 
+def diagonal_ek1_predict_mean(m, phi_1d):
+    return phi_1d @ m
+
+
 class TruncatedEK1(odesolver.ODEFilter):
     """Use full Jacobians for mean-updates, but truncate cleverly to enforce a block-diagonal posterior covariance.
 

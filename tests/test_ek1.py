@@ -242,8 +242,13 @@ def sc(n, d):
 
 
 @pytest.fixture
-def phi(n, d):
-    return jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
+def phi_1d(n):
+    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+
+
+@pytest.fixture
+def phi(phi_1d, d):
+    return jnp.kron(jnp.eye(d), phi_1d)
 
 
 @pytest.fixture
@@ -278,6 +283,11 @@ def z(h, m):
     return h @ m
 
 
+@pytest.fixture
+def m_as_matrix(m, n, d):
+    return m.reshape((n, d))
+
+
 def test_reference_ek1_predict_mean(m, phi, n, d):
     mp = tornado.ek1.reference_ek1_predict_mean(m, phi)
     assert mp.shape == (n * d,)
@@ -303,3 +313,9 @@ def test_reference_ek1_error_estimate(calibrated_and_error_estimated, d):
     _, error_estimate = calibrated_and_error_estimated
     assert error_estimate.shape == (d,)
     assert jnp.all(error_estimate >= 0.0)
+
+
+def test_diagonal_ek1_predict_mean(m_as_matrix, phi_1d, n, d):
+
+    mp = tornado.ek1.diagonal_ek1_predict_mean(m_as_matrix, phi_1d)
+    assert mp.shape == (n, d)
