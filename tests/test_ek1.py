@@ -227,8 +227,8 @@ def n():
 
 
 @pytest.fixture
-def d():
-    return 3
+def d(ivp):
+    return ivp.dimension
 
 
 @pytest.fixture
@@ -251,11 +251,55 @@ def sq(n, d):
     return jnp.arange(1, 1 + n ** 2 * d ** 2).reshape((n * d, n * d))
 
 
-def test_ek1_predict_mean(m, phi, n, d):
+@pytest.fixture
+def e0(n, d):
+    return jnp.kron(jnp.eye(d), jnp.eye(1, n))
+
+
+@pytest.fixture
+def e1(n, d):
+    # e_{-1} as a dummy for e1 -- only the shapes matter anyway
+    return jnp.kron(jnp.eye(d), jnp.flip(jnp.eye(1, n)))
+
+
+@pytest.fixture
+def J(m, ivp, e0):
+    xi = e0 @ m
+    return ivp.df(ivp.t0, xi)
+
+
+@pytest.fixture
+def h(e0, e1, J):
+    return e1 - J @ e0
+
+
+@pytest.fixture
+def z(h, m):
+    return h @ m
+
+
+def test_reference_ek1_predict_mean(m, phi, n, d):
     mp = tornado.ek1.reference_ek1_predict_mean(m, phi)
     assert mp.shape == (n * d,)
 
 
-def test_ek1_predict_cov_sqrtm(sc, phi, sq, n, d):
+def test_reference_ek1_predict_cov_sqrtm(sc, phi, sq, n, d):
     scp = tornado.ek1.reference_ek1_predict_cov_sqrtm(sc, phi, sq)
     assert scp.shape == (n * d, n * d)
+
+
+@pytest.fixture
+def calibrated_and_error_estimated(h, sq, z):
+    return tornado.ek1.reference_ek1_calibrate_and_estimate_error(h, sq, z)
+
+
+def test_reference_ek1_calibrate(calibrated_and_error_estimated):
+    sigma, _ = calibrated_and_error_estimated
+    assert sigma.shape == ()
+    assert sigma >= 0.0
+
+
+def test_reference_ek1_error_estimate(calibrated_and_error_estimated, d):
+    _, error_estimate = calibrated_and_error_estimated
+    assert error_estimate.shape == (d,)
+    assert jnp.all(error_estimate >= 0.0)

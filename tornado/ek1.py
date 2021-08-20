@@ -50,12 +50,9 @@ class ReferenceEK1(odesolver.ODEFilter):
 
         # Calibrate
         z = H @ m_pred + b
-        S_chol = sqrt.sqrtm_to_cholesky((H @ SQ).T)
-        whitened_res = jax.scipy.linalg.solve_triangular(S_chol, z)
-        sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
-        sigma = jnp.sqrt(sigma_squared)
-
-        error_estimate = jnp.sqrt(jnp.diag(S_chol @ S_chol.T)) * sigma
+        sigma, error_estimate = reference_ek1_calibrate_and_estimate_error(
+            h=H, sq=SQ, z=z
+        )
 
         SC_pred = reference_ek1_predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
 
@@ -87,6 +84,16 @@ def reference_ek1_predict_mean(m, phi):
 
 def reference_ek1_predict_cov_sqrtm(sc, phi, sq):
     return sqrt.propagate_cholesky_factor(phi @ sc, sq)
+
+
+def reference_ek1_calibrate_and_estimate_error(h, sq, z):
+    s_sqrtm = h @ sq
+    s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
+    whitened_res = jax.scipy.linalg.solve_triangular(s_chol, z)
+    sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
+
+    error_estimate = jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
+    return jnp.sqrt(sigma_squared), error_estimate
 
 
 class DiagonalEK1(odesolver.ODEFilter):
