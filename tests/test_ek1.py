@@ -64,9 +64,10 @@ def test_full_solve_compare_scipy(
 # Tests for diagonal EK1
 
 
-def test_diagonal_ek1_attempt_step(ivp, steps, num_derivatives):
+@pytest.fixture
+def diagonal_solver_triple(ivp, steps, num_derivatives):
+    # Diagonal Jacobian into the IVP to make the reference EK1 acknowledge it too.
     old_ivp = ivp
-    # Diagonal Jacobian
     new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
     ivp = tornado.ivp.InitialValueProblem(
         f=old_ivp.f,
@@ -83,16 +84,30 @@ def test_diagonal_ek1_attempt_step(ivp, steps, num_derivatives):
     diagonal_ek1 = tornado.ek1.DiagonalEK1(
         num_derivatives=n, ode_dimension=d, steprule=steps
     )
+    return diagonal_ek1, reference_ek1, ivp
 
-    # Initialize works as expected
+
+def test_diagonal_ek1_initialize(diagonal_solver_triple):
+    diagonal_ek1, reference_ek1, ivp = diagonal_solver_triple
+
     init_ref = reference_ek1.initialize(ivp=ivp)
     init_diag = diagonal_ek1.initialize(ivp=ivp)
+
     assert jnp.allclose(init_diag.t, init_ref.t)
     assert jnp.allclose(init_diag.y.mean, init_ref.y.mean)
     assert isinstance(init_diag.y.cov_sqrtm, tornado.linops.BlockDiagonal)
     assert jnp.allclose(init_diag.y.cov_sqrtm.todense(), init_ref.y.cov_sqrtm)
 
-    # Attempt step works as expected
+
+def test_diagonal_ek1_attempt_step(diagonal_solver_triple, num_derivatives):
+
+    diagonal_ek1, reference_ek1, ivp = diagonal_solver_triple
+    d, n = ivp.dimension, num_derivatives
+
+    # Initialize in order to be able to reach the attempt_step functionality
+    init_ref = reference_ek1.initialize(ivp=ivp)
+    init_diag = diagonal_ek1.initialize(ivp=ivp)
+
     step_ref = reference_ek1.attempt_step(state=init_ref, dt=0.12345)
     step_diag = diagonal_ek1.attempt_step(state=init_diag, dt=0.12345)
     assert jnp.allclose(init_diag.t, init_ref.t)
