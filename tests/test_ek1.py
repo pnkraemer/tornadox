@@ -8,8 +8,9 @@ from scipy.integrate import solve_ivp
 
 import tornado
 
-
 # Commonly reused fixtures
+
+
 @pytest.fixture
 def ivp():
     return tornado.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
@@ -34,14 +35,16 @@ def num_derivatives():
     return 4
 
 
-# Tests for reference EK1
+# Tests for full solves.
 
 
-# Tests for full solve.
-all_ek1_versions = pytest.mark.parametrize(
-    "ek1_version",
-    [tornado.ek1.ReferenceEK1, tornado.ek1.DiagonalEK1, tornado.ek1.TruncatedEK1],
-)
+# Handy abbreviation for the long parametrize decorator
+EK1_VERSIONS = [
+    tornado.ek1.ReferenceEK1,
+    tornado.ek1.DiagonalEK1,
+    tornado.ek1.TruncatedEK1,
+]
+all_ek1_versions = pytest.mark.parametrize("ek1_version", EK1_VERSIONS)
 
 
 @all_ek1_versions
@@ -64,6 +67,8 @@ def test_full_solve_compare_scipy(
 
 # Fixtures for tests for initialize, attempt_step, etc.
 
+
+# Handy selection of test parametrizations
 all_ek1_approximations = pytest.mark.parametrize(
     "approx_solver", [tornado.ek1.DiagonalEK1, tornado.ek1.TruncatedEK1]
 )
