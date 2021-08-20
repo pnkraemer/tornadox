@@ -41,7 +41,7 @@ def num_derivatives():
 # Handy abbreviation for the long parametrize decorator
 EK1_VERSIONS = [
     tornado.ek1.ReferenceEK1,
-    tornado.ek1.DiagonalEK1,
+    # tornado.ek1.DiagonalEK1,
     tornado.ek1.TruncatedEK1,
 ]
 all_ek1_versions = pytest.mark.parametrize("ek1_version", EK1_VERSIONS)
@@ -298,6 +298,11 @@ def e1(e1_1d, d):
 
 
 @pytest.fixture
+def p_1d(n):
+    return jnp.diag(jnp.arange(n))
+
+
+@pytest.fixture
 def J(m, ivp, e0):
     xi = e0 @ m
     return ivp.df(ivp.t0, xi)
@@ -360,9 +365,9 @@ def test_diagonal_ek1_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
 
 
 @pytest.fixture
-def diagonal_ek1_calibrated_and_error_estimated(e0_1d, e1_1d, J, sq_as_bd, z):
+def diagonal_ek1_calibrated_and_error_estimated(e0_1d, e1_1d, p_1d, J, sq_as_bd, z):
     return tornado.ek1.diagonal_ek1_calibrate_and_estimate_error(
-        e0_1d=e0_1d, e1_1d=e1_1d, J=J, sq_bd=sq_as_bd, z=z
+        e0_1d=e0_1d, e1_1d=e1_1d, p_1d=p_1d, J=J, sq_bd=sq_as_bd, z=z
     )
 
 
@@ -379,10 +384,11 @@ def test_diagonal_ek1_error_estimate(diagonal_ek1_calibrated_and_error_estimated
 
 
 @pytest.fixture
-def observed(e0_1d, e1_1d, J, sc_as_bd):
+def observed(e0_1d, e1_1d, J, p_1d, sc_as_bd):
     return tornado.ek1.diagonal_ek1_observe_cov_sqrtm(
         e0_1d=e0_1d,
         e1_1d=e1_1d,
+        p_1d=p_1d,
         J=J,
         sc_bd=sc_as_bd,
     )
@@ -394,11 +400,14 @@ def test_diagonal_ek1_observe_cov_sqrtm(observed, d, n):
     assert kgain.shape == (d, n, 1)
 
 
-def test_diagonal_ek1_correct_cov_sqrtm(e0_1d, e1_1d, J, observed, sc_as_bd, d, n):
+def test_diagonal_ek1_correct_cov_sqrtm(
+    e0_1d, e1_1d, J, p_1d, observed, sc_as_bd, d, n
+):
     _, kgain = observed
     new_sc = tornado.ek1.diagonal_ek1_correct_cov_sqrtm(
         e0_1d=e0_1d,
         e1_1d=e1_1d,
+        p_1d=p_1d,
         J=J,
         sc_bd=sc_as_bd,
         kgain=kgain,

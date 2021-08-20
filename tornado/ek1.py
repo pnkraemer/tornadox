@@ -103,12 +103,14 @@ class DiagonalEK1(odesolver.ODEFilter):
             num_derivatives=num_derivatives,
         )
 
-        self.P0_1d = self.iwp.projection_matrix_1d(0)
-        self.P1_1d = self.iwp.projection_matrix_1d(1)
+        self.P0_1d_ = self.iwp.projection_matrix_1d(0)
+        self.P1_1d_ = self.iwp.projection_matrix_1d(1)
+        self.P0_1d = self.P0_1d_.reshape((-1,))
+        self.P1_1d = self.P1_1d_.reshape((-1,))
 
         d = self.iwp.wiener_process_dimension
-        self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d] * d))
-        self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d] * d))
+        self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d_] * d))
+        self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d_] * d))
 
     def initialize(self, ivp):
         initial_rv = self.tm(ivp=ivp, prior=self.iwp)
@@ -146,102 +148,132 @@ class DiagonalEK1(odesolver.ODEFilter):
         # assert P1.array_stack.shape == (d, 1, n)
 
         # Extract system matrices
-        A, SQ = self.iwp.preconditioned_discretize_1d
-        A = linops.BlockDiagonal(jnp.stack([A] * d))
-        SQ = linops.BlockDiagonal(jnp.stack([SQ] * d))
+        A_1d, SQ_1d = self.iwp.preconditioned_discretize_1d
+        A = linops.BlockDiagonal(jnp.stack([A_1d] * d))
+        SQ = linops.BlockDiagonal(jnp.stack([SQ_1d] * d))
         # assert isinstance(A, linops.BlockDiagonal)
         # assert isinstance(SQ, linops.BlockDiagonal)
         # assert A.array_stack.shape == (d, n, n)
         # assert SQ.array_stack.shape == (d, n, n)
 
         # Extract previous states and pull them into "preconditioned space"
-        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
+        m, SC = (
+            Pinv_1d @ state.y.mean.reshape((n, d), order="F"),
+            Pinv_1d @ state.y.cov_sqrtm.array_stack,
+        )
         # assert isinstance(SC, linops.BlockDiagonal)
         # assert SC.array_stack.shape == (d, n, n)
 
         # Predict [mean]
-        m_pred = A @ m
+        # m_pred = A @ m
+        m_pred = diagonal_ek1_predict_mean(m, phi_1d=A_1d)
 
         # Evaluate ODE
         t = state.t + dt
-        m_at = P0 @ m_pred
+        m_at = m_pred[0]
+        assert m_at.shape == (d,), m_at.shape
         f = state.ivp.f(t, m_at)
         J = state.ivp.df(t, m_at)
         diag_J = linops.BlockDiagonal(
             jnp.diag(J).reshape((-1, 1, 1))
         )  # Approx happens here!
+        J = jnp.diag(J)
         # assert isinstance(diag_J, linops.BlockDiagonal)
         # assert diag_J.array_stack.shape == (d, 1, 1)
 
         # Create linearised observation model
-        H = P1 - diag_J @ P0
-        b = diag_J @ m_at - f
+        # H = P1 - diag_J @ P0
+        # b = diag_J @ m_at - f
         # assert isinstance(H, linops.BlockDiagonal)
         # assert H.array_stack.shape == (d, 1, n)
-        z = H @ m_pred + b
+        z = m_pred[1] - f
 
+        sigma, error_estimate = diagonal_ek1_calibrate_and_estimate_error(
+            e0_1d=self.P0_1d,
+            e1_1d=self.P1_1d,
+            p_1d=P_1d,
+            J=J,
+            sq_bd=SQ.array_stack,
+            z=z,
+        )
         # Calibrate
-        HSQ = H @ SQ
-        # assert isinstance(HSQ, linops.BlockDiagonal)
-        # assert HSQ.array_stack.shape == (d, 1, n)
-        S_local = HSQ @ HSQ.T
-        # assert isinstance(S_local, linops.BlockDiagonal)
-        # assert S_local.array_stack.shape == (d, 1, 1)
-        whitened_res = z / jnp.sqrt(S_local.array_stack[:, 0, 0])
-        # assert whitened_res.shape == (d,)
-        sigma_squared = whitened_res.T @ whitened_res / d
-        sigma = jnp.sqrt(sigma_squared)
-        # assert sigma_squared.shape == ()
-        # assert sigma.shape == ()
-        # assert sigma_squared >= 0.0
-        # assert sigma >= 0.0
-
-        error_estimate = sigma * jnp.sqrt(S_local.array_stack[:, 0, 0])
-        # assert isinstance(error_estimate, jnp.ndarray)
-        # assert error_estimate.shape == (d,)
-        # assert jnp.all(error_estimate >= 0.0)
+        # HSQ = H @ SQ
+        # # assert isinstance(HSQ, linops.BlockDiagonal)
+        # # assert HSQ.array_stack.shape == (d, 1, n)
+        # S_local = HSQ @ HSQ.T
+        # # assert isinstance(S_local, linops.BlockDiagonal)
+        # # assert S_local.array_stack.shape == (d, 1, 1)
+        # whitened_res = z / jnp.sqrt(S_local.array_stack[:, 0, 0])
+        # # assert whitened_res.shape == (d,)
+        # sigma_squared = whitened_res.T @ whitened_res / d
+        # sigma = jnp.sqrt(sigma_squared)
+        # # assert sigma_squared.shape == ()
+        # # assert sigma.shape == ()
+        # # assert sigma_squared >= 0.0
+        # # assert sigma >= 0.0
+        #
+        # error_estimate = sigma * jnp.sqrt(S_local.array_stack[:, 0, 0])
+        # # assert isinstance(error_estimate, jnp.ndarray)
+        # # assert error_estimate.shape == (d,)
+        # # assert jnp.all(error_estimate >= 0.0)
 
         # Predict [cov]
-        batched_sc_pred = sqrt.batched_propagate_cholesky_factor(
-            (A @ SC).array_stack, sigma * SQ.array_stack
+        batched_sc_pred = diagonal_ek1_predict_cov_sqrtm(
+            sc_bd=SC, phi_1d=A_1d, sq_bd=sigma * SQ.array_stack
         )
-        SC_pred = linops.BlockDiagonal(batched_sc_pred)
+        # batched_sc_pred = sqrt.batched_propagate_cholesky_factor(
+        #     (A @ SC).array_stack, sigma * SQ.array_stack
+        # )
+        # SC_pred = linops.BlockDiagonal(batched_sc_pred)
         # assert isinstance(SC_pred, linops.BlockDiagonal)
         # assert SC_pred.array_stack.shape == (d, n, n)
 
         # Compute innovation matrix and Kalman gain
         # Due to the block-diagonal structure in H (and in C), S is diagonal!
         # We can compute the correction really cheaply (like in the EK0, actually)
-        S_sqrtm = H @ SC_pred
-        # assert isinstance(S_sqrtm, linops.BlockDiagonal)
-        # assert S_sqrtm.array_stack.shape == (d, 1, n)
-        S = S_sqrtm @ S_sqrtm.T
-        # assert isinstance(S, linops.BlockDiagonal)
-        # assert S.array_stack.shape == (d, 1, 1)
-        innov_chol = linops.BlockDiagonal(jnp.sqrt(S.array_stack))
-        # assert isinstance(innov_chol, linops.BlockDiagonal)
-        # assert innov_chol.array_stack.shape == (d, 1, 1)
-        crosscov = SC_pred @ S_sqrtm.T
-        kalman_gain = linops.BlockDiagonal(crosscov.array_stack / S.array_stack)
-        # assert isinstance(kalman_gain, linops.BlockDiagonal)
-        # assert kalman_gain.array_stack.shape == (d, n, 1)
-
-        # Update covariance
-        I = linops.BlockDiagonal(jnp.stack([jnp.eye(n, n)] * d))
-        cov_sqrtm = (I - kalman_gain @ H) @ SC_pred
-        # assert isinstance(cov_sqrtm, linops.BlockDiagonal)
-        # assert cov_sqrtm.array_stack.shape == (d, n, n)
-
-        # Update mean
-        new_mean = m_pred - kalman_gain @ z
-        # assert isinstance(z, jnp.ndarray)
-        # assert z.shape == (d,)
-        # assert isinstance(new_mean, jnp.ndarray)
-        # assert new_mean.shape == (d * n,)
+        ss, kgain = diagonal_ek1_observe_cov_sqrtm(
+            e0_1d=self.P0_1d, e1_1d=self.P1_1d, J=J, p_1d=P_1d, sc_bd=batched_sc_pred
+        )
+        cov_sqrtm = diagonal_ek1_correct_cov_sqrtm(
+            e0_1d=self.P0_1d,
+            e1_1d=self.P1_1d,
+            J=J,
+            p_1d=P_1d,
+            sc_bd=batched_sc_pred,
+            kgain=kgain,
+        )
+        new_mean = diagonal_ek1_correct_mean(m=m_pred, kgain=kgain, z=z)
+        #
+        # S_sqrtm = H @ SC_pred
+        # # assert isinstance(S_sqrtm, linops.BlockDiagonal)
+        # # assert S_sqrtm.array_stack.shape == (d, 1, n)
+        # S = S_sqrtm @ S_sqrtm.T
+        # # assert isinstance(S, linops.BlockDiagonal)
+        # # assert S.array_stack.shape == (d, 1, 1)
+        # innov_chol = linops.BlockDiagonal(jnp.sqrt(S.array_stack))
+        # # assert isinstance(innov_chol, linops.BlockDiagonal)
+        # # assert innov_chol.array_stack.shape == (d, 1, 1)
+        # crosscov = SC_pred @ S_sqrtm.T
+        # kalman_gain = linops.BlockDiagonal(crosscov.array_stack / S.array_stack)
+        # # assert isinstance(kalman_gain, linops.BlockDiagonal)
+        # # assert kalman_gain.array_stack.shape == (d, n, 1)
+        #
+        # # Update covariance
+        # I = linops.BlockDiagonal(jnp.stack([jnp.eye(n, n)] * d))
+        # cov_sqrtm = (I - kalman_gain @ H) @ SC_pred
+        # # assert isinstance(cov_sqrtm, linops.BlockDiagonal)
+        # # assert cov_sqrtm.array_stack.shape == (d, n, n)
+        #
+        # # Update mean
+        # new_mean = m_pred - kalman_gain @ z
+        # # assert isinstance(z, jnp.ndarray)
+        # # assert z.shape == (d,)
+        # # assert isinstance(new_mean, jnp.ndarray)
+        # # assert new_mean.shape == (d * n,)
 
         # Push mean and covariance back into "normal space"
-        new_mean = P @ new_mean
-        cov_sqrtm = P @ cov_sqrtm
+        new_mean = P @ new_mean.reshape((-1,), order="F")
+        cov_sqrtm = P @ linops.BlockDiagonal(cov_sqrtm)
         # assert isinstance(cov_sqrtm, linops.BlockDiagonal)
         # assert cov_sqrtm.array_stack.shape == (d, n, n)
 
@@ -271,8 +303,9 @@ def diagonal_ek1_predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
     return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
 
 
-def diagonal_ek1_calibrate_and_estimate_error(e0_1d, e1_1d, J, sq_bd, z):
-    h_sq_bd = e1_1d @ sq_bd - J @ (e0_1d @ sq_bd)  # shape (d,n)
+def diagonal_ek1_calibrate_and_estimate_error(e0_1d, e1_1d, p_1d, J, sq_bd, z):
+    sq_bd_no_precon = p_1d @ sq_bd  # shape (d,n,n)
+    h_sq_bd = e1_1d @ sq_bd_no_precon - J @ (e0_1d @ sq_bd_no_precon)  # shape (d,n)
     s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
     whitened_res = z / jnp.sqrt(s)  # shape (d,)
     sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]  # shape ()
@@ -281,16 +314,16 @@ def diagonal_ek1_calibrate_and_estimate_error(e0_1d, e1_1d, J, sq_bd, z):
     return sigma, error_estimate
 
 
-def diagonal_ek1_observe_cov_sqrtm(e0_1d, e1_1d, J, sc_bd):
-    h_sc_bd = e1_1d @ sc_bd - J @ (e0_1d @ sc_bd)  # shape (d,n)
+def diagonal_ek1_observe_cov_sqrtm(e0_1d, e1_1d, p_1d, J, sc_bd):
+    h_sc_bd = e1_1d @ (p_1d @ sc_bd) - J @ (e0_1d @ (p_1d @ sc_bd))  # shape (d,n)
     s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
     cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
     kgain = cross / s[..., None, None]  # shape (d,n,1)
     return jnp.sqrt(s), kgain
 
 
-def diagonal_ek1_correct_cov_sqrtm(e0_1d, e1_1d, J, sc_bd, kgain):
-    h_sc_bd = e1_1d @ sc_bd - J @ (e0_1d @ sc_bd)  # shape (d,n)
+def diagonal_ek1_correct_cov_sqrtm(e0_1d, e1_1d, p_1d, J, sc_bd, kgain):
+    h_sc_bd = e1_1d @ (p_1d @ sc_bd) - J @ (e0_1d @ (p_1d @ sc_bd))  # shape (d,n)
     kh_sc_bd = kgain @ h_sc_bd[:, None, :]  # shape (d,n,n)
     new_sc = sc_bd - kh_sc_bd  # shape (d,n,n)
     return new_sc
