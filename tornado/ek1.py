@@ -103,6 +103,9 @@ class DiagonalEK1(odesolver.ODEFilter):
             num_derivatives=num_derivatives,
         )
 
+        self.e0_1d = self.iwp.projection_operator_1d(0)
+        self.e1_1d = self.iwp.projection_operator_1d(1)
+
         self.P0_1d_ = self.iwp.projection_matrix_1d(0)
         self.P1_1d_ = self.iwp.projection_matrix_1d(1)
         self.P0_1d = self.P0_1d_.reshape((-1,))
@@ -148,16 +151,16 @@ class DiagonalEK1(odesolver.ODEFilter):
 
         # Evaluate ODE
         t = state.t + dt
-        m_at = self.P0_1d @ (P_1d @ m_pred)
+        m_at = self.e0_1d @ (P_1d @ m_pred)
 
         f = state.ivp.f(t, m_at)
         J = jnp.diag(state.ivp.df(t, m_at))
-        z = self.P1_1d @ (P_1d @ m_pred) - f
+        z = self.e1_1d @ (P_1d @ m_pred) - f
 
         # Calibrate
         sigma, error_estimate = diagonal_ek1_calibrate_and_estimate_error(
-            e0_1d=self.P0_1d,
-            e1_1d=self.P1_1d,
+            e0_1d=self.e0_1d,
+            e1_1d=self.e1_1d,
             p_1d=P_1d,
             J=J,
             sq_bd=SQ_bd,
@@ -167,11 +170,11 @@ class DiagonalEK1(odesolver.ODEFilter):
             sc_bd=SC, phi_1d=A_1d, sq_bd=sigma * SQ_bd
         )
         ss, kgain = diagonal_ek1_observe_cov_sqrtm(
-            e0_1d=self.P0_1d, e1_1d=self.P1_1d, J=J, p_1d=P_1d, sc_bd=sc_pred
+            e0_1d=self.e0_1d, e1_1d=self.e1_1d, J=J, p_1d=P_1d, sc_bd=sc_pred
         )
         cov_sqrtm = diagonal_ek1_correct_cov_sqrtm(
-            e0_1d=self.P0_1d,
-            e1_1d=self.P1_1d,
+            e0_1d=self.e0_1d,
+            e1_1d=self.e1_1d,
             J=J,
             p_1d=P_1d,
             sc_bd=sc_pred,
@@ -184,7 +187,7 @@ class DiagonalEK1(odesolver.ODEFilter):
         new_mean = new_mean_.reshape((-1,), order="F")
         cov_sqrtm = linops.BlockDiagonal(P_1d @ cov_sqrtm)
 
-        y1 = jnp.abs(self.P0 @ state.y.mean)
+        y1 = jnp.abs(self.e0_1d @ state.y.mean.reshape((n, d), order="F"))
         y2 = jnp.abs(new_mean_[0])
         reference_state = jnp.maximum(y1, y2)
 
