@@ -67,16 +67,12 @@ def test_solve_constant(solve_method, order, time_domain, dt):
             cov = cov.todense()
         except AttributeError:
             pass
-        if isinstance(
-            solver,
-            (
-                tornado.ek1.DiagonalEK1,
-                tornado.ek1.TruncatedEK1,
-                tornado.ek0.KroneckerEK0,
-            ),
-        ):
+
+        batched_ek1s = (tornado.ek1.DiagonalEK1, tornado.ek1.TruncatedEK1)
+        matrix_solvers = batched_ek1s + (tornado.ek0.KroneckerEK0,)
+        if isinstance(solver, matrix_solvers):
             assert mean.shape == (order + 1, ivp.dimension)
-            if isinstance(solver, (tornado.ek1.DiagonalEK1, tornado.ek1.TruncatedEK1)):
+            if isinstance(solver, batched_ek1s):
                 assert cov.shape == (mean.shape[1], mean.shape[0], mean.shape[0])
             else:
                 assert cov.shape == (mean.size, mean.size)
