@@ -133,21 +133,29 @@ def approx_stepped(solver_triple, approx_initialized):
 
 
 @all_ek1_approximations
-def test_approx_ek1_initialize_values(approx_initialized):
+def test_approx_ek1_initialize_values(approx_initialized, d, n):
     init_ref, init_approx = approx_initialized
-
+    zeros = jnp.zeros((d, n, n))
     assert jnp.allclose(init_approx.t, init_ref.t)
-    assert jnp.allclose(init_approx.y.mean, init_ref.y.mean)
-    assert jnp.allclose(init_approx.y.cov_sqrtm.todense(), init_ref.y.cov_sqrtm)
-    assert jnp.allclose(init_approx.y.cov.todense(), init_ref.y.cov)
+    assert jnp.allclose(init_approx.y.mean, init_ref.y.mean.reshape((n, d), order="F"))
+    assert jnp.allclose(init_approx.y.cov_sqrtm, zeros)
+    assert jnp.allclose(init_approx.y.cov, zeros)
 
 
 @all_ek1_approximations
 def test_approx_ek1_initialize_cov_type(approx_initialized):
     _, init_approx = approx_initialized
 
-    assert isinstance(init_approx.y.cov_sqrtm, tornado.linops.BlockDiagonal)
-    assert isinstance(init_approx.y.cov, tornado.linops.BlockDiagonal)
+    assert isinstance(init_approx.y.cov_sqrtm, jnp.ndarray)
+    assert isinstance(init_approx.y.cov, jnp.ndarray)
+
+
+@all_ek1_approximations
+def test_approx_ek1_initialize_cov_type(approx_initialized):
+    _, init_approx = approx_initialized
+
+    assert isinstance(init_approx.y.cov_sqrtm, jnp.ndarray)
+    assert isinstance(init_approx.y.cov, jnp.ndarray)
 
 
 # Tests for attempt_step (common for all approximations)

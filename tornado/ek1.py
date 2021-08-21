@@ -121,10 +121,9 @@ class DiagonalEK1(odesolver.ODEFilter):
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
-        mean = extended_dy0.reshape((-1,), order="F")
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
-        cov_cholesky = linops.BlockDiagonal(array_stack=jnp.zeros((d, n, n)))
-        new_rv = rv.MultivariateNormal(mean, cov_cholesky)
+        cov_sqrtm = jnp.zeros((d, n, n))
+        new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
