@@ -7,21 +7,15 @@ from tornado import ivp, iwp, odesolver, rv, sqrt, step, taylor_mode
 
 class ReferenceEK0(odesolver.ODEFilter):
     def initialize(self, ivp):
-        d = ivp.dimension
-        q = self.num_derivatives
-        self.iwp = iwp.IntegratedWienerTransition(
-            wiener_process_dimension=d, num_derivatives=q
-        )
         self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
-        self.I = jnp.eye(d * (q + 1))
 
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
         mean = extended_dy0.reshape((-1,), order="F")
         cov_sqrtm = jnp.zeros((mean.shape[0], mean.shape[0]))
-        y = rv.MultivariateNormal(mean, cov_sqrtm)
+        y = rv.MultivariateNormal(mean=mean, cov_sqrtm=cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
@@ -37,22 +31,29 @@ class ReferenceEK0(odesolver.ODEFilter):
 
         # [Predict]
         mp = A @ m
-        Clp = sqrt.propagate_cholesky_factor(A @ Cl, Ql)
 
-        # [Measure]
+        # Measure / calibrate
         z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
         H = self.E1
+
+        S = H @ Ql @ Ql.T @ H.T
+        sigma_squared = z @ jnp.linalg.solve(S, z) / z.shape[0]
+        sigma = jnp.sqrt(sigma_squared)
+        error = jnp.sqrt(jnp.diag(S)) * sigma
+        print("ref", sigma_squared)
+
+        Clp = sqrt.propagate_cholesky_factor(A @ Cl, sigma * Ql)
 
         # [Update]
         Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
         m_new = mp - K @ z
 
-        y_new = self.E0 @ m_new
+        y_new = jnp.abs(self.E0 @ m_new)
 
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=state.t + dt,
-            error_estimate=None,
+            error_estimate=error,
             reference_state=y_new,
             y=rv.MultivariateNormal(m_new, Cl_new),
         )
@@ -60,95 +61,80 @@ class ReferenceEK0(odesolver.ODEFilter):
 
 class KroneckerEK0(odesolver.ODEFilter):
     def initialize(self, ivp):
-        self.d = ivp.dimension
-        self.q = self.num_derivatives
-        self.iwp = iwp.IntegratedWienerTransition(
-            wiener_process_dimension=self.d, num_derivatives=self.q
-        )
+
         self.A, self.Ql = self.iwp.preconditioned_discretize_1d
 
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
-        mean = extended_dy0.reshape((-1,), order="F")
-        Y0_kron = rv.MultivariateNormal(mean, jnp.zeros((self.q + 1, self.q + 1)))
+        mean = extended_dy0
+        n, d = self.iwp.num_derivatives + 1, self.iwp.wiener_process_dimension
 
         self.P0 = self.iwp.projection_matrix(0)
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
-        self.Iq1 = jnp.eye(self.q + 1)
+
+        y = rv.MatrixNormal(
+            mean=mean, cov_sqrtm_1=jnp.eye(d), cov_sqrtm_2=jnp.zeros((n, n))
+        )
 
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             error_estimate=None,
             reference_state=ivp.y0,
-            y=Y0_kron,
+            y=y,
         )
 
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
         Y = state.y
-        _m, _Cl = Y.mean, Y.cov_sqrtm
+        _m, _Cl = Y.mean, Y.cov_sqrtm_2
         A, Ql = self.A, self.Ql
 
         t_new = state.t + dt
 
         # [Preconditioners]
         P, PI = self.iwp.nordsieck_preconditioner_1d(dt)
-        m, Cl = vec_trick_mul_right(PI, _m), PI @ _Cl
+        m = PI @ _m
+        Cl = PI @ _Cl
 
         # [Predict]
-        mp = vec_trick_mul_right(A, m)
+        mp = A @ m
 
         # [Measure]
-        _mp = vec_trick_mul_right(P, mp)  # Undo the preconditioning
-        xi = vec_trick_mul_right(self.e0, _mp)
+        _mp = P @ mp  # undo the preconditioning
+        xi = _mp[0]
 
-        z = vec_trick_mul_right(self.e1, _mp) - state.ivp.f(t_new, xi)
+        z = _mp[1] - state.ivp.f(t_new, xi)
         H = self.e1 @ P
 
         # [Calibration]
-        _HQl = H @ Ql
-        HQH = _HQl @ _HQl.T  # scalar; to become: HQH = Q11(dt) = Q(dt)[1, 1]
-        sigma_squared = z.T @ z / HQH / self.d
+        HQH = (P @ Ql @ Ql.T @ P.T)[1, 1]
+        sigma_squared = z.T @ z / HQH / z.shape[0]
 
         # [Predict Covariance]
         Clp = sqrt.propagate_cholesky_factor(A @ Cl, jnp.sqrt(sigma_squared) * Ql)
 
         # [Update]
-        _HClp = H @ Clp
-        S = _HClp @ _HClp.T  # scalar
-        K = Clp @ (Clp.T @ H.T) / S
-        m_new = mp - vec_trick_mul_right(K, z)
-        Cl_new = (self.Iq1 - K @ H) @ Clp
+        S = (P @ Clp @ Clp.T @ P.T)[1, 1]
+        K = Clp @ (Clp.T @ H.T) / S  # shape (n,1)
+        m_new = mp - K * z[None, :]  # shape (n,d)
+        Cl_new = Clp - K @ H @ Clp
 
         # [Undo preconditioning]
-        _m_new, _Cl_new = vec_trick_mul_right(P, m_new), P @ Cl_new
+        _m_new = P @ m_new
+        _Cl_new = P @ Cl_new
 
-        y_new = vec_trick_mul_right(self.e0, _m_new)
+        y_new = jnp.abs(_m_new[0])
 
-        error_estimate = jnp.repeat(jnp.sqrt(sigma_squared * HQH), self.d)
+        d = z.shape[0]
+        error_estimate = jnp.stack([jnp.sqrt(sigma_squared * HQH)] * d)
 
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,
-            y=rv.MultivariateNormal(_m_new, _Cl_new),
+            y=rv.MatrixNormal(_m_new, state.y.cov_sqrtm_1, _Cl_new),
         )
-
-
-def vec_trick_mul_full(K1, K2, v):
-    """Use the vec trick to compute kron(K1,K2)@v more efficiently"""
-    (d1, d2), (d3, d4) = K1.shape, K2.shape
-    V = v.reshape(d4, d2, order="F")
-    return (K2 @ V @ K1.T).reshape(d1 * d3, order="F")
-
-
-def vec_trick_mul_right(K2, v):
-    """Use the vec trick to compute kron(I_d,K2)@v more efficiently"""
-    d3, d4 = K2.shape
-    V = v.reshape(d4, v.size // d4, order="F")
-    out = K2 @ V
-    return out.reshape(out.size, order="F")
