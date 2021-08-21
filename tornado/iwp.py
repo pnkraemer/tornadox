@@ -56,6 +56,15 @@ class IntegratedWienerTransition:
         )
         return A, L_Q
 
+    def nordsieck_preconditioner_1d_raw(self, dt):
+        powers = jnp.arange(self.num_derivatives, -1, -1)
+        scales = jnp.array(scipy.special.factorial(powers))
+        powers = powers + 0.5
+
+        scaling_vector = (jnp.abs(dt) ** powers) / scales
+        scaling_vector_inv = (jnp.abs(dt) ** (-powers)) * scales
+        return scaling_vector, scaling_vector_inv
+
     def nordsieck_preconditioner_1d(self, dt):
         """Create matrix for 1-D Nordsieck preconditioner and its inverse.
 
@@ -66,16 +75,9 @@ class IntegratedWienerTransition:
         nordsieck_precond_inv: jax array
             Inverse Nordsieck preconditioning matrix
         """
-        powers = jnp.arange(self.num_derivatives, -1, -1)
-        scales = jnp.array(scipy.special.factorial(powers))
-        powers = powers + 0.5
-
-        scaling_vector = (jnp.abs(dt) ** powers) / scales
-        scaling_vector_inv = (jnp.abs(dt) ** (-powers)) * scales
-
+        scaling_vector, scaling_vector_inv = self.nordsieck_preconditioner_1d_raw(dt)
         nordsieck_precond_1d = jnp.diag(scaling_vector)
         nordsieck_procond_inv_1d = jnp.diag(scaling_vector_inv)
-
         return nordsieck_precond_1d, nordsieck_procond_inv_1d
 
     def nordsieck_preconditioner(self, dt):

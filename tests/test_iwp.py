@@ -62,6 +62,37 @@ def test_preconditioned_system_matrices(dt, iwp):
     assert jnp.allclose(precond @ precond_proc_noice_chol, non_precond_proc_noice_chol)
 
 
+# Tests for the preconditioner
+
+
+def test_preconditioner_1d(dt, iwp):
+    n = iwp.num_derivatives + 1
+    p_1d, p_inv_1d = iwp.nordsieck_preconditioner_1d(dt)
+    assert p_1d.shape == (n, n)
+    assert p_inv_1d.shape == (n, n)
+    assert jnp.allclose(p_1d @ p_inv_1d, jnp.eye(n))
+    assert jnp.allclose(p_inv_1d @ p_1d, jnp.eye(n))
+
+
+def test_preconditioner(dt, iwp):
+    n = iwp.num_derivatives + 1
+    d = iwp.wiener_process_dimension
+    p, p_inv = iwp.nordsieck_preconditioner(dt)
+    assert p.shape == (d * n, d * n)
+    assert p_inv.shape == (d * n, d * n)
+    assert jnp.allclose(p @ p_inv, jnp.eye(d * n))
+    assert jnp.allclose(p_inv @ p, jnp.eye(d * n))
+
+
+def test_preconditioner_1d_raw(dt, iwp):
+    n = iwp.num_derivatives + 1
+    p_1d_raw, p_inv_1d_raw = iwp.nordsieck_preconditioner_1d_raw(dt)
+    assert p_1d_raw.shape == (n,)
+    assert p_inv_1d_raw.shape == (n,)
+    assert jnp.allclose(p_1d_raw * p_inv_1d_raw, jnp.ones(n))
+    assert jnp.allclose(p_inv_1d_raw * p_1d_raw, jnp.ones(n))
+
+
 # Tests for the projection matrix
 
 
