@@ -42,14 +42,13 @@ class ReferenceEK0(odesolver.ODEFilter):
         z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
         H = self.E1
 
-        S = H @ Ql @ H.T
+        S = H @ Ql @ Ql.T @ H.T
         sigma_squared = z @ jnp.linalg.solve(S, z) / z.shape[0]
         sigma = jnp.sqrt(sigma_squared)
         error = jnp.sqrt(jnp.diag(S)) * sigma
+        print("ref", sigma_squared)
 
         Clp = sqrt.propagate_cholesky_factor(A @ Cl, sigma * Ql)
-
-        # [Measure]
 
         # [Update]
         Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
@@ -120,7 +119,6 @@ class KroneckerEK0(odesolver.ODEFilter):
         _HQl = H @ Ql
         HQH = _HQl @ _HQl.T  # scalar; to become: HQH = Q11(dt) = Q(dt)[1, 1]
         sigma_squared = z.T @ z / HQH / self.d
-
         # [Predict Covariance]
         Clp = sqrt.propagate_cholesky_factor(A @ Cl, jnp.sqrt(sigma_squared) * Ql)
 
