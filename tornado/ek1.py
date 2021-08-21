@@ -55,7 +55,7 @@ class ReferenceEK1(odesolver.ODEFilter):
         z = H @ m_pred + b
 
         # Calibrate
-        sigma, error_estimate = self.calibrate_and_estimate_error(h=H, sq=SQ, z=z)
+        error_estimate, sigma = self.estimate_error(h=H, sq=SQ, z=z)
 
         # Predict covariance
         SC_pred = self.predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
@@ -102,7 +102,7 @@ class ReferenceEK1(odesolver.ODEFilter):
         sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
         sigma = jnp.sqrt(sigma_squared)
         error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
-        return sigma, error_estimate
+        return error_estimate, sigma
 
 
 class DiagonalEK1(odesolver.ODEFilter):

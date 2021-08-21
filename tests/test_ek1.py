@@ -349,13 +349,13 @@ class TestLowLevelReferenceEK1Functions:
 
     @staticmethod
     def test_calibrate(reference_ek1_error_estimated):
-        sigma, _ = reference_ek1_error_estimated
+        _, sigma = reference_ek1_error_estimated
         assert sigma.shape == ()
         assert sigma >= 0.0
 
     @staticmethod
     def test_error_estimate(reference_ek1_error_estimated, d):
-        _, error_estimate = reference_ek1_error_estimated
+        error_estimate, _ = reference_ek1_error_estimated
         assert error_estimate.shape == (d,)
         assert jnp.all(error_estimate >= 0.0)
 
