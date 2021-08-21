@@ -283,7 +283,6 @@ class TruncationEK1(BatchedEK1):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
 
         f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
-        assert False
         error, sigma = self.estimate_error(
             p_1d_raw=p_1d_raw,
             Jx=Jx,
@@ -293,6 +292,7 @@ class TruncationEK1(BatchedEK1):
         sc_pred = self.predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
+        assert False
         ss, kgain = self.observe_cov_sqrtm(Jx=Jx, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
         cov_sqrtm = self.correct_cov_sqrtm(
             Jx=Jx,
@@ -316,6 +316,7 @@ class TruncationEK1(BatchedEK1):
         return fx, Jx, z
 
     @staticmethod
+    @jax.jit
     def estimate_error(p_1d_raw, Jx, sq_bd, z):
 
         sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
@@ -333,6 +334,37 @@ class TruncationEK1(BatchedEK1):
         sigma = jnp.sqrt(sigma_squared)  # shape ()
         error_estimate = sigma * jnp.sqrt(jnp.diag(s))  # shape (d,)
         return error_estimate, sigma
+
+    @staticmethod
+    @jax.jit
+    def observe_cov_sqrtm(p_1d_raw, Jx, sc_bd):
+
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
+
+        # Assemble S = H C- H.T efficiently
+        sc_00 = sc_bd_no_precon[:, 0, 0]
+        sc_01 = sc_bd_no_precon[:, 0, 1]
+        sc_11 = sc_bd_no_precon[:, 1, 1]
+        s = (
+            sc_11
+            - Jx * sc_01[None, :]
+            - sc_01[:, None] * Jx.T
+            + (Jx * sc_00[None, :]) @ Jx.T
+        )
+
+        h_sc_bd = (
+            sc_bd_no_precon[:, 1, :] - Jx @ sc_bd_no_precon[:, 0, :]
+        )  # shape (d,n)
+
+        cross = (
+            linops.BlockDiagonal(sc_bd).todense()
+            @ linops.BlockDiagonal(h_sc_bd[..., None]).todense()
+        )  # shape (d*n,d)
+
+        # Careful!! Here is one of the expensive bits!
+        s_sqrtm = jax.scipy.linalg.cholesky(s, lower=True)
+        kgain = jax.scipy.linalg.cho_solve((s_sqrtm, True), cross.T).T
+        return s_sqrtm, kgain
 
 
 class EarlyTruncationEK1(odesolver.ODEFilter):

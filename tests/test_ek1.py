@@ -594,6 +594,21 @@ class TestLowLevelTruncationEK1Functions:
         assert error_estimate.shape == (d,)
         assert jnp.all(error_estimate >= 0.0)
 
+    @staticmethod
+    @pytest.fixture
+    def observed(Jx, p_1d_raw, sc_as_bd):
+        return tornado.ek1.TruncationEK1.observe_cov_sqrtm(
+            p_1d_raw=p_1d_raw,
+            Jx=Jx,
+            sc_bd=sc_as_bd,
+        )
+
+    @staticmethod
+    def test_observe_cov_sqrtm(observed, d, n):
+        ss, kgain = observed
+        assert ss.shape == (d, d)
+        assert kgain.shape == (d * n, d)
+
 
 # Auxiliary functions
 
