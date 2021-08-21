@@ -365,13 +365,11 @@ def test_reference_ek1_error_estimate(reference_ek1_calibrated_and_error_estimat
 
 
 def test_diagonal_ek1_predict_mean(m_as_matrix, phi_1d, n, d):
-
     mp = tornado.ek1.diagonal_ek1_predict_mean(m_as_matrix, phi_1d)
     assert mp.shape == (n, d)
 
 
 def test_diagonal_ek1_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
-
     scp = tornado.ek1.diagonal_ek1_predict_cov_sqrtm(
         sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
     )
@@ -381,7 +379,7 @@ def test_diagonal_ek1_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
 @pytest.fixture
 def diagonal_ek1_calibrated_and_error_estimated(e0_1d, e1_1d, p_1d, J, sq_as_bd, z):
     return tornado.ek1.diagonal_ek1_calibrate_and_estimate_error(
-        e0_1d=e0_1d, e1_1d=e1_1d, p_1d=p_1d, J=J, sq_bd=sq_as_bd, z=z
+        p_1d=p_1d, J=J, sq_bd=sq_as_bd, z=z
     )
 
 

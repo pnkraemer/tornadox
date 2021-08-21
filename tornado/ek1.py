@@ -117,6 +117,9 @@ class DiagonalEK1(odesolver.ODEFilter):
         self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d_] * d))
         self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d_] * d))
 
+        self.phi_1d, self.sigma_1d = self.iwp.preconditioned_discretize_1d
+        self.batched_sigma = jnp.stack([self.sigma_1d] * d)
+
     def initialize(self, ivp):
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
@@ -133,31 +136,19 @@ class DiagonalEK1(odesolver.ODEFilter):
         )
 
     def attempt_step(self, state, dt):
-        d = self.iwp.wiener_process_dimension
-        n = self.iwp.num_derivatives + 1
 
-        # Assemble preconditioner and system matrices
-        P_1d, Pinv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
-        A_1d, SQ_1d = self.iwp.preconditioned_discretize_1d
-        SQ_bd = jnp.stack([SQ_1d] * d)
+        p_1d, p_inv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
+        m = p_inv_1d @ state.y.mean
+        sc = p_inv_1d @ state.y.cov_sqrtm
 
-        # Extract previous states and pull them into "preconditioned space"
-
-        m, SC = (
-            Pinv_1d @ state.y.mean,
-            Pinv_1d @ state.y.cov_sqrtm,
-        )
-
-        # Predict [mean]
-        m_pred = diagonal_ek1_predict_mean(m, phi_1d=A_1d)
+        m_pred = diagonal_ek1_predict_mean(m, phi_1d=self.phi_1d)
 
         # Evaluate ODE
         t = state.t + dt
-        m_at = self.P0_1d @ (P_1d @ m_pred)
-
+        m_at = (p_1d @ m_pred)[0]
         f = state.ivp.f(t, m_at)
         J = jnp.diag(state.ivp.df(t, m_at))
-        z = self.P1_1d @ (P_1d @ m_pred) - f
+        z = (p_1d @ m_pred)[1] - f
 
         # Calibrate
         sigma, error_estimate = diagonal_ek1_calibrate_and_estimate_error(
@@ -211,11 +202,11 @@ def diagonal_ek1_predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
     return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
 
 
-def diagonal_ek1_calibrate_and_estimate_error(e0_1d, e1_1d, p_1d, J, sq_bd, z):
+def diagonal_ek1_calibrate_and_estimate_error(p_1d, J, sq_bd, z):
 
     sq_bd_no_precon = p_1d @ sq_bd  # shape (d,n,n)
-    sq_bd_no_precon_0 = e0_1d @ sq_bd_no_precon  # shape (d,n)
-    sq_bd_no_precon_1 = e1_1d @ sq_bd_no_precon  # shape (d,n)
+    sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
+    sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
     h_sq_bd = sq_bd_no_precon_1 - J[:, None] * sq_bd_no_precon_0  # shape (d,n)
 
     s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
