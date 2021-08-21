@@ -40,7 +40,6 @@ def ek0_solution(ek0_version, num_derivatives, ivp, steps):
         final_y_ek0 = ek0.P0 @ state.y.mean
     else:
         final_y_ek0 = state.y.mean[0]
-    # final_y_ek0 = ek0.P0 @ state.y.mean
     return final_t_ek0, final_y_ek0
 
 
