@@ -24,7 +24,7 @@ def steps():
 
 @pytest.fixture
 def num_derivatives():
-    return 4
+    return 2
 
 
 @pytest.fixture

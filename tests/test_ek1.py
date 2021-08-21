@@ -33,7 +33,7 @@ def scipy_solution(ivp):
 
 @pytest.fixture
 def num_derivatives():
-    return 4
+    return 2
 
 
 # Tests for full solves.
@@ -232,7 +232,10 @@ def test_truncated_ek1_attempt_step_y_values(approx_stepped):
     )
 
     assert jnp.allclose(step_approx.y.mean.reshape((-1,), order="F"), step_ref.y.mean)
-    assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch, rtol=5e-4, atol=5e-4)
+
+    # This approximation is not particularly good, and also step-size dependent.
+    # Therefore we only check that the ballpark figures match.
+    assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch, rtol=1e-1, atol=1e-1)
 
 
 # Tests for lower-level functions (only types and shapes, not values)
@@ -240,8 +243,8 @@ def test_truncated_ek1_attempt_step_y_values(approx_stepped):
 
 
 @pytest.fixture
-def n():
-    return 5
+def n(num_derivatives):
+    return num_derivatives + 1
 
 
 @pytest.fixture

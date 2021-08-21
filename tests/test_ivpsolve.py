@@ -21,7 +21,7 @@ def solve_method(request):
 
 @pytest.fixture
 def order():
-    return 5
+    return 2
 
 
 @pytest.fixture
