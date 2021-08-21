@@ -37,11 +37,19 @@ class ReferenceEK0(odesolver.ODEFilter):
 
         # [Predict]
         mp = A @ m
-        Clp = sqrt.propagate_cholesky_factor(A @ Cl, Ql)
 
-        # [Measure]
+        # Measure / calibrate
         z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
         H = self.E1
+
+        S = H @ Ql @ H.T
+        sigma_squared = z @ jnp.linalg.solve(S, z) / z.shape[0]
+        sigma = jnp.sqrt(sigma_squared)
+        error = jnp.sqrt(jnp.diag(S)) * sigma
+
+        Clp = sqrt.propagate_cholesky_factor(A @ Cl, sigma * Ql)
+
+        # [Measure]
 
         # [Update]
         Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
@@ -52,7 +60,7 @@ class ReferenceEK0(odesolver.ODEFilter):
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=state.t + dt,
-            error_estimate=None,
+            error_estimate=error,
             reference_state=y_new,
             y=rv.MultivariateNormal(m_new, Cl_new),
         )
