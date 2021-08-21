@@ -131,6 +131,7 @@ class DiagonalEK1(odesolver.ODEFilter):
 
     def attempt_step(self, state, dt):
 
+        # Todo: make the preconditioners into vectors, not matrices
         p_1d, p_inv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
         m = p_inv_1d @ state.y.mean
         sc = p_inv_1d @ state.y.cov_sqrtm
@@ -209,10 +210,8 @@ class DiagonalEK1(odesolver.ODEFilter):
 
         s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
 
-        whitened_res = z / jnp.sqrt(s)  # shape (d,)
-        sigma_squared = (
-            whitened_res.T @ whitened_res / whitened_res.shape[0]
-        )  # shape ()
+        xi = z / jnp.sqrt(s)  # shape (d,)
+        sigma_squared = xi.T @ xi / xi.shape[0]  # shape ()
         sigma = jnp.sqrt(sigma_squared)  # shape ()
         error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
 
@@ -247,7 +246,6 @@ class DiagonalEK1(odesolver.ODEFilter):
     @staticmethod
     @jax.jit
     def correct_mean(m, kgain, z):
-
         correction = kgain @ z[:, None, None]  # shape (d,n,1)
         new_mean = m - correction[:, :, 0].T  # shape (n,d)
         return new_mean

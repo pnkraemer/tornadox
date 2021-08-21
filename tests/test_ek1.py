@@ -368,103 +368,92 @@ def test_reference_ek1_error_estimate(reference_ek1_calibrated_and_error_estimat
 # Tests for diagonal EK1
 
 
-@pytest.fixture
-def t():
-    return 0.123456
+class TestDiagonalEK1:
+    """Test suite for low-level, diagonal EK1 functions."""
 
+    @pytest.fixture
+    def t(self):
+        return 0.123456
 
-@pytest.fixture
-def f():
-    return lambda t, x: x ** 2
+    @pytest.fixture
+    def f(self):
+        return lambda t, x: x ** 2
 
+    @pytest.fixture
+    def df(self, f):
+        return jax.jacfwd(f, argnums=1)
 
-@pytest.fixture
-def df(f):
-    return jax.jacfwd(f, argnums=1)
+    @pytest.fixture
+    def evaluated(self, t, f, df, p_1d, m_as_matrix):
+        return tornado.ek1.DiagonalEK1.evaluate_ode(
+            t=t, f=f, df=df, p_1d=p_1d, m_pred=m_as_matrix
+        )
 
+    def test_evaluate_ode_type(self, evaluated):
+        fx, Jx, z = evaluated
+        assert isinstance(fx, jnp.ndarray)
+        assert isinstance(Jx, jnp.ndarray)
+        assert isinstance(z, jnp.ndarray)
 
-@pytest.fixture
-def evaluated(t, f, df, p_1d, m_as_matrix):
-    return tornado.ek1.DiagonalEK1.evaluate_ode(
-        t=t, f=f, df=df, p_1d=p_1d, m_pred=m_as_matrix
-    )
+    def test_evaluate_ode_shape(self, evaluated, d):
+        fx, Jx, z = evaluated
+        assert fx.shape == (d,)
+        assert Jx.shape == (d,)
+        assert z.shape == (d,)
 
+    def test_predict_mean(self, m_as_matrix, phi_1d, n, d):
+        mp = tornado.ek1.DiagonalEK1.predict_mean(m_as_matrix, phi_1d)
+        assert mp.shape == (n, d)
 
-def test_diagonal_ek1_evaluate_ode_type(evaluated):
-    fx, Jx, z = evaluated
-    assert isinstance(fx, jnp.ndarray)
-    assert isinstance(Jx, jnp.ndarray)
-    assert isinstance(z, jnp.ndarray)
+    def test_predict_cov_sqrtm(self, sc_as_bd, phi_1d, sq_as_bd, n, d):
+        scp = tornado.ek1.DiagonalEK1.predict_cov_sqrtm(
+            sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
+        )
+        assert scp.shape == (d, n, n)
 
+    @pytest.fixture
+    def diagonal_ek1_error_estimated(self, e0_1d, e1_1d, p_1d, J, sq_as_bd, z):
+        return tornado.ek1.DiagonalEK1.estimate_error(
+            p_1d=p_1d, J=J, sq_bd=sq_as_bd, z=z
+        )
 
-def test_diagonal_ek1_evaluate_ode_shape(evaluated, d):
-    fx, Jx, z = evaluated
-    assert fx.shape == (d,)
-    assert Jx.shape == (d,)
-    assert z.shape == (d,)
+    def test_calibrate(self, diagonal_ek1_error_estimated):
+        _, sigma = diagonal_ek1_error_estimated
+        assert sigma.shape == ()
+        assert sigma >= 0.0
 
+    def test_error_estimate(self, diagonal_ek1_error_estimated, d):
+        error_estimate, _ = diagonal_ek1_error_estimated
+        assert error_estimate.shape == (d,)
+        assert jnp.all(error_estimate >= 0.0)
 
-def test_diagonal_ek1_predict_mean(m_as_matrix, phi_1d, n, d):
-    mp = tornado.ek1.DiagonalEK1.predict_mean(m_as_matrix, phi_1d)
-    assert mp.shape == (n, d)
+    @pytest.fixture
+    def observed(self, e0_1d, e1_1d, J, p_1d, sc_as_bd):
+        return tornado.ek1.DiagonalEK1.observe_cov_sqrtm(
+            p_1d=p_1d,
+            J=J,
+            sc_bd=sc_as_bd,
+        )
 
+    def test_observe_cov_sqrtm(self, observed, d, n):
+        ss, kgain = observed
+        assert ss.shape == (d,)
+        assert kgain.shape == (d, n, 1)
 
-def test_diagonal_ek1_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
-    scp = tornado.ek1.DiagonalEK1.predict_cov_sqrtm(
-        sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
-    )
-    assert scp.shape == (d, n, n)
+    def test_correct_cov_sqrtm(self, e0_1d, e1_1d, J, p_1d, observed, sc_as_bd, d, n):
+        _, kgain = observed
+        new_sc = tornado.ek1.DiagonalEK1.correct_cov_sqrtm(
+            p_1d=p_1d,
+            J=J,
+            sc_bd=sc_as_bd,
+            kgain=kgain,
+        )
+        assert new_sc.shape == (d, n, n)
 
-
-@pytest.fixture
-def diagonal_ek1_error_estimated(e0_1d, e1_1d, p_1d, J, sq_as_bd, z):
-    return tornado.ek1.DiagonalEK1.estimate_error(p_1d=p_1d, J=J, sq_bd=sq_as_bd, z=z)
-
-
-def test_diagonal_ek1_calibrate(diagonal_ek1_error_estimated):
-    _, sigma = diagonal_ek1_error_estimated
-    assert sigma.shape == ()
-    assert sigma >= 0.0
-
-
-def test_diagonal_ek1_error_estimate(diagonal_ek1_error_estimated, d):
-    error_estimate, _ = diagonal_ek1_error_estimated
-    assert error_estimate.shape == (d,)
-    assert jnp.all(error_estimate >= 0.0)
-
-
-@pytest.fixture
-def observed(e0_1d, e1_1d, J, p_1d, sc_as_bd):
-    return tornado.ek1.DiagonalEK1.observe_cov_sqrtm(
-        p_1d=p_1d,
-        J=J,
-        sc_bd=sc_as_bd,
-    )
-
-
-def test_diagonal_ek1_observe_cov_sqrtm(observed, d, n):
-    ss, kgain = observed
-    assert ss.shape == (d,)
-    assert kgain.shape == (d, n, 1)
-
-
-def test_diagonal_ek1_correct_cov_sqrtm(
-    e0_1d, e1_1d, J, p_1d, observed, sc_as_bd, d, n
-):
-    _, kgain = observed
-    new_sc = tornado.ek1.DiagonalEK1.correct_cov_sqrtm(
-        p_1d=p_1d,
-        J=J,
-        sc_bd=sc_as_bd,
-        kgain=kgain,
-    )
-    assert new_sc.shape == (d, n, n)
-
-
-def test_diagonal_ek1_correct_mean(m_as_matrix, observed, z, d, n):
-    _, kgain = observed
-    new_mean = tornado.ek1.DiagonalEK1.correct_mean(m=m_as_matrix, kgain=kgain, z=z)
-    assert new_mean.shape == (n, d)
+    def test_correct_mean(self, m_as_matrix, observed, z, d, n):
+        _, kgain = observed
+        new_mean = tornado.ek1.DiagonalEK1.correct_mean(m=m_as_matrix, kgain=kgain, z=z)
+        assert new_mean.shape == (n, d)
 
 
 # Auxiliary functions
