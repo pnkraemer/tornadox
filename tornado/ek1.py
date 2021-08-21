@@ -1,5 +1,7 @@
 """EK1 solvers."""
 
+from functools import partial
+
 import jax.numpy as jnp
 import jax.scipy.linalg
 
@@ -134,29 +136,27 @@ class DiagonalEK1(odesolver.ODEFilter):
         sc = p_inv_1d @ state.y.cov_sqrtm
         t = state.t + dt
 
-        m_pred = diagonal_ek1_predict_mean(m, phi_1d=self.phi_1d)
-
-        # Evaluate ODE
-        f, J, z = diagonal_ek1_evaluate_ode(
+        m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
+        f, J, z = self.evaluate_ode(
             t=t, f=state.ivp.f, df=state.ivp.df, p_1d=p_1d, m_pred=m_pred
         )
-        sigma, error_estimate = diagonal_ek1_calibrate_and_estimate_error(
+        error, sigma = self.estimate_error(
             p_1d=p_1d,
             J=J,
             sq_bd=self.batched_sq,
             z=z,
         )
-        sc_pred = diagonal_ek1_predict_cov_sqrtm(
+        sc_pred = self.predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
-        ss, kgain = diagonal_ek1_observe_cov_sqrtm(J=J, p_1d=p_1d, sc_bd=sc_pred)
-        cov_sqrtm = diagonal_ek1_correct_cov_sqrtm(
+        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d=p_1d, sc_bd=sc_pred)
+        cov_sqrtm = self.correct_cov_sqrtm(
             J=J,
             p_1d=p_1d,
             sc_bd=sc_pred,
             kgain=kgain,
         )
-        new_mean = diagonal_ek1_correct_mean(m=m_pred, kgain=kgain, z=z)
+        new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
 
         # Push mean and covariance back into "normal space"
         new_mean = p_1d @ new_mean
@@ -172,73 +172,83 @@ class DiagonalEK1(odesolver.ODEFilter):
             ivp=state.ivp,
             t=t,
             y=new_rv,
-            error_estimate=error_estimate,
+            error_estimate=error,
             reference_state=reference_state,
         )
 
+    @staticmethod
+    @jax.jit
+    def predict_mean(m, phi_1d):
+        return phi_1d @ m
 
-def diagonal_ek1_predict_mean(m, phi_1d):
-    return phi_1d @ m
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1, 2))
+    def evaluate_ode(t, f, df, p_1d, m_pred):
+        m_pred_no_precon = p_1d @ m_pred
+        m_at = m_pred_no_precon[0]
+        fx = f(t, m_at)
+        Jx = jnp.diag(df(t, m_at))
+        z = m_pred_no_precon[1] - fx
+        return fx, Jx, z
 
+    @staticmethod
+    @jax.jit
+    def predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
+        return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
 
-def diagonal_ek1_evaluate_ode(t, f, df, p_1d, m_pred):
-    m_pred_no_precon = p_1d @ m_pred
-    m_at = m_pred_no_precon[0]
-    fx = f(t, m_at)
-    Jx = jnp.diag(df(t, m_at))
-    z = m_pred_no_precon[1] - fx
-    return fx, Jx, z
+    @staticmethod
+    @jax.jit
+    def estimate_error(p_1d, J, sq_bd, z):
 
+        sq_bd_no_precon = p_1d @ sq_bd  # shape (d,n,n)
+        sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
+        sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sq_bd = sq_bd_no_precon_1 - J[:, None] * sq_bd_no_precon_0  # shape (d,n)
 
-def diagonal_ek1_predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
-    return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
+        s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
 
+        whitened_res = z / jnp.sqrt(s)  # shape (d,)
+        sigma_squared = (
+            whitened_res.T @ whitened_res / whitened_res.shape[0]
+        )  # shape ()
+        sigma = jnp.sqrt(sigma_squared)  # shape ()
+        error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
 
-def diagonal_ek1_calibrate_and_estimate_error(p_1d, J, sq_bd, z):
+        return error_estimate, sigma
 
-    sq_bd_no_precon = p_1d @ sq_bd  # shape (d,n,n)
-    sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
-    sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
-    h_sq_bd = sq_bd_no_precon_1 - J[:, None] * sq_bd_no_precon_0  # shape (d,n)
+    @staticmethod
+    @jax.jit
+    def observe_cov_sqrtm(p_1d, J, sc_bd):
 
-    s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
+        sc_bd_no_precon = p_1d @ sc_bd  # shape (d,n,n)
+        sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
+        sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
 
-    whitened_res = z / jnp.sqrt(s)  # shape (d,)
-    sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]  # shape ()
-    sigma = jnp.sqrt(sigma_squared)  # shape ()
-    error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
+        s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
+        cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
+        kgain = cross / s[..., None, None]  # shape (d,n,1)
 
-    return sigma, error_estimate
+        return jnp.sqrt(s), kgain
 
+    @staticmethod
+    @jax.jit
+    def correct_cov_sqrtm(p_1d, J, sc_bd, kgain):
+        sc_bd_no_precon = p_1d @ sc_bd  # shape (d,n,n)
+        sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
+        sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1 - J @ sc_bd_no_precon_0  # shape (d,n)
+        kh_sc_bd = kgain @ h_sc_bd[:, None, :]  # shape (d,n,n)
+        new_sc = sc_bd - kh_sc_bd  # shape (d,n,n)
+        return new_sc
 
-def diagonal_ek1_observe_cov_sqrtm(p_1d, J, sc_bd):
+    @staticmethod
+    @jax.jit
+    def correct_mean(m, kgain, z):
 
-    sc_bd_no_precon = p_1d @ sc_bd  # shape (d,n,n)
-    sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
-    sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
-    h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
-
-    s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
-    cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
-    kgain = cross / s[..., None, None]  # shape (d,n,1)
-
-    return jnp.sqrt(s), kgain
-
-
-def diagonal_ek1_correct_cov_sqrtm(p_1d, J, sc_bd, kgain):
-    sc_bd_no_precon = p_1d @ sc_bd  # shape (d,n,n)
-    sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
-    sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
-    h_sc_bd = sc_bd_no_precon_1 - J @ sc_bd_no_precon_0  # shape (d,n)
-    kh_sc_bd = kgain @ h_sc_bd[:, None, :]  # shape (d,n,n)
-    new_sc = sc_bd - kh_sc_bd  # shape (d,n,n)
-    return new_sc
-
-
-def diagonal_ek1_correct_mean(m, kgain, z):
-    correction = kgain @ z[:, None, None]  # shape (d,n,1)
-    new_mean = m - correction[:, :, 0].T  # shape (n,d)
-    return new_mean
+        correction = kgain @ z[:, None, None]  # shape (d,n,1)
+        new_mean = m - correction[:, :, 0].T  # shape (n,d)
+        return new_mean
 
 
 class TruncatedEK1(odesolver.ODEFilter):
