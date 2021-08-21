@@ -280,6 +280,21 @@ def p_1d(n):
     return jnp.diag(jnp.arange(n))
 
 
+@pytest.fixture
+def t(ivp):
+    return ivp.t0 + 0.123456
+
+
+@pytest.fixture
+def f(ivp):
+    return ivp.f
+
+
+@pytest.fixture
+def df(ivp):
+    return ivp.df
+
+
 class TestLowLevelReferenceEK1Functions:
     """Test suite for the low-level EK1 functions"""
 
@@ -313,6 +328,11 @@ class TestLowLevelReferenceEK1Functions:
     def sc(sc_1d, d):
         return jnp.kron(jnp.eye(d), sc_1d)
 
+    @staticmethod
+    @pytest.fixture
+    def p(p_1d, d):
+        return jnp.kron(jnp.eye(d), p_1d)
+
     # ODE fixtures: jacobians, residuals
 
     @staticmethod
@@ -344,6 +364,33 @@ class TestLowLevelReferenceEK1Functions:
 
     @staticmethod
     @pytest.fixture
+    def evaluated(ivp, m, e0, e1, p, t, f, df):
+        return tornado.ek1.ReferenceEK1.evaluate_ode(
+            t=t,
+            f=f,
+            df=df,
+            p=p,
+            m_pred=m,
+            e0=e0,
+            e1=e1,
+        )
+
+    @staticmethod
+    def test_evaluate_ode_type(evaluated):
+        h, b, z = evaluated
+        assert isinstance(h, jnp.ndarray)
+        assert isinstance(b, jnp.ndarray)
+        assert isinstance(z, jnp.ndarray)
+
+    @staticmethod
+    def test_evaluate_ode_shape(evaluated, d, n):
+        h, b, z = evaluated
+        assert h.shape == (d, d * n)
+        assert b.shape == (d,)
+        assert z.shape == (d,)
+
+    @staticmethod
+    @pytest.fixture
     def reference_ek1_error_estimated(h, sq, z):
         return tornado.ek1.ReferenceEK1.estimate_error(h, sq, z)
 
@@ -372,21 +419,6 @@ class TestLowLevelDiagonalEK1Functions:
     @pytest.fixture
     def sq_as_bd(sq_1d, d):
         return jnp.stack([sq_1d] * d)
-
-    @staticmethod
-    @pytest.fixture
-    def t():
-        return 0.123456
-
-    @staticmethod
-    @pytest.fixture
-    def f():
-        return lambda t, x: x ** 2
-
-    @staticmethod
-    @pytest.fixture
-    def df(f):
-        return jax.jacfwd(f, argnums=1)
 
     @staticmethod
     @pytest.fixture

@@ -47,12 +47,15 @@ class ReferenceEK1(odesolver.ODEFilter):
 
         # Evaluate ODE and create linearisation
         t = state.t + dt
-        m_at = P0 @ m_pred
-        f = state.ivp.f(t, m_at)
-        J = state.ivp.df(t, m_at)
-        H = P1 - J @ P0
-        b = J @ m_at - f
-        z = H @ m_pred + b
+        H, b, z = self.evaluate_ode(
+            t=t,
+            f=state.ivp.f,
+            df=state.ivp.df,
+            p=P,
+            m_pred=m_pred,
+            e0=self.P0,
+            e1=self.P1,
+        )
 
         # Calibrate
         error_estimate, sigma = self.estimate_error(h=H, sq=SQ, z=z)
@@ -92,6 +95,19 @@ class ReferenceEK1(odesolver.ODEFilter):
     @jax.jit
     def predict_cov_sqrtm(sc, phi, sq):
         return sqrt.propagate_cholesky_factor(phi @ sc, sq)
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1, 2))
+    def evaluate_ode(t, f, df, p, m_pred, e0, e1):
+        P0 = e0 @ p
+        P1 = e1 @ p
+        m_at = P0 @ m_pred
+        f = f(t, m_at)
+        J = df(t, m_at)
+        H = P1 - J @ P0
+        b = J @ m_at - f
+        z = H @ m_pred + b
+        return H, b, z
 
     @staticmethod
     @jax.jit
