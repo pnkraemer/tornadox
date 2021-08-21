@@ -6,6 +6,8 @@ import pytest
 
 import tornado
 
+# Common fixtures
+
 
 @pytest.fixture
 def dimension():
@@ -27,6 +29,9 @@ def cov_sqrtm(dimension):
     return jnp.arange(dimension ** 2).reshape((dimension, dimension))
 
 
+# Tests for multivariate normal
+
+
 @pytest.fixture
 def multivariate_normal(mean, cov_sqrtm):
     return tornado.rv.MultivariateNormal(mean=mean, cov_sqrtm=cov_sqrtm)
@@ -40,6 +45,9 @@ def test_multivariate_normal_cov(multivariate_normal):
     SC = multivariate_normal.cov_sqrtm
     C = multivariate_normal.cov
     assert jnp.allclose(C, SC @ SC.T)
+
+
+# Tests for batched multivariate normal
 
 
 @pytest.fixture
