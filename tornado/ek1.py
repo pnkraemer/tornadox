@@ -136,28 +136,10 @@ class DiagonalEK1(odesolver.ODEFilter):
         sc = p_inv_1d @ state.y.cov_sqrtm
         t = state.t + dt
 
-        m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
-        f, J, z = self.evaluate_ode(
-            t=t, f=state.ivp.f, df=state.ivp.df, p_1d=p_1d, m_pred=m_pred
+        results = self.attempt_unit_step(
+            f=state.ivp.f, df=state.ivp.df, p_1d=p_1d, m=m, sc=sc, t=t
         )
-        error, sigma = self.estimate_error(
-            p_1d=p_1d,
-            J=J,
-            sq_bd=self.batched_sq,
-            z=z,
-        )
-        sc_pred = self.predict_cov_sqrtm(
-            sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
-        )
-        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d=p_1d, sc_bd=sc_pred)
-        cov_sqrtm = self.correct_cov_sqrtm(
-            J=J,
-            p_1d=p_1d,
-            sc_bd=sc_pred,
-            kgain=kgain,
-        )
-        new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
-
+        new_mean, cov_sqrtm, error = results
         # Push mean and covariance back into "normal space"
         new_mean = p_1d @ new_mean
         cov_sqrtm = p_1d @ cov_sqrtm
@@ -175,6 +157,30 @@ class DiagonalEK1(odesolver.ODEFilter):
             error_estimate=error,
             reference_state=reference_state,
         )
+
+    @partial(jax.jit, static_argnums=(0, 1, 2))
+    def attempt_unit_step(self, f, df, p_1d, m, sc, t):
+        # Actual step
+        m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
+        f, J, z = self.evaluate_ode(t=t, f=f, df=df, p_1d=p_1d, m_pred=m_pred)
+        error, sigma = self.estimate_error(
+            p_1d=p_1d,
+            J=J,
+            sq_bd=self.batched_sq,
+            z=z,
+        )
+        sc_pred = self.predict_cov_sqrtm(
+            sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
+        )
+        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d=p_1d, sc_bd=sc_pred)
+        cov_sqrtm = self.correct_cov_sqrtm(
+            J=J,
+            p_1d=p_1d,
+            sc_bd=sc_pred,
+            kgain=kgain,
+        )
+        new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
+        return new_mean, cov_sqrtm, error
 
     @staticmethod
     @jax.jit
