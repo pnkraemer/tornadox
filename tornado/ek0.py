@@ -12,18 +12,22 @@ class ReferenceEK0(odesolver.ODEFilter):
         self.iwp = iwp.IntegratedWienerTransition(
             wiener_process_dimension=d, num_derivatives=q
         )
-        Y0_full = taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
-
         self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
         self.I = jnp.eye(d * (q + 1))
 
+        extended_dy0 = self.tm(
+            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
+        )
+        mean = extended_dy0.reshape((-1,), order="F")
+        cov_sqrtm = jnp.zeros((mean.shape[0], mean.shape[0]))
+        y = rv.MultivariateNormal(mean, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
+            y=y,
             error_estimate=None,
-            reference_state=ivp.y0,
-            y=Y0_full,
+            reference_state=None,
         )
 
     def attempt_step(self, state, dt, verbose=False):
@@ -63,10 +67,11 @@ class KroneckerEK0(odesolver.ODEFilter):
         )
         self.A, self.Ql = self.iwp.preconditioned_discretize_1d
 
-        Y0_full = taylor_mode.TaylorModeInitialization()(ivp, self.iwp)
-        Y0_kron = rv.MultivariateNormal(
-            Y0_full.mean, jnp.zeros((self.q + 1, self.q + 1))
+        extended_dy0 = self.tm(
+            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
+        mean = extended_dy0.reshape((-1,), order="F")
+        Y0_kron = rv.MultivariateNormal(mean, jnp.zeros((self.q + 1, self.q + 1)))
 
         self.P0 = self.iwp.projection_matrix(0)
         self.e0 = self.iwp.projection_matrix_1d(0)
