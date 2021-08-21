@@ -275,7 +275,7 @@ class DiagonalEK1(odesolver.ODEFilter):
         return new_mean
 
 
-class TruncatedEK1(odesolver.ODEFilter):
+class EarlyTruncationEK1(odesolver.ODEFilter):
     """Use full Jacobians for mean-updates, but truncate cleverly to enforce a block-diagonal posterior covariance.
 
     "Cleverly" means:
