@@ -1,5 +1,7 @@
 """EK1 solvers."""
 
+from functools import partial
+
 import jax.numpy as jnp
 import jax.scipy.linalg
 
@@ -36,40 +38,17 @@ class ReferenceEK1(odesolver.ODEFilter):
     def attempt_step(self, state, dt):
         # Extract system matrices
         P, Pinv = self.iwp.nordsieck_preconditioner(dt=dt)
-        P0 = self.P0 @ P
-        P1 = self.P1 @ P
-        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
         A, SQ = self.iwp.preconditioned_discretize
-
-        # Prediction (mean)
-        m_pred = A @ m
-
-        # Evaluate ODE
         t = state.t + dt
-        m_at = P0 @ m_pred
-        f = state.ivp.f(t, m_at)
-        J = state.ivp.df(t, m_at)
 
-        # Create linearisation
-        H = P1 - J @ P0
-        b = J @ m_at - f
+        # Pull states into preconditioned state
+        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
 
-        # Calibrate
-        z = H @ m_pred + b
-        S_chol = sqrt.sqrtm_to_cholesky((H @ SQ).T)
-        whitened_res = jax.scipy.linalg.solve_triangular(S_chol, z)
-        sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
-        sigma = jnp.sqrt(sigma_squared)
+        cov_cholesky, error_estimate, new_mean = self.attempt_unit_step(
+            A, P, SC, SQ, m, state, t
+        )
 
-        error_estimate = jnp.sqrt(jnp.diag(S_chol @ S_chol.T)) * sigma
-
-        # Prediction (covariance)
-        SC_pred = sqrt.propagate_cholesky_factor(A @ SC, sigma * SQ)
-
-        # Update
-        cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
-        new_mean = m_pred - Kgain @ z
-
+        # Push back to non-preconditioned state
         cov_cholesky = P @ cov_cholesky
         new_mean = P @ new_mean
         new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
@@ -87,6 +66,59 @@ class ReferenceEK1(odesolver.ODEFilter):
             reference_state=reference_state,
         )
 
+    def attempt_unit_step(self, A, P, SC, SQ, m, state, t):
+        m_pred = self.predict_mean(m=m, phi=A)
+        H, z = self.evaluate_ode(
+            t=t,
+            f=state.ivp.f,
+            df=state.ivp.df,
+            p=P,
+            m_pred=m_pred,
+            e0=self.P0,
+            e1=self.P1,
+        )
+        error_estimate, sigma = self.estimate_error(h=H, sq=SQ, z=z)
+        SC_pred = self.predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
+        cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
+        new_mean = m_pred - Kgain @ z
+        return cov_cholesky, error_estimate, new_mean
+
+    # Low level functions
+
+    @staticmethod
+    @jax.jit
+    def predict_mean(m, phi):
+        return phi @ m
+
+    @staticmethod
+    @jax.jit
+    def predict_cov_sqrtm(sc, phi, sq):
+        return sqrt.propagate_cholesky_factor(phi @ sc, sq)
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1, 2))
+    def evaluate_ode(t, f, df, p, m_pred, e0, e1):
+        P0 = e0 @ p
+        P1 = e1 @ p
+        m_at = P0 @ m_pred
+        f = f(t, m_at)
+        J = df(t, m_at)
+        H = P1 - J @ P0
+        b = J @ m_at - f
+        z = H @ m_pred + b
+        return H, z
+
+    @staticmethod
+    @jax.jit
+    def estimate_error(h, sq, z):
+        s_sqrtm = h @ sq
+        s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
+        whitened_res = jax.scipy.linalg.solve_triangular(s_chol, z)
+        sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
+        sigma = jnp.sqrt(sigma_squared)
+        error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
+        return error_estimate, sigma
+
 
 class DiagonalEK1(odesolver.ODEFilter):
     def __init__(self, num_derivatives, ode_dimension, steprule):
@@ -96,21 +128,17 @@ class DiagonalEK1(odesolver.ODEFilter):
             num_derivatives=num_derivatives,
         )
 
-        self.P0_1d = self.iwp.projection_matrix_1d(0)
-        self.P1_1d = self.iwp.projection_matrix_1d(1)
-
         d = self.iwp.wiener_process_dimension
-        self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d] * d))
-        self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d] * d))
+        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
+        self.batched_sq = jnp.stack([self.sq_1d] * d)
 
     def initialize(self, ivp):
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
-        mean = extended_dy0.reshape((-1,), order="F")
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
-        cov_cholesky = linops.BlockDiagonal(array_stack=jnp.zeros((d, n, n)))
-        new_rv = rv.MultivariateNormal(mean, cov_cholesky)
+        cov_sqrtm = jnp.zeros((d, n, n))
+        new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
@@ -120,142 +148,128 @@ class DiagonalEK1(odesolver.ODEFilter):
         )
 
     def attempt_step(self, state, dt):
-        d = self.iwp.wiener_process_dimension
-        n = self.iwp.num_derivatives + 1
 
-        # Assemble preconditioner
-        P_1d, Pinv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
-        P = linops.BlockDiagonal(jnp.stack([P_1d] * d))
-        Pinv = linops.BlockDiagonal(jnp.stack([Pinv_1d] * d))
-        # assert isinstance(P, linops.BlockDiagonal)
-        # assert isinstance(Pinv, linops.BlockDiagonal)
-        # assert P.array_stack.shape == (d, n, n)
-        # assert Pinv.array_stack.shape == (d, n, n)
+        # Todo: make the preconditioners into vectors, not matrices
+        p_1d_raw, p_inv_1d_raw = self.iwp.nordsieck_preconditioner_1d_raw(dt=dt)
+        m = p_inv_1d_raw[:, None] * state.y.mean
+        sc = p_inv_1d_raw[None, :, None] * state.y.cov_sqrtm
 
-        # Assemble projection-preconditioner combo
-        P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d @ P_1d] * d))
-        P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d @ P_1d] * d))
-        # assert isinstance(P0, linops.BlockDiagonal)
-        # assert isinstance(P1, linops.BlockDiagonal)
-        # assert P0.array_stack.shape == (d, 1, n)
-        # assert P1.array_stack.shape == (d, 1, n)
-
-        # Extract system matrices
-        A, SQ = self.iwp.preconditioned_discretize_1d
-        A = linops.BlockDiagonal(jnp.stack([A] * d))
-        SQ = linops.BlockDiagonal(jnp.stack([SQ] * d))
-        # assert isinstance(A, linops.BlockDiagonal)
-        # assert isinstance(SQ, linops.BlockDiagonal)
-        # assert A.array_stack.shape == (d, n, n)
-        # assert SQ.array_stack.shape == (d, n, n)
-
-        # Extract previous states and pull them into "preconditioned space"
-        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
-        # assert isinstance(SC, linops.BlockDiagonal)
-        # assert SC.array_stack.shape == (d, n, n)
-
-        # Predict [mean]
-        m_pred = A @ m
-
-        # Evaluate ODE
         t = state.t + dt
-        m_at = P0 @ m_pred
-        f = state.ivp.f(t, m_at)
-        J = state.ivp.df(t, m_at)
-        diag_J = linops.BlockDiagonal(
-            jnp.diag(J).reshape((-1, 1, 1))
-        )  # Approx happens here!
-        # assert isinstance(diag_J, linops.BlockDiagonal)
-        # assert diag_J.array_stack.shape == (d, 1, 1)
-
-        # Create linearised observation model
-        H = P1 - diag_J @ P0
-        b = diag_J @ m_at - f
-        # assert isinstance(H, linops.BlockDiagonal)
-        # assert H.array_stack.shape == (d, 1, n)
-        z = H @ m_pred + b
-
-        # Calibrate
-        HSQ = H @ SQ
-        # assert isinstance(HSQ, linops.BlockDiagonal)
-        # assert HSQ.array_stack.shape == (d, 1, n)
-        S_local = HSQ @ HSQ.T
-        # assert isinstance(S_local, linops.BlockDiagonal)
-        # assert S_local.array_stack.shape == (d, 1, 1)
-        whitened_res = z / jnp.sqrt(S_local.array_stack[:, 0, 0])
-        # assert whitened_res.shape == (d,)
-        sigma_squared = whitened_res.T @ whitened_res / d
-        sigma = jnp.sqrt(sigma_squared)
-        # assert sigma_squared.shape == ()
-        # assert sigma.shape == ()
-        # assert sigma_squared >= 0.0
-        # assert sigma >= 0.0
-
-        error_estimate = sigma * jnp.sqrt(S_local.array_stack[:, 0, 0])
-        # assert isinstance(error_estimate, jnp.ndarray)
-        # assert error_estimate.shape == (d,)
-        # assert jnp.all(error_estimate >= 0.0)
-
-        # Predict [cov]
-        batched_sc_pred = sqrt.batched_propagate_cholesky_factor(
-            (A @ SC).array_stack, sigma * SQ.array_stack
+        new_mean, cov_sqrtm, error = self.attempt_unit_step(
+            f=state.ivp.f, df=state.ivp.df, p_1d_raw=p_1d_raw, m=m, sc=sc, t=t
         )
-        SC_pred = linops.BlockDiagonal(batched_sc_pred)
-        # assert isinstance(SC_pred, linops.BlockDiagonal)
-        # assert SC_pred.array_stack.shape == (d, n, n)
+        new_mean = p_1d_raw[:, None] * new_mean
+        cov_sqrtm = p_1d_raw[None, :, None] * cov_sqrtm
 
-        # Compute innovation matrix and Kalman gain
-        # Due to the block-diagonal structure in H (and in C), S is diagonal!
-        # We can compute the correction really cheaply (like in the EK0, actually)
-        S_sqrtm = H @ SC_pred
-        # assert isinstance(S_sqrtm, linops.BlockDiagonal)
-        # assert S_sqrtm.array_stack.shape == (d, 1, n)
-        S = S_sqrtm @ S_sqrtm.T
-        # assert isinstance(S, linops.BlockDiagonal)
-        # assert S.array_stack.shape == (d, 1, 1)
-        innov_chol = linops.BlockDiagonal(jnp.sqrt(S.array_stack))
-        # assert isinstance(innov_chol, linops.BlockDiagonal)
-        # assert innov_chol.array_stack.shape == (d, 1, 1)
-        crosscov = SC_pred @ S_sqrtm.T
-        kalman_gain = linops.BlockDiagonal(crosscov.array_stack / S.array_stack)
-        # assert isinstance(kalman_gain, linops.BlockDiagonal)
-        # assert kalman_gain.array_stack.shape == (d, n, 1)
-
-        # Update covariance
-        I = linops.BlockDiagonal(jnp.stack([jnp.eye(n, n)] * d))
-        cov_sqrtm = (I - kalman_gain @ H) @ SC_pred
-        # assert isinstance(cov_sqrtm, linops.BlockDiagonal)
-        # assert cov_sqrtm.array_stack.shape == (d, n, n)
-
-        # Update mean
-        new_mean = m_pred - kalman_gain @ z
-        # assert isinstance(z, jnp.ndarray)
-        # assert z.shape == (d,)
-        # assert isinstance(new_mean, jnp.ndarray)
-        # assert new_mean.shape == (d * n,)
-
-        # Push mean and covariance back into "normal space"
-        new_mean = P @ new_mean
-        cov_sqrtm = P @ cov_sqrtm
-        # assert isinstance(cov_sqrtm, linops.BlockDiagonal)
-        # assert cov_sqrtm.array_stack.shape == (d, n, n)
-
-        y1 = jnp.abs(self.P0 @ state.y.mean)
-        y2 = jnp.abs(self.P0 @ new_mean)
+        y1 = jnp.abs(state.y.mean[0])
+        y2 = jnp.abs(new_mean[0])
         reference_state = jnp.maximum(y1, y2)
-        # assert isinstance(reference_state, jnp.ndarray)
-        # assert reference_state.shape == (d,)
-        # assert jnp.all(reference_state >= 0.0), reference_state
 
-        # Return new state
-        new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
+        new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
-            error_estimate=error_estimate,
+            error_estimate=error,
             reference_state=reference_state,
         )
+
+    @partial(jax.jit, static_argnums=(0, 1, 2))
+    def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
+        m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
+        f, J, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
+        error, sigma = self.estimate_error(
+            p_1d_raw=p_1d_raw,
+            J=J,
+            sq_bd=self.batched_sq,
+            z=z,
+        )
+        sc_pred = self.predict_cov_sqrtm(
+            sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
+        )
+        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
+        cov_sqrtm = self.correct_cov_sqrtm(
+            J=J,
+            p_1d_raw=p_1d_raw,
+            sc_bd=sc_pred,
+            kgain=kgain,
+        )
+        new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
+        return new_mean, cov_sqrtm, error
+
+    @staticmethod
+    @jax.jit
+    def predict_mean(m, phi_1d):
+        return phi_1d @ m
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1, 2))
+    def evaluate_ode(t, f, df, p_1d_raw, m_pred):
+        m_pred_no_precon = p_1d_raw[:, None] * m_pred
+        m_at = m_pred_no_precon[0]
+        fx = f(t, m_at)
+        z = m_pred_no_precon[1] - fx
+
+        # Todo: replace with vmap(grad(f)) which would never assemble the full jacobian?
+        Jx = jnp.diag(df(t, m_at))
+
+        return fx, Jx, z
+
+    @staticmethod
+    @jax.jit
+    def predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
+        return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
+
+    @staticmethod
+    @jax.jit
+    def estimate_error(p_1d_raw, J, sq_bd, z):
+
+        sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
+        sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
+        sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sq_bd = sq_bd_no_precon_1 - J[:, None] * sq_bd_no_precon_0  # shape (d,n)
+
+        s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
+
+        xi = z / jnp.sqrt(s)  # shape (d,)
+        sigma_squared = xi.T @ xi / xi.shape[0]  # shape ()
+        sigma = jnp.sqrt(sigma_squared)  # shape ()
+        error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
+
+        return error_estimate, sigma
+
+    @staticmethod
+    @jax.jit
+    def observe_cov_sqrtm(p_1d_raw, J, sc_bd):
+
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
+        sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
+        sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
+
+        s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
+        cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
+        kgain = cross / s[..., None, None]  # shape (d,n,1)
+
+        return jnp.sqrt(s), kgain
+
+    @staticmethod
+    @jax.jit
+    def correct_cov_sqrtm(p_1d_raw, J, sc_bd, kgain):
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
+        sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
+        sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
+        kh_sc_bd = kgain @ h_sc_bd[:, None, :]  # shape (d,n,n)
+        new_sc = sc_bd - kh_sc_bd  # shape (d,n,n)
+        return new_sc
+
+    @staticmethod
+    @jax.jit
+    def correct_mean(m, kgain, z):
+        correction = kgain @ z[:, None, None]  # shape (d,n,1)
+        new_mean = m - correction[:, :, 0].T  # shape (n,d)
+        return new_mean
 
 
 class TruncatedEK1(odesolver.ODEFilter):
@@ -285,10 +299,9 @@ class TruncatedEK1(odesolver.ODEFilter):
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
-        mean = extended_dy0.reshape((-1,), order="F")
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
-        cov_cholesky = linops.BlockDiagonal(array_stack=jnp.zeros((d, n, n)))
-        new_rv = rv.MultivariateNormal(mean, cov_cholesky)
+        cov_sqrtm = jnp.zeros((d, n, n))
+        new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
@@ -332,8 +345,8 @@ class TruncatedEK1(odesolver.ODEFilter):
         # Extract previous states and pull them into "preconditioned space"
         # assert isinstance(state.y.cov_sqrtm, linops.BlockDiagonal)
         # assert state.y.cov_sqrtm.array_stack.shape == (d, n, n)
-        m = Pinv @ state.y.mean
-        SC = Pinv @ state.y.cov_sqrtm
+        m = Pinv @ state.y.mean.reshape((-1,), order="F")
+        SC = Pinv @ linops.BlockDiagonal(state.y.cov_sqrtm)
         # assert isinstance(SC, linops.BlockDiagonal)
         # assert SC.array_stack.shape == (d, n, n)
 
@@ -433,20 +446,20 @@ class TruncatedEK1(odesolver.ODEFilter):
         # assert cov_sqrtm.array_stack.shape == (d, n, n)
 
         # Push mean and covariance back into "normal space"
-        new_mean = P @ new_mean
-        cov_sqrtm = P @ cov_sqrtm
+        new_mean = (P @ new_mean).reshape((n, d), order="F")
+        cov_sqrtm = (P @ cov_sqrtm).array_stack
         # assert isinstance(cov_sqrtm, linops.BlockDiagonal)
         # assert cov_sqrtm.array_stack.shape == (d, n, n)
 
-        y1 = jnp.abs(self.P0 @ state.y.mean)
-        y2 = jnp.abs(self.P0 @ new_mean)
+        y1 = jnp.abs(self.P0 @ state.y.mean.reshape((-1,), order="F"))
+        y2 = jnp.abs(self.P0 @ new_mean.reshape((-1,), order="F"))
         reference_state = jnp.maximum(y1, y2)
         # assert isinstance(reference_state, jnp.ndarray)
         # assert reference_state.shape == (d,)
         # assert jnp.all(reference_state >= 0.0), reference_state
 
         # Return new state
-        new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
+        new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,

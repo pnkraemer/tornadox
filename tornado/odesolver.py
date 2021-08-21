@@ -2,7 +2,7 @@
 
 import dataclasses
 from abc import ABC, abstractmethod
-from typing import Iterable
+from typing import Iterable, Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -15,7 +15,7 @@ class ODEFilterState:
 
     ivp: ivp.InitialValueProblem
     t: float
-    y: rv.MultivariateNormal
+    y: Union[rv.MultivariateNormal, rv.MatrixNormal, rv.BatchedMultivariateNormal]
     error_estimate: jnp.ndarray
     reference_state: jnp.ndarray
 
