@@ -609,6 +609,14 @@ class TestLowLevelTruncationEK1Functions:
         assert ss.shape == (d, d)
         assert kgain.shape == (d * n, d)
 
+    @staticmethod
+    def test_correct_mean(m_as_matrix, observed, z, d, n):
+        _, kgain = observed
+        new_mean = tornado.ek1.TruncationEK1.correct_mean(
+            m=m_as_matrix, kgain=kgain, z=z
+        )
+        assert new_mean.shape == (n, d)
+
 
 # Auxiliary functions
 

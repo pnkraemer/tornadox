@@ -292,8 +292,8 @@ class TruncationEK1(BatchedEK1):
         sc_pred = self.predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
-        assert False
         ss, kgain = self.observe_cov_sqrtm(Jx=Jx, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
+        assert False
         cov_sqrtm = self.correct_cov_sqrtm(
             Jx=Jx,
             p_1d_raw=p_1d_raw,
@@ -365,6 +365,13 @@ class TruncationEK1(BatchedEK1):
         s_sqrtm = jax.scipy.linalg.cholesky(s, lower=True)
         kgain = jax.scipy.linalg.cho_solve((s_sqrtm, True), cross.T).T
         return s_sqrtm, kgain
+
+    @staticmethod
+    @jax.jit
+    def correct_mean(m, kgain, z):
+        correction = kgain @ z  # shape (d,n,1)
+        new_mean = m - correction.reshape(m.shape, order="F")  # shape (n,d)
+        return new_mean
 
 
 class EarlyTruncationEK1(odesolver.ODEFilter):
