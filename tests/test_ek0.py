@@ -136,7 +136,9 @@ def test_init_shape_kronecker(initialized_both, d, num_derivatives):
     # shorthand
     n = num_derivatives + 1
     y = kronecker_init.y
-    m, sc1, sc2, c1, c2 = y.mean, y.cov_sqrtm_1, y.cov_sqrtm_2, y.cov_1, y.cov_2
+    m = y.mean
+    sc1, sc2 = y.cov_sqrtm_1, y.cov_sqrtm_2
+    c1, c2 = y.cov_1, y.cov_2
 
     assert m.shape == (n, d)
     assert sc1.shape == (n, n)
@@ -176,11 +178,22 @@ def stepped_reference(stepped_both):
 # Test for shapes of output
 
 
+def test_attempt_step_y_type(stepped_kronecker):
+    assert isinstance(stepped_kronecker.y, tornado.rv.MatrixNormal)
+
+
 def test_attempt_step_y_shapes_kronecker(stepped_kronecker, d, num_derivatives):
     n = num_derivatives + 1
-    assert stepped_kronecker.y.mean.shape == (n * d,)
-    assert stepped_kronecker.y.cov_sqrtm.shape == (n, n)
-    assert stepped_kronecker.y.cov.shape == (n, n)
+    y = stepped_kronecker.y
+    m = y.mean
+    sc1, sc2 = y.cov_sqrtm_1, y.cov_sqrtm_2
+    c1, c2 = y.cov_1, y.cov_2
+
+    assert m.shape == (n, d)
+    assert sc1.shape == (d, d)
+    assert sc2.shape == (n, n)
+    assert c1.shape == (d, d)
+    assert c2.shape == (n, n)
 
 
 def test_attempt_step_y_shapes_reference(stepped_reference, d, num_derivatives):
@@ -223,12 +236,11 @@ def test_attempt_step_reference_state_reference(stepped_reference, d):
 
 def test_attempt_step_values_y_mean(stepped_kronecker, stepped_reference):
     m1, m2 = stepped_reference.y.mean, stepped_kronecker.y.mean
-    assert jnp.allclose(m1, m2)
+    assert jnp.allclose(m1, m2.reshape((-1,), order="F"))
 
 
 def test_attempt_step_values_y_cov(stepped_kronecker, stepped_reference, d):
-    c1, c2_small = stepped_reference.y.cov, stepped_kronecker.y.cov
-    c2 = jnp.kron(jnp.eye(d), c2_small)
+    c1, c2 = stepped_reference.y.cov, stepped_kronecker.y.dense_cov()
     assert jnp.allclose(c1, c2)
 
 

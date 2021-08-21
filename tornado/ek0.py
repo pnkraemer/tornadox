@@ -75,7 +75,7 @@ class KroneckerEK0(odesolver.ODEFilter):
         self.e1 = self.iwp.projection_matrix_1d(1)
 
         y = rv.MatrixNormal(
-            mean=mean, cov_sqrtm_1=jnp.zeros((n, n)), cov_sqrtm_2=jnp.zeros((d, d))
+            mean=mean, cov_sqrtm_1=jnp.eye(d), cov_sqrtm_2=jnp.zeros((n, n))
         )
 
         return odesolver.ODEFilterState(
@@ -89,52 +89,54 @@ class KroneckerEK0(odesolver.ODEFilter):
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
         Y = state.y
-        _m, _Cl = Y.mean, Y.cov_sqrtm
+        _m, _Cl = Y.mean, Y.cov_sqrtm_2
         A, Ql = self.A, self.Ql
 
         t_new = state.t + dt
 
         # [Preconditioners]
         P, PI = self.iwp.nordsieck_preconditioner_1d(dt)
-        m, Cl = vec_trick_mul_right(PI, _m), PI @ _Cl
+        m = PI @ _m
+        Cl = PI @ _Cl
 
         # [Predict]
-        mp = vec_trick_mul_right(A, m)
+        mp = A @ m
 
         # [Measure]
-        _mp = vec_trick_mul_right(P, mp)  # Undo the preconditioning
-        xi = vec_trick_mul_right(self.e0, _mp)
+        _mp = P @ mp  # undo the preconditioning
+        xi = _mp[0]
 
-        z = vec_trick_mul_right(self.e1, _mp) - state.ivp.f(t_new, xi)
+        z = _mp[1] - state.ivp.f(t_new, xi)
         H = self.e1 @ P
 
         # [Calibration]
-        _HQl = H @ Ql
-        HQH = _HQl @ _HQl.T  # scalar; to become: HQH = Q11(dt) = Q(dt)[1, 1]
-        sigma_squared = z.T @ z / HQH / self.d
+        HQH = (P @ Ql @ Ql.T @ P.T)[1, 1]
+        sigma_squared = z.T @ z / HQH / z.shape[0]
+
         # [Predict Covariance]
         Clp = sqrt.propagate_cholesky_factor(A @ Cl, jnp.sqrt(sigma_squared) * Ql)
 
         # [Update]
-        _HClp = H @ Clp
-        S = _HClp @ _HClp.T  # scalar
-        K = Clp @ (Clp.T @ H.T) / S
-        m_new = mp - vec_trick_mul_right(K, z)
-        Cl_new = (self.Iq1 - K @ H) @ Clp
+        S = (P @ Clp @ Clp.T @ P.T)[1, 1]
+        K = Clp @ (Clp.T @ H.T) / S  # shape (n,1)
+        m_new = mp - K * z[None, :]  # shape (n,d)
+        Cl_new = Clp - K @ H @ Clp
 
         # [Undo preconditioning]
-        _m_new, _Cl_new = vec_trick_mul_right(P, m_new), P @ Cl_new
+        _m_new = P @ m_new
+        _Cl_new = P @ Cl_new
 
-        y_new = jnp.abs(vec_trick_mul_right(self.e0, _m_new))
+        y_new = jnp.abs(_m_new[0])
 
-        error_estimate = jnp.repeat(jnp.sqrt(sigma_squared * HQH), self.d)
+        d = z.shape[0]
+        error_estimate = jnp.stack([jnp.sqrt(sigma_squared * HQH)] * d)
 
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,
-            y=rv.MultivariateNormal(_m_new, _Cl_new),
+            y=rv.MatrixNormal(_m_new, state.y.cov_sqrtm_1, _Cl_new),
         )
 
 
