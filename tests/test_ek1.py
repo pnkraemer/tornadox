@@ -572,12 +572,8 @@ class TestLowLevelTruncationEK1Functions:
     def test_evaluate_ode_shape(evaluated, d):
         fx, Jx, z = evaluated
         assert fx.shape == (d,)
-        assert Jx.shape == (d,)
+        assert Jx.shape == (d, d)
         assert z.shape == (d,)
-
-    @staticmethod
-    def test_evaluate_ode():
-        pass
 
 
 # Auxiliary functions

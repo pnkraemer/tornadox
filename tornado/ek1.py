@@ -282,8 +282,8 @@ class TruncationEK1(BatchedEK1):
     def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
 
-        assert False
         f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
+        assert False
         error, sigma = self.estimate_error(
             p_1d_raw=p_1d_raw,
             Jx=Jx,
@@ -302,6 +302,18 @@ class TruncationEK1(BatchedEK1):
         )
         new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
         return new_mean, cov_sqrtm, error
+
+    # Low level implementations
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1, 2))
+    def evaluate_ode(t, f, df, p_1d_raw, m_pred):
+        m_pred_no_precon = p_1d_raw[:, None] * m_pred
+        m_at = m_pred_no_precon[0]
+        fx = f(t, m_at)
+        z = m_pred_no_precon[1] - fx
+        Jx = df(t, m_at)
+        return fx, Jx, z
 
 
 class EarlyTruncationEK1(odesolver.ODEFilter):
