@@ -120,20 +120,8 @@ class ReferenceEK1(odesolver.ODEFilter):
         return error_estimate, sigma
 
 
-class DiagonalEK1(odesolver.ODEFilter):
-    def __init__(self, num_derivatives, ode_dimension, steprule):
-        super().__init__(
-            ode_dimension=ode_dimension,
-            steprule=steprule,
-            num_derivatives=num_derivatives,
-        )
-
-        d = self.iwp.wiener_process_dimension
-        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
-
-        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
-        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
-        self.batched_sq = jnp.stack([self.sq_1d] * d)
+class BatchedEK1(odesolver.ODEFilter):
+    """Common functionality for EK1 variations that act on batched multivariate normals."""
 
     def initialize(self, ivp):
         extended_dy0 = self.tm(
@@ -149,6 +137,22 @@ class DiagonalEK1(odesolver.ODEFilter):
             error_estimate=None,
             reference_state=None,
         )
+
+
+class DiagonalEK1(BatchedEK1):
+    def __init__(self, num_derivatives, ode_dimension, steprule):
+        super().__init__(
+            ode_dimension=ode_dimension,
+            steprule=steprule,
+            num_derivatives=num_derivatives,
+        )
+
+        d = self.iwp.wiener_process_dimension
+        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
+
+        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
+        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
+        self.batched_sq = jnp.stack([self.sq_1d] * d)
 
     def attempt_step(self, state, dt):
 
@@ -273,6 +277,64 @@ class DiagonalEK1(odesolver.ODEFilter):
         correction = kgain @ z[:, None, None]  # shape (d,n,1)
         new_mean = m - correction[:, :, 0].T  # shape (n,d)
         return new_mean
+
+
+class TruncationEK1(BatchedEK1):
+    def __init__(self, num_derivatives, ode_dimension, steprule):
+        super().__init__(
+            ode_dimension=ode_dimension,
+            steprule=steprule,
+            num_derivatives=num_derivatives,
+        )
+
+        d = self.iwp.wiener_process_dimension
+        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
+
+        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
+        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
+        self.batched_sq = jnp.stack([self.sq_1d] * d)
+
+    def initialize(self, ivp):
+        extended_dy0 = self.tm(
+            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
+        )
+        d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
+        cov_sqrtm = jnp.zeros((d, n, n))
+        new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
+        return odesolver.ODEFilterState(
+            ivp=ivp,
+            t=ivp.t0,
+            y=new_rv,
+            error_estimate=None,
+            reference_state=None,
+        )
+
+    def attempt_step(self, state, dt):
+
+        # Todo: make the preconditioners into vectors, not matrices
+        p_1d_raw, p_inv_1d_raw = self.iwp.nordsieck_preconditioner_1d_raw(dt=dt)
+        m = p_inv_1d_raw[:, None] * state.y.mean
+        sc = p_inv_1d_raw[None, :, None] * state.y.cov_sqrtm
+
+        t = state.t + dt
+        new_mean, cov_sqrtm, error = self.attempt_unit_step(
+            f=state.ivp.f, df=state.ivp.df, p_1d_raw=p_1d_raw, m=m, sc=sc, t=t
+        )
+        new_mean = p_1d_raw[:, None] * new_mean
+        cov_sqrtm = p_1d_raw[None, :, None] * cov_sqrtm
+
+        y1 = jnp.abs(state.y.mean[0])
+        y2 = jnp.abs(new_mean[0])
+        reference_state = jnp.maximum(y1, y2)
+
+        new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
+        return odesolver.ODEFilterState(
+            ivp=state.ivp,
+            t=t,
+            y=new_rv,
+            error_estimate=error,
+            reference_state=reference_state,
+        )
 
 
 class EarlyTruncationEK1(odesolver.ODEFilter):
@@ -470,71 +532,3 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
             error_estimate=error_estimate,
             reference_state=reference_state,
         )
-
-
-class TruncationEK1(odesolver.ODEFilter):
-    def __init__(self, num_derivatives, ode_dimension, steprule):
-        super().__init__(
-            ode_dimension=ode_dimension,
-            steprule=steprule,
-            num_derivatives=num_derivatives,
-        )
-
-        d = self.iwp.wiener_process_dimension
-        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
-
-        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
-        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
-        self.batched_sq = jnp.stack([self.sq_1d] * d)
-
-    def initialize(self, ivp):
-        extended_dy0 = self.tm(
-            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
-        )
-        d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
-        cov_sqrtm = jnp.zeros((d, n, n))
-        new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
-        return odesolver.ODEFilterState(
-            ivp=ivp,
-            t=ivp.t0,
-            y=new_rv,
-            error_estimate=None,
-            reference_state=None,
-        )
-
-    def attempt_step(self, state, dt):
-
-        # Todo: make the preconditioners into vectors, not matrices
-        p_1d_raw, p_inv_1d_raw = self.iwp.nordsieck_preconditioner_1d_raw(dt=dt)
-        m = p_inv_1d_raw[:, None] * state.y.mean
-        sc = p_inv_1d_raw[None, :, None] * state.y.cov_sqrtm
-
-        t = state.t + dt
-        new_mean, cov_sqrtm, error = self.attempt_unit_step(
-            f=state.ivp.f, df=state.ivp.df, p_1d_raw=p_1d_raw, m=m, sc=sc, t=t
-        )
-        new_mean = p_1d_raw[:, None] * new_mean
-        cov_sqrtm = p_1d_raw[None, :, None] * cov_sqrtm
-
-        y1 = jnp.abs(state.y.mean[0])
-        y2 = jnp.abs(new_mean[0])
-        reference_state = jnp.maximum(y1, y2)
-
-        new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
-        return odesolver.ODEFilterState(
-            ivp=state.ivp,
-            t=t,
-            y=new_rv,
-            error_estimate=error,
-            reference_state=reference_state,
-        )
-
-    # Low level functions
-
-    @staticmethod
-    def predict_mean(m, phi_1d):
-        return phi_1d @ m
-
-    @staticmethod
-    def predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
-        return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)

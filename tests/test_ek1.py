@@ -431,6 +431,20 @@ def sq_as_bd(sq_1d, d):
     return jnp.stack([sq_1d] * d)
 
 
+class TestLowLevelBatchedEK1Functions:
+    @staticmethod
+    def test_predict_mean(m_as_matrix, phi_1d, n, d):
+        mp = tornado.ek1.BatchedEK1.predict_mean(m_as_matrix, phi_1d)
+        assert mp.shape == (n, d)
+
+    @staticmethod
+    def test_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
+        scp = tornado.ek1.BatchedEK1.predict_cov_sqrtm(
+            sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
+        )
+        assert scp.shape == (d, n, n)
+
+
 class TestLowLevelDiagonalEK1Functions:
     """Test suite for low-level, diagonal EK1 functions."""
 
@@ -470,18 +484,6 @@ class TestLowLevelDiagonalEK1Functions:
         assert fx.shape == (d,)
         assert Jx.shape == (d,)
         assert z.shape == (d,)
-
-    @staticmethod
-    def test_predict_mean(m_as_matrix, phi_1d, n, d):
-        mp = tornado.ek1.DiagonalEK1.predict_mean(m_as_matrix, phi_1d)
-        assert mp.shape == (n, d)
-
-    @staticmethod
-    def test_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
-        scp = tornado.ek1.DiagonalEK1.predict_cov_sqrtm(
-            sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
-        )
-        assert scp.shape == (d, n, n)
 
     @staticmethod
     @pytest.fixture
