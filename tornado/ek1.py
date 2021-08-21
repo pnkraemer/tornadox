@@ -130,6 +130,9 @@ class DiagonalEK1(odesolver.ODEFilter):
 
         d = self.iwp.wiener_process_dimension
         self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
+
+        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
+        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
         self.batched_sq = jnp.stack([self.sq_1d] * d)
 
     def initialize(self, ivp):
