@@ -293,6 +293,7 @@ class TruncationEK1(BatchedEK1):
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
         ss, kgain = self.observe_cov_sqrtm(Jx=Jx, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
+        new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
         assert False
         cov_sqrtm = self.correct_cov_sqrtm(
             Jx=Jx,
@@ -300,7 +301,6 @@ class TruncationEK1(BatchedEK1):
             sc_bd=sc_pred,
             kgain=kgain,
         )
-        new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
         return new_mean, cov_sqrtm, error
 
     # Low level implementations
