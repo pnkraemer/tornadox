@@ -138,18 +138,3 @@ class KroneckerEK0(odesolver.ODEFilter):
             reference_state=y_new,
             y=rv.MatrixNormal(_m_new, state.y.cov_sqrtm_1, _Cl_new),
         )
-
-
-def vec_trick_mul_full(K1, K2, v):
-    """Use the vec trick to compute kron(K1,K2)@v more efficiently"""
-    (d1, d2), (d3, d4) = K1.shape, K2.shape
-    V = v.reshape(d4, d2, order="F")
-    return (K2 @ V @ K1.T).reshape(d1 * d3, order="F")
-
-
-def vec_trick_mul_right(K2, v):
-    """Use the vec trick to compute kron(I_d,K2)@v more efficiently"""
-    d3, d4 = K2.shape
-    V = v.reshape(d4, v.size // d4, order="F")
-    out = K2 @ V
-    return out.reshape(out.size, order="F")

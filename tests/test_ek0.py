@@ -36,11 +36,11 @@ def ek0_solution(ek0_version, num_derivatives, ivp, steps):
             pass
 
     final_t_ek0 = state.t
-    # if isinstance(ek0, tornado.ek0.ReferenceEK0):
-    #     final_y_ek0 = ek0.P0 @ state.y.mean
-    # else:
-    #     final_y_ek0 = state.y.mean[0]
-    final_y_ek0 = ek0.P0 @ state.y.mean
+    if isinstance(ek0, tornado.ek0.ReferenceEK0):
+        final_y_ek0 = ek0.P0 @ state.y.mean
+    else:
+        final_y_ek0 = state.y.mean[0]
+    # final_y_ek0 = ek0.P0 @ state.y.mean
     return final_t_ek0, final_y_ek0
 
 
@@ -141,10 +141,10 @@ def test_init_shape_kronecker(initialized_both, d, num_derivatives):
     c1, c2 = y.cov_1, y.cov_2
 
     assert m.shape == (n, d)
-    assert sc1.shape == (n, n)
-    assert sc2.shape == (d, d)
-    assert c1.shape == (n, n)
-    assert c2.shape == (d, d)
+    assert sc2.shape == (n, n)
+    assert sc1.shape == (d, d)
+    assert c1.shape == (d, d)
+    assert c2.shape == (n, n)
 
 
 def test_init_shape_reference(initialized_both, d, num_derivatives):
