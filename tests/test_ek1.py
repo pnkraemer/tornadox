@@ -459,9 +459,9 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def J(evaluated):
-        _, J, _ = evaluated
-        return J
+    def Jx(evaluated):
+        _, Jx, _ = evaluated
+        return Jx
 
     @staticmethod
     @pytest.fixture
@@ -487,9 +487,9 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def diagonal_ek1_error_estimated(p_1d_raw, J, sq_as_bd, z):
+    def diagonal_ek1_error_estimated(p_1d_raw, Jx, sq_as_bd, z):
         return tornado.ek1.DiagonalEK1.estimate_error(
-            p_1d_raw=p_1d_raw, J=J, sq_bd=sq_as_bd, z=z
+            p_1d_raw=p_1d_raw, Jx=Jx, sq_bd=sq_as_bd, z=z
         )
 
     @staticmethod
@@ -506,10 +506,10 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def observed(J, p_1d_raw, sc_as_bd):
+    def observed(Jx, p_1d_raw, sc_as_bd):
         return tornado.ek1.DiagonalEK1.observe_cov_sqrtm(
             p_1d_raw=p_1d_raw,
-            J=J,
+            Jx=Jx,
             sc_bd=sc_as_bd,
         )
 
@@ -520,11 +520,11 @@ class TestLowLevelDiagonalEK1Functions:
         assert kgain.shape == (d, n, 1)
 
     @staticmethod
-    def test_correct_cov_sqrtm(J, p_1d_raw, observed, sc_as_bd, d, n):
+    def test_correct_cov_sqrtm(Jx, p_1d_raw, observed, sc_as_bd, d, n):
         _, kgain = observed
         new_sc = tornado.ek1.DiagonalEK1.correct_cov_sqrtm(
             p_1d_raw=p_1d_raw,
-            J=J,
+            Jx=Jx,
             sc_bd=sc_as_bd,
             kgain=kgain,
         )
@@ -541,16 +541,43 @@ class TestLowLevelTruncationEK1Functions:
     """Test suite for low-level, truncated EK1 functions."""
 
     @staticmethod
-    def test_predict_mean(m_as_matrix, phi_1d, n, d):
-        mp = tornado.ek1.TruncationEK1.predict_mean(m_as_matrix, phi_1d)
-        assert mp.shape == (n, d)
+    @pytest.fixture
+    def evaluated(t, f, df, p_1d_raw, m_as_matrix):
+        return tornado.ek1.TruncationEK1.evaluate_ode(
+            t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_as_matrix
+        )
 
     @staticmethod
-    def test_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
-        scp = tornado.ek1.TruncationEK1.predict_cov_sqrtm(
-            sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
-        )
-        assert scp.shape == (d, n, n)
+    @pytest.fixture
+    def Jx(evaluated):
+        _, Jx, _ = evaluated
+        return Jx
+
+    @staticmethod
+    @pytest.fixture
+    def z(evaluated):
+        _, _, z = evaluated
+        return z
+
+    # Tests for the low-level functions
+
+    @staticmethod
+    def test_evaluate_ode_type(evaluated):
+        fx, Jx, z = evaluated
+        assert isinstance(fx, jnp.ndarray)
+        assert isinstance(Jx, jnp.ndarray)
+        assert isinstance(z, jnp.ndarray)
+
+    @staticmethod
+    def test_evaluate_ode_shape(evaluated, d):
+        fx, Jx, z = evaluated
+        assert fx.shape == (d,)
+        assert Jx.shape == (d,)
+        assert z.shape == (d,)
+
+    @staticmethod
+    def test_evaluate_ode():
+        pass
 
 
 # Auxiliary functions

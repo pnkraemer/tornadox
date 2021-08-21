@@ -102,9 +102,9 @@ class ReferenceEK1(odesolver.ODEFilter):
         P1 = e1 @ p
         m_at = P0 @ m_pred
         f = f(t, m_at)
-        J = df(t, m_at)
-        H = P1 - J @ P0
-        b = J @ m_at - f
+        Jx = df(t, m_at)
+        H = P1 - Jx @ P0
+        b = Jx @ m_at - f
         z = H @ m_pred + b
         return H, z
 
@@ -193,19 +193,19 @@ class DiagonalEK1(BatchedEK1):
     @partial(jax.jit, static_argnums=(0, 1, 2))
     def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
-        f, J, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
+        f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
         error, sigma = self.estimate_error(
             p_1d_raw=p_1d_raw,
-            J=J,
+            Jx=Jx,
             sq_bd=self.batched_sq,
             z=z,
         )
         sc_pred = self.predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
-        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
+        ss, kgain = self.observe_cov_sqrtm(Jx=Jx, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
         cov_sqrtm = self.correct_cov_sqrtm(
-            J=J,
+            Jx=Jx,
             p_1d_raw=p_1d_raw,
             sc_bd=sc_pred,
             kgain=kgain,
@@ -228,12 +228,12 @@ class DiagonalEK1(BatchedEK1):
 
     @staticmethod
     @jax.jit
-    def estimate_error(p_1d_raw, J, sq_bd, z):
+    def estimate_error(p_1d_raw, Jx, sq_bd, z):
 
         sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
         sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
         sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
-        h_sq_bd = sq_bd_no_precon_1 - J[:, None] * sq_bd_no_precon_0  # shape (d,n)
+        h_sq_bd = sq_bd_no_precon_1 - Jx[:, None] * sq_bd_no_precon_0  # shape (d,n)
 
         s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
 
@@ -246,12 +246,12 @@ class DiagonalEK1(BatchedEK1):
 
     @staticmethod
     @jax.jit
-    def observe_cov_sqrtm(p_1d_raw, J, sc_bd):
+    def observe_cov_sqrtm(p_1d_raw, Jx, sc_bd):
 
         sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
         sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
         sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
-        h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1 - Jx[:, None] * sc_bd_no_precon_0  # shape (d,n)
 
         s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
         cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
@@ -261,11 +261,11 @@ class DiagonalEK1(BatchedEK1):
 
     @staticmethod
     @jax.jit
-    def correct_cov_sqrtm(p_1d_raw, J, sc_bd, kgain):
+    def correct_cov_sqrtm(p_1d_raw, Jx, sc_bd, kgain):
         sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
         sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
         sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
-        h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1 - Jx[:, None] * sc_bd_no_precon_0  # shape (d,n)
         kh_sc_bd = kgain @ h_sc_bd[:, None, :]  # shape (d,n,n)
         new_sc = sc_bd - kh_sc_bd  # shape (d,n,n)
         return new_sc
@@ -283,19 +283,19 @@ class TruncationEK1(BatchedEK1):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
 
         assert False
-        f, J, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
+        f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
         error, sigma = self.estimate_error(
             p_1d_raw=p_1d_raw,
-            J=J,
+            Jx=Jx,
             sq_bd=self.batched_sq,
             z=z,
         )
         sc_pred = self.predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
-        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
+        ss, kgain = self.observe_cov_sqrtm(Jx=Jx, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
         cov_sqrtm = self.correct_cov_sqrtm(
-            J=J,
+            Jx=Jx,
             p_1d_raw=p_1d_raw,
             sc_bd=sc_pred,
             kgain=kgain,
@@ -389,24 +389,24 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
         t = state.t + dt
         m_at = P0 @ m_pred
         f = state.ivp.f(t, m_at)
-        J = state.ivp.df(t, m_at)  # Use full Jacobian here!
+        Jx = state.ivp.df(t, m_at)  # Use full Jacobian here!
 
         # Evaluate H @ sth manually (i.e. pseudo-lazily),
-        # because P0/P1 slice, and J @ sth is dense matmul.
-        b = J @ m_at - f
-        z = P1 @ m_pred - J @ (P0 @ m_pred) + b
+        # because P0/P1 slice, and Jx @ sth is dense matmul.
+        b = Jx @ m_at - f
+        z = P1 @ m_pred - Jx @ (P0 @ m_pred) + b
         # assert isinstance(z, jnp.ndarray)
         # assert z.shape == (d,)
 
         # Calibrate: Extract P0 @ SC and P1 @ SC
-        # only then densify and apply J @ sth.
+        # only then densify and apply Jx @ sth.
         SQ0_dense = (P0 @ SQ).todense()
         SQ1_dense = (P1 @ SQ).todense()
         # assert SQ0_dense.shape == (d, d * n)
         # assert SQ1_dense.shape == (d, d * n)
-        JSQ0 = J @ SQ0_dense
-        # assert JSQ0.shape == (d, d * n)
-        S_sqrtm = sqrt.sqrtm_to_cholesky((SQ1_dense - JSQ0).T)
+        JxSQ0 = Jx @ SQ0_dense
+        # assert JxSQ0.shape == (d, d * n)
+        S_sqrtm = sqrt.sqrtm_to_cholesky((SQ1_dense - JxSQ0).T)
         # assert S_sqrtm.shape == (d, d)
         whitened_res = jax.scipy.linalg.solve_triangular(S_sqrtm.T, z, lower=False)
         # assert whitened_res.shape == (d,)
@@ -434,37 +434,37 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
         # assert SC_pred.array_stack.shape == (d, n, n)
 
         # Compute innovation matrix and Kalman gain
-        # First project, then apply J (see above)
+        # First project, then apply Jx (see above)
         SC_pred0_dense = (P0 @ SC_pred).todense()
         SC_pred1_dense = (P1 @ SC_pred).todense()
         # assert SC_pred0_dense.shape == (d, d * n)
         # assert SC_pred1_dense.shape == (d, d * n)
-        JSC_pred0 = J @ SC_pred0_dense
-        # assert JSC_pred0.shape == (d, d * n)
-        S_sqrtm = sqrt.sqrtm_to_cholesky((SC_pred1_dense - JSC_pred0).T)
+        JxSC_pred0 = Jx @ SC_pred0_dense
+        # assert JxSC_pred0.shape == (d, d * n)
+        S_sqrtm = sqrt.sqrtm_to_cholesky((SC_pred1_dense - JxSC_pred0).T)
         # assert S_sqrtm.shape == (d, d)
 
-        # Dense cross-covariance; again, apply P0 and P1 separately from J
+        # Dense cross-covariance; again, apply P0 and P1 separately from Jx
         Cminus = SC_pred @ SC_pred.T
         R0 = P0 @ Cminus
         R1 = P1 @ Cminus
-        crosscov_transposed = R1.todense() - J @ R0.todense()
+        crosscov_transposed = R1.todense() - Jx @ R0.todense()
         crosscov = crosscov_transposed.T
         # assert crosscov.shape == (d * n, d), crosscov.shape
 
         # Mean update; contains the only solve() with a dense dxd matrix in the whole script
         # Maybe we turn this into a call to CG at some point
-        # (it should be possible to use sparsity of J here; ping @nk for a discussion)
+        # (it should be possible to use sparsity of Jx here; ping @nk for a discussion)
         solved = jax.scipy.linalg.cho_solve((S_sqrtm, True), z)
         new_mean = m_pred - crosscov @ solved
         # assert isinstance(new_mean, jnp.ndarray)
         # assert new_mean.shape == (d * n,)
 
         # Truncate the hell out of S and K
-        # Extract the diagonal from J, and do the rest as in DiagonalEK1.attempt_step()
+        # Extract the diagonal from Jx, and do the rest as in DiagonalEK1.attempt_step()
         # Replicate the respective parts from DiagonalEK1()
-        J_as_diag = linops.BlockDiagonal(jnp.diag(J).reshape((-1, 1, 1)))
-        H = P1 - J_as_diag @ P0
+        Jx_as_diag = linops.BlockDiagonal(jnp.diag(Jx).reshape((-1, 1, 1)))
+        H = P1 - Jx_as_diag @ P0
         S_as_diag = (H @ SC_pred) @ (H @ SC_pred).T
         crosscov = Cminus @ H.T
         kalman_gain = crosscov @ linops.BlockDiagonal(1.0 / S_as_diag.array_stack)
