@@ -45,3 +45,6 @@ class MatrixNormal:
     @property
     def cov_2(self):
         return self.cov_sqrtm_2 @ self.cov_sqrtm_2.T
+
+    def dense_cov(self):
+        return jnp.kron(self.cov_1, self.cov_2)

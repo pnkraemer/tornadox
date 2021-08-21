@@ -123,3 +123,9 @@ def test_matrix_normal_cov_2(matrix_normal):
     SC = matrix_normal.cov_sqrtm_2
     C = matrix_normal.cov_2
     assert jnp.allclose(C, SC @ SC.T)
+
+
+def test_matrix_normal_dense_cov(matrix_normal):
+    c = matrix_normal.dense_cov()
+    c1, c2 = matrix_normal.cov_1, matrix_normal.cov_2
+    assert jnp.allclose(c, jnp.kron(c1, c2))
