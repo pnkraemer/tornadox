@@ -99,7 +99,7 @@ class TestTaylorModeInitialization:
             THREEBODY_INITS[: threebody_ivp.dimension * (any_order + 1)]
         )
 
-        received_rv = self.taylor_init(ivp=threebody_ivp, prior=prior)
+        received_array = self.taylor_init(ivp=threebody_ivp, prior=prior)
 
-        assert isinstance(received_rv, tornado.rv.MultivariateNormal)
-        assert jnp.allclose(received_rv.mean, expected)
+        assert isinstance(received_array, jnp.ndarray)
+        assert jnp.allclose(received_array, expected)

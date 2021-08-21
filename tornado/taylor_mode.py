@@ -41,11 +41,7 @@ class TaylorModeInitialization:
             all_derivs = prior.reorder_state_from_derivative_to_coordinate(
                 jnp.asarray(derivs)
             )
-
-            return rv.MultivariateNormal(
-                mean=jnp.asarray(all_derivs),
-                cov_sqrtm=jnp.asarray(jnp.diag(jnp.zeros(len(derivs)))),
-            )
+            return jnp.array(all_derivs)
 
         extended_state = jnp.concatenate((jnp.ravel(ivp.y0), jnp.array([ivp.t0])))
         derivs = []
