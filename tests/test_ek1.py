@@ -237,6 +237,7 @@ def test_approx_ek1_attempt_step_y_values(approx_stepped):
 
 
 # Tests for lower-level functions (only types and shapes, not values)
+# Common fixtures: mean, covariance, 1d-system-matrices, 1d-preconditioner
 
 
 @pytest.fixture
@@ -280,6 +281,10 @@ def p_1d(n):
 
 
 class TestLowLevelReferenceEK1Functions:
+    """Test suite for the low-level EK1 functions"""
+
+    # Common fixtures: full system matrices, projection matrices
+
     @staticmethod
     @pytest.fixture
     def phi(phi_1d, d):
@@ -287,23 +292,15 @@ class TestLowLevelReferenceEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def e0_1d(n):
-        return jnp.eye(1, n).reshape((-1,))
-
-    @staticmethod
-    @pytest.fixture
-    def e0(e0_1d, d):
+    def e0(n, d):
+        e0_1d = jnp.eye(1, n).reshape((-1,))
         return jnp.kron(jnp.eye(d), e0_1d)
 
     @staticmethod
     @pytest.fixture
-    def e1_1d(n):
+    def e1(n, d):
         # e_{-1} as a dummy for e1 -- only the shapes matter anyway
-        return jnp.flip(jnp.eye(1, n)).reshape((-1,))
-
-    @staticmethod
-    @pytest.fixture
-    def e1(e1_1d, d):
+        e1_1d = jnp.flip(jnp.eye(1, n)).reshape((-1,))
         return jnp.kron(jnp.eye(d), e1_1d)
 
     @staticmethod
@@ -315,6 +312,8 @@ class TestLowLevelReferenceEK1Functions:
     @pytest.fixture
     def sc(sc_1d, d):
         return jnp.kron(jnp.eye(d), sc_1d)
+
+    # ODE fixtures: jacobians, residuals
 
     @staticmethod
     @pytest.fixture
@@ -331,6 +330,8 @@ class TestLowLevelReferenceEK1Functions:
     def z(h, m):
         return h @ m
 
+    # Test functions
+
     @staticmethod
     def test_predict_mean(m, phi, n, d):
         mp = tornado.ek1.ReferenceEK1.predict_mean(m, phi)
@@ -343,18 +344,18 @@ class TestLowLevelReferenceEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def reference_ek1_calibrated_and_error_estimated(h, sq, z):
-        return tornado.ek1.ReferenceEK1.calibrate_and_estimate_error(h, sq, z)
+    def reference_ek1_error_estimated(h, sq, z):
+        return tornado.ek1.ReferenceEK1.estimate_error(h, sq, z)
 
     @staticmethod
-    def test_calibrate(reference_ek1_calibrated_and_error_estimated):
-        sigma, _ = reference_ek1_calibrated_and_error_estimated
+    def test_calibrate(reference_ek1_error_estimated):
+        sigma, _ = reference_ek1_error_estimated
         assert sigma.shape == ()
         assert sigma >= 0.0
 
     @staticmethod
-    def test_error_estimate(reference_ek1_calibrated_and_error_estimated, d):
-        _, error_estimate = reference_ek1_calibrated_and_error_estimated
+    def test_error_estimate(reference_ek1_error_estimated, d):
+        _, error_estimate = reference_ek1_error_estimated
         assert error_estimate.shape == (d,)
         assert jnp.all(error_estimate >= 0.0)
 

@@ -95,7 +95,7 @@ class ReferenceEK1(odesolver.ODEFilter):
 
     @staticmethod
     @jax.jit
-    def calibrate_and_estimate_error(h, sq, z):
+    def estimate_error(h, sq, z):
         s_sqrtm = h @ sq
         s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
         whitened_res = jax.scipy.linalg.solve_triangular(s_chol, z)
