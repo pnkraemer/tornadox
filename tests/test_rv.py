@@ -44,7 +44,7 @@ def test_multivariate_normal_cov(multivariate_normal):
 
 @pytest.fixture
 def batched_mean(mean, batch_size):
-    return jnp.stack([mean] * batch_size)
+    return jnp.stack([mean] * batch_size).T
 
 
 @pytest.fixture
@@ -63,8 +63,25 @@ def test_batched_multivariate_normal_type(batched_multivariate_normal):
     assert isinstance(batched_multivariate_normal, tornado.rv.BatchedMultivariateNormal)
 
 
-def test_batched_multivariate_shapes(batched_multivariate_normal):
-    pass
+def test_batched_multivariate_shapes_mean(
+    batched_multivariate_normal, batch_size, dimension
+):
+    mean = batched_multivariate_normal.mean
+    assert mean.shape == (dimension, batch_size)
+
+
+def test_batched_multivariate_shapes_cov_sqrtm(
+    batched_multivariate_normal, batch_size, dimension
+):
+    cov_sqrtm = batched_multivariate_normal.cov_sqrtm
+    assert cov_sqrtm.shape == (batch_size, dimension, dimension)
+
+
+def test_batched_multivariate_shapes_cov(
+    batched_multivariate_normal, batch_size, dimension
+):
+    cov = batched_multivariate_normal.cov
+    assert cov.shape == (batch_size, dimension, dimension)
 
 
 def test_batched_multivariate_normal_cov(batched_multivariate_normal):

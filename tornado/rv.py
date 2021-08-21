@@ -20,7 +20,7 @@ class MultivariateNormal:
 
 @dataclasses.dataclass
 class BatchedMultivariateNormal:
-    """Multivariate normal distributions."""
+    """Batched multivariate normal distributions."""
 
     mean: jnp.ndarray
     cov_sqrtm: jnp.ndarray
