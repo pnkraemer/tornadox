@@ -43,7 +43,7 @@ def num_derivatives():
 EK1_VERSIONS = [
     tornado.ek1.ReferenceEK1,
     tornado.ek1.DiagonalEK1,
-    tornado.ek1.TruncatedEK1,
+    tornado.ek1.EarlyTruncationEK1,
 ]
 all_ek1_versions = pytest.mark.parametrize("ek1_version", EK1_VERSIONS)
 
@@ -75,11 +75,11 @@ def test_full_solve_compare_scipy(
 
 # Handy selection of test parametrizations
 all_ek1_approximations = pytest.mark.parametrize(
-    "approx_solver", [tornado.ek1.DiagonalEK1, tornado.ek1.TruncatedEK1]
+    "approx_solver", [tornado.ek1.DiagonalEK1, tornado.ek1.EarlyTruncationEK1]
 )
 only_ek1_diagonal = pytest.mark.parametrize("approx_solver", [tornado.ek1.DiagonalEK1])
-only_ek1_truncated = pytest.mark.parametrize(
-    "approx_solver", [tornado.ek1.TruncatedEK1]
+only_ek1_early_truncation = pytest.mark.parametrize(
+    "approx_solver", [tornado.ek1.EarlyTruncationEK1]
 )
 
 
@@ -219,7 +219,7 @@ def test_diagonal_ek1_attempt_step_y_values(approx_stepped):
     assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch)
 
 
-@only_ek1_truncated
+@only_ek1_early_truncation
 def test_truncated_ek1_attempt_step_y_values(approx_stepped):
     step_ref, step_approx = approx_stepped
 
