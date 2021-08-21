@@ -2,6 +2,7 @@
 
 import dataclasses
 
+import jax
 import jax.numpy as jnp
 import pytest
 from scipy.integrate import solve_ivp
@@ -247,7 +248,7 @@ def d(ivp):
 
 @pytest.fixture
 def m(n, d):
-    return jnp.arange(1, 1 + n * d)
+    return jnp.arange(1, 1 + n * d) * 1.0
 
 
 @pytest.fixture
@@ -364,6 +365,45 @@ def test_reference_ek1_error_estimate(reference_ek1_calibrated_and_error_estimat
     assert jnp.all(error_estimate >= 0.0)
 
 
+# Tests for diagonal EK1
+
+
+@pytest.fixture
+def t():
+    return 0.123456
+
+
+@pytest.fixture
+def f():
+    return lambda t, x: x ** 2
+
+
+@pytest.fixture
+def df(f):
+    return jax.jacfwd(f, argnums=1)
+
+
+@pytest.fixture
+def evaluated(t, f, df, p_1d, m_as_matrix):
+    return tornado.ek1.diagonal_ek1_evaluate_ode(
+        t=t, f=f, df=df, p_1d=p_1d, m_pred=m_as_matrix
+    )
+
+
+def test_diagonal_ek1_evaluate_ode_type(evaluated):
+    fx, Jx, z = evaluated
+    assert isinstance(fx, jnp.ndarray)
+    assert isinstance(Jx, jnp.ndarray)
+    assert isinstance(z, jnp.ndarray)
+
+
+def test_diagonal_ek1_evaluate_ode_shape(evaluated, d):
+    fx, Jx, z = evaluated
+    assert fx.shape == (d,)
+    assert Jx.shape == (d,)
+    assert z.shape == (d,)
+
+
 def test_diagonal_ek1_predict_mean(m_as_matrix, phi_1d, n, d):
     mp = tornado.ek1.diagonal_ek1_predict_mean(m_as_matrix, phi_1d)
     assert mp.shape == (n, d)
@@ -427,6 +467,9 @@ def test_diagonal_ek1_correct_mean(m_as_matrix, observed, z, d, n):
     _, kgain = observed
     new_mean = tornado.ek1.diagonal_ek1_correct_mean(m=m_as_matrix, kgain=kgain, z=z)
     assert new_mean.shape == (n, d)
+
+
+# Auxiliary functions
 
 
 def full_cov_as_batched_cov(cov, expected_shape):

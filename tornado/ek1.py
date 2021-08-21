@@ -108,15 +108,7 @@ class DiagonalEK1(odesolver.ODEFilter):
             num_derivatives=num_derivatives,
         )
 
-        self.P0_1d_ = self.iwp.projection_matrix_1d(0)
-        self.P1_1d_ = self.iwp.projection_matrix_1d(1)
-        self.P0_1d = self.P0_1d_.reshape((-1,))
-        self.P1_1d = self.P1_1d_.reshape((-1,))
-
         d = self.iwp.wiener_process_dimension
-        self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d_] * d))
-        self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d_] * d))
-
         self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
         self.batched_sq = jnp.stack([self.sq_1d] * d)
 
@@ -140,17 +132,14 @@ class DiagonalEK1(odesolver.ODEFilter):
         p_1d, p_inv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
         m = p_inv_1d @ state.y.mean
         sc = p_inv_1d @ state.y.cov_sqrtm
+        t = state.t + dt
 
         m_pred = diagonal_ek1_predict_mean(m, phi_1d=self.phi_1d)
 
         # Evaluate ODE
-        t = state.t + dt
-        m_at = (p_1d @ m_pred)[0]
-        f = state.ivp.f(t, m_at)
-        J = jnp.diag(state.ivp.df(t, m_at))
-        z = (p_1d @ m_pred)[1] - f
-
-        # Calibrate
+        f, J, z = diagonal_ek1_evaluate_ode(
+            t=t, f=state.ivp.f, df=state.ivp.df, p_1d=p_1d, m_pred=m_pred
+        )
         sigma, error_estimate = diagonal_ek1_calibrate_and_estimate_error(
             p_1d=p_1d,
             J=J,
@@ -190,6 +179,15 @@ class DiagonalEK1(odesolver.ODEFilter):
 
 def diagonal_ek1_predict_mean(m, phi_1d):
     return phi_1d @ m
+
+
+def diagonal_ek1_evaluate_ode(t, f, df, p_1d, m_pred):
+    m_pred_no_precon = p_1d @ m_pred
+    m_at = m_pred_no_precon[0]
+    fx = f(t, m_at)
+    Jx = jnp.diag(df(t, m_at))
+    z = m_pred_no_precon[1] - fx
+    return fx, Jx, z
 
 
 def diagonal_ek1_predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
