@@ -134,13 +134,11 @@ class DiagonalEK1(odesolver.ODEFilter):
         p_1d, p_inv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
         m = p_inv_1d @ state.y.mean
         sc = p_inv_1d @ state.y.cov_sqrtm
-        t = state.t + dt
 
-        results = self.attempt_unit_step(
+        t = state.t + dt
+        new_mean, cov_sqrtm, error = self.attempt_unit_step(
             f=state.ivp.f, df=state.ivp.df, p_1d=p_1d, m=m, sc=sc, t=t
         )
-        new_mean, cov_sqrtm, error = results
-        # Push mean and covariance back into "normal space"
         new_mean = p_1d @ new_mean
         cov_sqrtm = p_1d @ cov_sqrtm
 
@@ -148,7 +146,6 @@ class DiagonalEK1(odesolver.ODEFilter):
         y2 = jnp.abs(new_mean[0])
         reference_state = jnp.maximum(y1, y2)
 
-        # Return new state
         new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=state.ivp,
@@ -160,7 +157,6 @@ class DiagonalEK1(odesolver.ODEFilter):
 
     @partial(jax.jit, static_argnums=(0, 1, 2))
     def attempt_unit_step(self, f, df, p_1d, m, sc, t):
-        # Actual step
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
         f, J, z = self.evaluate_ode(t=t, f=f, df=df, p_1d=p_1d, m_pred=m_pred)
         error, sigma = self.estimate_error(
