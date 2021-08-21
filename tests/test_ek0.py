@@ -129,6 +129,89 @@ def test_init_values(initialized_both, d):
     assert jnp.allclose(kron_cov, reference_init.y.cov)
 
 
+def test_init_shape_kronecker(initialized_both, d, num_derivatives):
+    kronecker_init, _ = initialized_both
+
+    # shorthand
+    n = num_derivatives + 1
+    y = kronecker_init.y
+    m, sc, c = y.mean, y.cov_sqrtm, y.cov
+
+    assert m.shape == (d * n,)
+    assert sc.shape == (n, n)
+    assert c.shape == (n, n)
+
+
+def test_init_shape_reference(initialized_both, d, num_derivatives):
+    _, reference_init = initialized_both
+
+    # shorthand
+    n = num_derivatives + 1
+    y = reference_init.y
+    m, sc, c = y.mean, y.cov_sqrtm, y.cov
+
+    assert m.shape == (d * n,)
+    assert sc.shape == (d * n, d * n)
+    assert c.shape == (d * n, d * n)
+
+
+# Tests for each attempt step
+
+
+@pytest.fixture
+def stepped_kronecker(stepped_both):
+    stepped_kron, _ = stepped_both
+    return stepped_kron
+
+
+@pytest.fixture
+def stepped_reference(stepped_both):
+    _, stepped_reference = stepped_both
+    return stepped_reference
+
+
+def test_attempt_step_y_shapes_kronecker(stepped_kronecker, d, num_derivatives):
+    n = num_derivatives + 1
+    assert stepped_kronecker.y.mean.shape == (n * d,)
+    assert stepped_kronecker.y.cov_sqrtm.shape == (n, n)
+    assert stepped_kronecker.y.cov.shape == (n, n)
+
+
+def test_attempt_step_y_shapes_reference(stepped_reference, d, num_derivatives):
+    n = num_derivatives + 1
+    assert stepped_reference.y.mean.shape == (n * d,)
+    assert stepped_reference.y.cov_sqrtm.shape == (d * n, d * n)
+    assert stepped_reference.y.cov.shape == (d * n, d * n)
+
+
+def test_attempt_step_error_estimate_kronecker(stepped_kronecker, d):
+
+    assert isinstance(stepped_kronecker.error_estimate, jnp.ndarray)
+    assert stepped_kronecker.error_estimate.shape == (d,)
+    assert jnp.all(stepped_kronecker.error_estimate >= 0)
+
+
+def test_attempt_step_error_estimate_reference(stepped_reference, d):
+
+    assert isinstance(stepped_reference.error_estimate, jnp.ndarray)
+    assert stepped_reference.error_estimate.shape == (d,)
+    assert jnp.all(stepped_reference.error_estimate >= 0)
+
+
+def test_attempt_step_reference_state_kronecker(stepped_kronecker, d):
+
+    assert isinstance(stepped_kronecker.reference_state, jnp.ndarray)
+    assert stepped_kronecker.reference_state.shape == (d,)
+    assert jnp.all(stepped_kronecker.reference_state >= 0)
+
+
+def test_attempt_step_reference_state_reference(stepped_reference, d):
+
+    assert isinstance(stepped_reference.reference_state, jnp.ndarray)
+    assert stepped_reference.reference_state.shape == (d,)
+    assert jnp.all(stepped_reference.reference_state >= 0)
+
+
 #
 #
 #

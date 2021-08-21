@@ -55,7 +55,7 @@ class ReferenceEK0(odesolver.ODEFilter):
         Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
         m_new = mp - K @ z
 
-        y_new = self.E0 @ m_new
+        y_new = jnp.abs(self.E0 @ m_new)
 
         return odesolver.ODEFilterState(
             ivp=state.ivp,
@@ -134,7 +134,7 @@ class KroneckerEK0(odesolver.ODEFilter):
         # [Undo preconditioning]
         _m_new, _Cl_new = vec_trick_mul_right(P, m_new), P @ Cl_new
 
-        y_new = vec_trick_mul_right(self.e0, _m_new)
+        y_new = jnp.abs(vec_trick_mul_right(self.e0, _m_new))
 
         error_estimate = jnp.repeat(jnp.sqrt(sigma_squared * HQH), self.d)
 
