@@ -43,7 +43,7 @@ class ReferenceEK1(odesolver.ODEFilter):
         m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
         A, SQ = self.iwp.preconditioned_discretize
 
-        m_pred = reference_ek1_predict_mean(m=m, phi=A)
+        m_pred = self.predict_mean(m=m, phi=A)
 
         # Evaluate ODE and create linearisation
         t = state.t + dt
@@ -55,12 +55,10 @@ class ReferenceEK1(odesolver.ODEFilter):
         z = H @ m_pred + b
 
         # Calibrate
-        sigma, error_estimate = reference_ek1_calibrate_and_estimate_error(
-            h=H, sq=SQ, z=z
-        )
+        sigma, error_estimate = self.calibrate_and_estimate_error(h=H, sq=SQ, z=z)
 
         # Predict covariance
-        SC_pred = reference_ek1_predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
+        SC_pred = self.predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
 
         # Update (observation and correction in one sweep)
         cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
@@ -83,23 +81,25 @@ class ReferenceEK1(odesolver.ODEFilter):
             reference_state=reference_state,
         )
 
+    # Low level functions
 
-def reference_ek1_predict_mean(m, phi):
-    return phi @ m
+    @staticmethod
+    def predict_mean(m, phi):
+        return phi @ m
 
+    @staticmethod
+    def predict_cov_sqrtm(sc, phi, sq):
+        return sqrt.propagate_cholesky_factor(phi @ sc, sq)
 
-def reference_ek1_predict_cov_sqrtm(sc, phi, sq):
-    return sqrt.propagate_cholesky_factor(phi @ sc, sq)
-
-
-def reference_ek1_calibrate_and_estimate_error(h, sq, z):
-    s_sqrtm = h @ sq
-    s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
-    whitened_res = jax.scipy.linalg.solve_triangular(s_chol, z)
-    sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
-    sigma = jnp.sqrt(sigma_squared)
-    error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
-    return sigma, error_estimate
+    @staticmethod
+    def calibrate_and_estimate_error(h, sq, z):
+        s_sqrtm = h @ sq
+        s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
+        whitened_res = jax.scipy.linalg.solve_triangular(s_chol, z)
+        sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
+        sigma = jnp.sqrt(sigma_squared)
+        error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
+        return sigma, error_estimate
 
 
 class DiagonalEK1(odesolver.ODEFilter):
@@ -278,10 +278,9 @@ class TruncatedEK1(odesolver.ODEFilter):
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
-        mean = extended_dy0.reshape((-1,), order="F")
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
-        cov_cholesky = linops.BlockDiagonal(array_stack=jnp.zeros((d, n, n)))
-        new_rv = rv.MultivariateNormal(mean, cov_cholesky)
+        cov_sqrtm = jnp.zeros((d, n, n))
+        new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
