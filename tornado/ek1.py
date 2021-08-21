@@ -160,9 +160,7 @@ class DiagonalEK1(odesolver.ODEFilter):
         sc_pred = diagonal_ek1_predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
-        ss, kgain = diagonal_ek1_observe_cov_sqrtm(
-            e0_1d=self.P0_1d, e1_1d=self.P1_1d, J=J, p_1d=P_1d, sc_bd=sc_pred
-        )
+        ss, kgain = diagonal_ek1_observe_cov_sqrtm(J=J, p_1d=p_1d, sc_bd=sc_pred)
         cov_sqrtm = diagonal_ek1_correct_cov_sqrtm(
             e0_1d=self.P0_1d,
             e1_1d=self.P1_1d,
@@ -217,11 +215,11 @@ def diagonal_ek1_calibrate_and_estimate_error(p_1d, J, sq_bd, z):
     return sigma, error_estimate
 
 
-def diagonal_ek1_observe_cov_sqrtm(e0_1d, e1_1d, p_1d, J, sc_bd):
+def diagonal_ek1_observe_cov_sqrtm(p_1d, J, sc_bd):
 
     sc_bd_no_precon = p_1d @ sc_bd  # shape (d,n,n)
-    sc_bd_no_precon_0 = e0_1d @ sc_bd_no_precon  # shape (d,n)
-    sc_bd_no_precon_1 = e1_1d @ sc_bd_no_precon  # shape (d,n)
+    sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
+    sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
     h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
 
     s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
