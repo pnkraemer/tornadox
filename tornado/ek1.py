@@ -84,14 +84,17 @@ class ReferenceEK1(odesolver.ODEFilter):
     # Low level functions
 
     @staticmethod
+    @jax.jit
     def predict_mean(m, phi):
         return phi @ m
 
     @staticmethod
+    @jax.jit
     def predict_cov_sqrtm(sc, phi, sq):
         return sqrt.propagate_cholesky_factor(phi @ sc, sq)
 
     @staticmethod
+    @jax.jit
     def calibrate_and_estimate_error(h, sq, z):
         s_sqrtm = h @ sq
         s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)

@@ -342,24 +342,29 @@ def m_as_matrix(m, n, d):
 
 
 class TestLowLevelReferenceEK1Functions:
-    def test_predict_mean(self, m, phi, n, d):
+    @staticmethod
+    def test_predict_mean(m, phi, n, d):
         mp = tornado.ek1.ReferenceEK1.predict_mean(m, phi)
         assert mp.shape == (n * d,)
 
-    def test_predict_cov_sqrtm(self, sc, phi, sq, n, d):
+    @staticmethod
+    def test_predict_cov_sqrtm(sc, phi, sq, n, d):
         scp = tornado.ek1.ReferenceEK1.predict_cov_sqrtm(sc, phi, sq)
         assert scp.shape == (n * d, n * d)
 
+    @staticmethod
     @pytest.fixture
-    def reference_ek1_calibrated_and_error_estimated(self, h, sq, z):
+    def reference_ek1_calibrated_and_error_estimated(h, sq, z):
         return tornado.ek1.ReferenceEK1.calibrate_and_estimate_error(h, sq, z)
 
-    def test_calibrate(self, reference_ek1_calibrated_and_error_estimated):
+    @staticmethod
+    def test_calibrate(reference_ek1_calibrated_and_error_estimated):
         sigma, _ = reference_ek1_calibrated_and_error_estimated
         assert sigma.shape == ()
         assert sigma >= 0.0
 
-    def test_error_estimate(self, reference_ek1_calibrated_and_error_estimated, d):
+    @staticmethod
+    def test_error_estimate(reference_ek1_calibrated_and_error_estimated, d):
         _, error_estimate = reference_ek1_calibrated_and_error_estimated
         assert error_estimate.shape == (d,)
         assert jnp.all(error_estimate >= 0.0)
@@ -368,46 +373,55 @@ class TestLowLevelReferenceEK1Functions:
 class TestLowLevelDiagonalEK1Functions:
     """Test suite for low-level, diagonal EK1 functions."""
 
+    @staticmethod
     @pytest.fixture
-    def t(self):
+    def t():
         return 0.123456
 
+    @staticmethod
     @pytest.fixture
-    def f(self):
+    def f():
         return lambda t, x: x ** 2
 
+    @staticmethod
     @pytest.fixture
-    def df(self, f):
+    def df(f):
         return jax.jacfwd(f, argnums=1)
 
+    @staticmethod
     @pytest.fixture
-    def evaluated(self, t, f, df, p_1d, m_as_matrix):
+    def evaluated(t, f, df, p_1d, m_as_matrix):
         return tornado.ek1.DiagonalEK1.evaluate_ode(
             t=t, f=f, df=df, p_1d=p_1d, m_pred=m_as_matrix
         )
 
-    def test_evaluate_ode_type(self, evaluated):
+    @staticmethod
+    def test_evaluate_ode_type(evaluated):
         fx, Jx, z = evaluated
         assert isinstance(fx, jnp.ndarray)
         assert isinstance(Jx, jnp.ndarray)
         assert isinstance(z, jnp.ndarray)
 
-    def test_evaluate_ode_shape(self, evaluated, d):
+    @staticmethod
+    def test_evaluate_ode_shape(evaluated, d):
         fx, Jx, z = evaluated
         assert fx.shape == (d,)
         assert Jx.shape == (d,)
         assert z.shape == (d,)
 
-    def test_predict_mean(self, m_as_matrix, phi_1d, n, d):
+    @staticmethod
+    def test_predict_mean(m_as_matrix, phi_1d, n, d):
         mp = tornado.ek1.DiagonalEK1.predict_mean(m_as_matrix, phi_1d)
         assert mp.shape == (n, d)
 
-    def test_predict_cov_sqrtm(self, sc_as_bd, phi_1d, sq_as_bd, n, d):
+    @staticmethod
+    def test_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
         scp = tornado.ek1.DiagonalEK1.predict_cov_sqrtm(
             sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
         )
         assert scp.shape == (d, n, n)
 
+    @staticmethod
     @pytest.fixture
     def diagonal_ek1_error_estimated(e0_1d, e1_1d, p_1d, J, sq_as_bd, z):
         return tornado.ek1.DiagonalEK1.estimate_error(
@@ -420,7 +434,8 @@ class TestLowLevelDiagonalEK1Functions:
         assert sigma.shape == ()
         assert sigma >= 0.0
 
-    def test_error_estimate(self, diagonal_ek1_error_estimated, d):
+    @staticmethod
+    def test_error_estimate(diagonal_ek1_error_estimated, d):
         error_estimate, _ = diagonal_ek1_error_estimated
         assert error_estimate.shape == (d,)
         assert jnp.all(error_estimate >= 0.0)
