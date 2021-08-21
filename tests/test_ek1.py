@@ -415,8 +415,6 @@ def test_diagonal_ek1_correct_cov_sqrtm(
 ):
     _, kgain = observed
     new_sc = tornado.ek1.diagonal_ek1_correct_cov_sqrtm(
-        e0_1d=e0_1d,
-        e1_1d=e1_1d,
         p_1d=p_1d,
         J=J,
         sc_bd=sc_as_bd,
