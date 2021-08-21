@@ -67,9 +67,19 @@ def test_solve_constant(solve_method, order, time_domain, dt):
             cov = cov.todense()
         except AttributeError:
             pass
-        if isinstance(solver, (tornado.ek1.DiagonalEK1, tornado.ek1.TruncatedEK1)):
+        if isinstance(
+            solver,
+            (
+                tornado.ek1.DiagonalEK1,
+                tornado.ek1.TruncatedEK1,
+                tornado.ek0.KroneckerEK0,
+            ),
+        ):
             assert mean.shape == (order + 1, ivp.dimension)
-            assert cov.shape == (mean.shape[1], mean.shape[0], mean.shape[0])
+            if isinstance(solver, (tornado.ek1.DiagonalEK1, tornado.ek1.TruncatedEK1)):
+                assert cov.shape == (mean.shape[1], mean.shape[0], mean.shape[0])
+            else:
+                assert cov.shape == (mean.size, mean.size)
         else:
             assert mean.shape == (ivp.dimension * (order + 1),)
             assert (solver.P0 @ mean).size == ivp.dimension

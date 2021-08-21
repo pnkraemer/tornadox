@@ -110,8 +110,12 @@ def solve(
     for state in solution_generator:
         res_times.append(state.t)
         res_means.append(state.y.mean)
-        res_cov_sqrtms.append(state.y.cov_sqrtm)
-        res_covs.append(state.y.cov)
+        if isinstance(solver, ek0.KroneckerEK0):
+            res_cov_sqrtms.append(state.y.dense_cov_sqrtm())
+            res_covs.append(state.y.dense_cov())
+        else:
+            res_cov_sqrtms.append(state.y.cov_sqrtm)
+            res_covs.append(state.y.cov)
 
     return (
         ODESolution(
