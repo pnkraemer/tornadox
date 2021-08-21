@@ -255,18 +255,13 @@ def m(n, d):
 
 
 @pytest.fixture
+def m_as_matrix(m, n, d):
+    return m.reshape((n, d))
+
+
+@pytest.fixture
 def sc_1d(n):
     return jnp.arange(1, 1 + n ** 2).reshape((n, n))
-
-
-@pytest.fixture
-def sc(sc_1d, d):
-    return jnp.kron(jnp.eye(d), sc_1d)
-
-
-@pytest.fixture
-def sc_as_bd(sc_1d, d):
-    return jnp.stack([sc_1d] * d)
 
 
 @pytest.fixture
@@ -275,44 +270,8 @@ def phi_1d(n):
 
 
 @pytest.fixture
-def phi(phi_1d, d):
-    return jnp.kron(jnp.eye(d), phi_1d)
-
-
-@pytest.fixture
 def sq_1d(n):
     return jnp.arange(1, 1 + n ** 2).reshape((n, n))
-
-
-@pytest.fixture
-def sq(sq_1d, d):
-    return jnp.kron(jnp.eye(d), sq_1d)
-
-
-@pytest.fixture
-def sq_as_bd(sq_1d, d):
-    return jnp.stack([sq_1d] * d)
-
-
-@pytest.fixture
-def e0_1d(n):
-    return jnp.eye(1, n).reshape((-1,))
-
-
-@pytest.fixture
-def e0(e0_1d, d):
-    return jnp.kron(jnp.eye(d), e0_1d)
-
-
-@pytest.fixture
-def e1_1d(n):
-    # e_{-1} as a dummy for e1 -- only the shapes matter anyway
-    return jnp.flip(jnp.eye(1, n)).reshape((-1,))
-
-
-@pytest.fixture
-def e1(e1_1d, d):
-    return jnp.kron(jnp.eye(d), e1_1d)
 
 
 @pytest.fixture
@@ -320,28 +279,58 @@ def p_1d(n):
     return jnp.diag(jnp.arange(n))
 
 
-@pytest.fixture
-def J(m, ivp, e0):
-    xi = e0 @ m
-    return jnp.diag(ivp.df(ivp.t0, xi))
-
-
-@pytest.fixture
-def h(e0, e1, J):
-    return e1 - J @ e0
-
-
-@pytest.fixture
-def z(h, m):
-    return h @ m
-
-
-@pytest.fixture
-def m_as_matrix(m, n, d):
-    return m.reshape((n, d))
-
-
 class TestLowLevelReferenceEK1Functions:
+    @staticmethod
+    @pytest.fixture
+    def phi(phi_1d, d):
+        return jnp.kron(jnp.eye(d), phi_1d)
+
+    @staticmethod
+    @pytest.fixture
+    def e0_1d(n):
+        return jnp.eye(1, n).reshape((-1,))
+
+    @staticmethod
+    @pytest.fixture
+    def e0(e0_1d, d):
+        return jnp.kron(jnp.eye(d), e0_1d)
+
+    @staticmethod
+    @pytest.fixture
+    def e1_1d(n):
+        # e_{-1} as a dummy for e1 -- only the shapes matter anyway
+        return jnp.flip(jnp.eye(1, n)).reshape((-1,))
+
+    @staticmethod
+    @pytest.fixture
+    def e1(e1_1d, d):
+        return jnp.kron(jnp.eye(d), e1_1d)
+
+    @staticmethod
+    @pytest.fixture
+    def sq(sq_1d, d):
+        return jnp.kron(jnp.eye(d), sq_1d)
+
+    @staticmethod
+    @pytest.fixture
+    def sc(sc_1d, d):
+        return jnp.kron(jnp.eye(d), sc_1d)
+
+    @staticmethod
+    @pytest.fixture
+    def J(e0, m, ivp):
+        return ivp.df(0.0, e0 @ m)
+
+    @staticmethod
+    @pytest.fixture
+    def h(e0, e1, J):
+        return e1 - J @ e0
+
+    @staticmethod
+    @pytest.fixture
+    def z(h, m):
+        return h @ m
+
     @staticmethod
     def test_predict_mean(m, phi, n, d):
         mp = tornado.ek1.ReferenceEK1.predict_mean(m, phi)
@@ -375,6 +364,16 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
+    def sc_as_bd(sc_1d, d):
+        return jnp.stack([sc_1d] * d)
+
+    @staticmethod
+    @pytest.fixture
+    def sq_as_bd(sq_1d, d):
+        return jnp.stack([sq_1d] * d)
+
+    @staticmethod
+    @pytest.fixture
     def t():
         return 0.123456
 
@@ -394,6 +393,18 @@ class TestLowLevelDiagonalEK1Functions:
         return tornado.ek1.DiagonalEK1.evaluate_ode(
             t=t, f=f, df=df, p_1d=p_1d, m_pred=m_as_matrix
         )
+
+    @staticmethod
+    @pytest.fixture
+    def J(evaluated):
+        _, J, _ = evaluated
+        return J
+
+    @staticmethod
+    @pytest.fixture
+    def z(evaluated):
+        _, _, z = evaluated
+        return z
 
     @staticmethod
     def test_evaluate_ode_type(evaluated):
@@ -423,7 +434,7 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def diagonal_ek1_error_estimated(e0_1d, e1_1d, p_1d, J, sq_as_bd, z):
+    def diagonal_ek1_error_estimated(p_1d, J, sq_as_bd, z):
         return tornado.ek1.DiagonalEK1.estimate_error(
             p_1d=p_1d, J=J, sq_bd=sq_as_bd, z=z
         )
@@ -442,7 +453,7 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def observed(e0_1d, e1_1d, J, p_1d, sc_as_bd):
+    def observed(J, p_1d, sc_as_bd):
         return tornado.ek1.DiagonalEK1.observe_cov_sqrtm(
             p_1d=p_1d,
             J=J,
@@ -456,7 +467,7 @@ class TestLowLevelDiagonalEK1Functions:
         assert kgain.shape == (d, n, 1)
 
     @staticmethod
-    def test_correct_cov_sqrtm(e0_1d, e1_1d, J, p_1d, observed, sc_as_bd, d, n):
+    def test_correct_cov_sqrtm(J, p_1d, observed, sc_as_bd, d, n):
         _, kgain = observed
         new_sc = tornado.ek1.DiagonalEK1.correct_cov_sqrtm(
             p_1d=p_1d,
