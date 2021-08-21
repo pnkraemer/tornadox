@@ -117,8 +117,8 @@ class DiagonalEK1(odesolver.ODEFilter):
         self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d_] * d))
         self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d_] * d))
 
-        self.phi_1d, self.sigma_1d = self.iwp.preconditioned_discretize_1d
-        self.batched_sigma = jnp.stack([self.sigma_1d] * d)
+        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
+        self.batched_sq = jnp.stack([self.sq_1d] * d)
 
     def initialize(self, ivp):
         extended_dy0 = self.tm(
@@ -152,15 +152,13 @@ class DiagonalEK1(odesolver.ODEFilter):
 
         # Calibrate
         sigma, error_estimate = diagonal_ek1_calibrate_and_estimate_error(
-            e0_1d=self.P0_1d,
-            e1_1d=self.P1_1d,
-            p_1d=P_1d,
+            p_1d=p_1d,
             J=J,
-            sq_bd=SQ_bd,
+            sq_bd=self.batched_sq,
             z=z,
         )
         sc_pred = diagonal_ek1_predict_cov_sqrtm(
-            sc_bd=SC, phi_1d=A_1d, sq_bd=sigma * SQ_bd
+            sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
         ss, kgain = diagonal_ek1_observe_cov_sqrtm(
             e0_1d=self.P0_1d, e1_1d=self.P1_1d, J=J, p_1d=P_1d, sc_bd=sc_pred
