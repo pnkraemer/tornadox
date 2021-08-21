@@ -28,3 +28,20 @@ class BatchedMultivariateNormal:
     @property
     def cov(self):
         return self.cov_sqrtm @ jnp.transpose(self.cov_sqrtm, axes=(0, 2, 1))
+
+
+@dataclasses.dataclass
+class MatrixNormal:
+    """Matrixvariate normal distributions."""
+
+    mean: jnp.ndarray
+    cov_sqrtm_1: jnp.ndarray
+    cov_sqrtm_2: jnp.ndarray
+
+    @property
+    def cov_1(self):
+        return self.cov_sqrtm_1 @ self.cov_sqrtm_1.T
+
+    @property
+    def cov_2(self):
+        return self.cov_sqrtm_2 @ self.cov_sqrtm_2.T

@@ -97,3 +97,29 @@ def test_batched_multivariate_normal_cov(batched_multivariate_normal):
     batched_SC_T = jnp.transpose(batched_SC, axes=(0, 2, 1))
     batched_C = batched_multivariate_normal.cov
     assert jnp.allclose(batched_C, batched_SC @ batched_SC_T)
+
+
+# Tests for matrix normal
+
+
+@pytest.fixture
+def matrix_normal(mean, cov_sqrtm):
+    return tornado.rv.MatrixNormal(
+        mean=mean, cov_sqrtm_1=cov_sqrtm, cov_sqrtm_2=cov_sqrtm
+    )
+
+
+def test_matrix_normal_type(matrix_normal):
+    assert isinstance(matrix_normal, tornado.rv.MatrixNormal)
+
+
+def test_matrix_normal_cov_1(matrix_normal):
+    SC = matrix_normal.cov_sqrtm_1
+    C = matrix_normal.cov_1
+    assert jnp.allclose(C, SC @ SC.T)
+
+
+def test_matrix_normal_cov_2(matrix_normal):
+    SC = matrix_normal.cov_sqrtm_2
+    C = matrix_normal.cov_2
+    assert jnp.allclose(C, SC @ SC.T)
