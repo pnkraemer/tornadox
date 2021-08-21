@@ -44,6 +44,7 @@ EK1_VERSIONS = [
     tornado.ek1.ReferenceEK1,
     tornado.ek1.DiagonalEK1,
     tornado.ek1.EarlyTruncationEK1,
+    tornado.ek1.TruncationEK1,
 ]
 all_ek1_versions = pytest.mark.parametrize("ek1_version", EK1_VERSIONS)
 
@@ -75,7 +76,12 @@ def test_full_solve_compare_scipy(
 
 # Handy selection of test parametrizations
 all_ek1_approximations = pytest.mark.parametrize(
-    "approx_solver", [tornado.ek1.DiagonalEK1, tornado.ek1.EarlyTruncationEK1]
+    "approx_solver",
+    [
+        tornado.ek1.DiagonalEK1,
+        tornado.ek1.EarlyTruncationEK1,
+        tornado.ek1.TruncationEK1,
+    ],
 )
 only_ek1_diagonal = pytest.mark.parametrize("approx_solver", [tornado.ek1.DiagonalEK1])
 only_ek1_early_truncation = pytest.mark.parametrize(
@@ -526,6 +532,15 @@ class TestLowLevelDiagonalEK1Functions:
         _, kgain = observed
         new_mean = tornado.ek1.DiagonalEK1.correct_mean(m=m_as_matrix, kgain=kgain, z=z)
         assert new_mean.shape == (n, d)
+
+
+class TestLowLevelTruncationEK1Functions:
+    """Test suite for low-level, truncated EK1 functions."""
+
+    @staticmethod
+    def test_predict_mean(m_as_matrix, phi_1d, n, d):
+        mp = tornado.ek1.TruncationEK1.predict_mean(m_as_matrix, phi_1d)
+        assert mp.shape == (n, d)
 
 
 # Auxiliary functions
