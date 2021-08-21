@@ -337,18 +337,28 @@ class TestLowLevelReferenceEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def J(e0, m, ivp):
-        return ivp.df(0.0, e0 @ m)
+    def evaluated(ivp, m, e0, e1, p, t, f, df):
+        return tornado.ek1.ReferenceEK1.evaluate_ode(
+            t=t,
+            f=f,
+            df=df,
+            p=p,
+            m_pred=m,
+            e0=e0,
+            e1=e1,
+        )
 
     @staticmethod
     @pytest.fixture
-    def h(e0, e1, J):
-        return e1 - J @ e0
+    def h(evaluated):
+        h, _ = evaluated
+        return h
 
     @staticmethod
     @pytest.fixture
-    def z(h, m):
-        return h @ m
+    def z(evaluated):
+        _, z = evaluated
+        return z
 
     # Test functions
 
@@ -361,19 +371,6 @@ class TestLowLevelReferenceEK1Functions:
     def test_predict_cov_sqrtm(sc, phi, sq, n, d):
         scp = tornado.ek1.ReferenceEK1.predict_cov_sqrtm(sc, phi, sq)
         assert scp.shape == (n * d, n * d)
-
-    @staticmethod
-    @pytest.fixture
-    def evaluated(ivp, m, e0, e1, p, t, f, df):
-        return tornado.ek1.ReferenceEK1.evaluate_ode(
-            t=t,
-            f=f,
-            df=df,
-            p=p,
-            m_pred=m,
-            e0=e0,
-            e1=e1,
-        )
 
     @staticmethod
     def test_evaluate_ode_type(evaluated):
