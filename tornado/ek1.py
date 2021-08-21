@@ -534,3 +534,7 @@ class TruncationEK1(odesolver.ODEFilter):
     @staticmethod
     def predict_mean(m, phi_1d):
         return phi_1d @ m
+
+    @staticmethod
+    def predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
+        return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)

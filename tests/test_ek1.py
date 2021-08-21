@@ -418,20 +418,21 @@ class TestLowLevelReferenceEK1Functions:
         assert jnp.all(error_estimate >= 0.0)
 
 
+# Batched versions of 1d system matrices
+
+
+@pytest.fixture
+def sc_as_bd(sc_1d, d):
+    return jnp.stack([sc_1d] * d)
+
+
+@pytest.fixture
+def sq_as_bd(sq_1d, d):
+    return jnp.stack([sq_1d] * d)
+
+
 class TestLowLevelDiagonalEK1Functions:
     """Test suite for low-level, diagonal EK1 functions."""
-
-    # Batched versions of 1d system matrices
-
-    @staticmethod
-    @pytest.fixture
-    def sc_as_bd(sc_1d, d):
-        return jnp.stack([sc_1d] * d)
-
-    @staticmethod
-    @pytest.fixture
-    def sq_as_bd(sq_1d, d):
-        return jnp.stack([sq_1d] * d)
 
     # ODE fixtures
 
@@ -541,6 +542,13 @@ class TestLowLevelTruncationEK1Functions:
     def test_predict_mean(m_as_matrix, phi_1d, n, d):
         mp = tornado.ek1.TruncationEK1.predict_mean(m_as_matrix, phi_1d)
         assert mp.shape == (n, d)
+
+    @staticmethod
+    def test_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
+        scp = tornado.ek1.TruncationEK1.predict_cov_sqrtm(
+            sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
+        )
+        assert scp.shape == (d, n, n)
 
 
 # Auxiliary functions
