@@ -208,8 +208,11 @@ class DiagonalEK1(odesolver.ODEFilter):
         m_pred_no_precon = p_1d_raw[:, None] * m_pred
         m_at = m_pred_no_precon[0]
         fx = f(t, m_at)
-        Jx = jnp.diag(df(t, m_at))
         z = m_pred_no_precon[1] - fx
+
+        # Todo: replace with vmap(grad(f)) which would never assemble the full jacobian?
+        Jx = jnp.diag(df(t, m_at))
+
         return fx, Jx, z
 
     @staticmethod
