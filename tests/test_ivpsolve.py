@@ -10,7 +10,7 @@ import tornado
     params=[
         "ek1_reference",
         "ek1_diagonal",
-        "ek1_truncated",
+        "ek1_early_truncation",
         "ek0_reference",
         "ek0_kronecker",
     ]

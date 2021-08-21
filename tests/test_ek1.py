@@ -78,7 +78,7 @@ all_ek1_approximations = pytest.mark.parametrize(
     "approx_solver", [tornado.ek1.DiagonalEK1, tornado.ek1.EarlyTruncationEK1]
 )
 only_ek1_diagonal = pytest.mark.parametrize("approx_solver", [tornado.ek1.DiagonalEK1])
-only_ek1_truncated = pytest.mark.parametrize(
+only_ek1_early_truncation = pytest.mark.parametrize(
     "approx_solver", [tornado.ek1.EarlyTruncationEK1]
 )
 
@@ -219,7 +219,7 @@ def test_diagonal_ek1_attempt_step_y_values(approx_stepped):
     assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch)
 
 
-@only_ek1_truncated
+@only_ek1_early_truncation
 def test_truncated_ek1_attempt_step_y_values(approx_stepped):
     step_ref, step_approx = approx_stepped
 
