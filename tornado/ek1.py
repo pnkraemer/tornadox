@@ -315,6 +315,25 @@ class TruncationEK1(BatchedEK1):
         Jx = df(t, m_at)
         return fx, Jx, z
 
+    @staticmethod
+    def estimate_error(p_1d_raw, Jx, sq_bd, z):
+
+        sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
+        sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
+        sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
+
+        h_sq_bd = sq_bd_no_precon_1 - Jx @ sq_bd_no_precon_0  # shape (d,n)
+        s = h_sq_bd @ h_sq_bd.T  # shape (d,d)
+
+        # Careful!! Here is one of the expensive bits!
+        s_sqrtm = jax.scipy.linalg.cholesky(s, lower=True)
+        xi = jax.scipy.linalg.cho_solve((s_sqrtm, True), z)
+
+        sigma_squared = xi.T @ xi / xi.shape[0]  # shape ()
+        sigma = jnp.sqrt(sigma_squared)  # shape ()
+        error_estimate = sigma * jnp.sqrt(jnp.diag(s))  # shape (d,)
+        return error_estimate, sigma
+
 
 class EarlyTruncationEK1(odesolver.ODEFilter):
     """Use full Jacobians for mean-updates, but truncate cleverly to enforce a block-diagonal posterior covariance.

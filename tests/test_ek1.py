@@ -285,7 +285,7 @@ def sq_1d(n):
 
 @pytest.fixture
 def p_1d_raw(n):
-    return jnp.arange(n)
+    return jnp.arange(1, 1 + n)
 
 
 @pytest.fixture
@@ -574,6 +574,25 @@ class TestLowLevelTruncationEK1Functions:
         assert fx.shape == (d,)
         assert Jx.shape == (d, d)
         assert z.shape == (d,)
+
+    @staticmethod
+    @pytest.fixture
+    def diagonal_ek1_error_estimated(p_1d_raw, Jx, sq_as_bd, z):
+        return tornado.ek1.TruncationEK1.estimate_error(
+            p_1d_raw=p_1d_raw, Jx=Jx, sq_bd=sq_as_bd, z=z
+        )
+
+    @staticmethod
+    def test_calibrate(diagonal_ek1_error_estimated):
+        _, sigma = diagonal_ek1_error_estimated
+        assert sigma.shape == ()
+        assert sigma >= 0.0
+
+    @staticmethod
+    def test_error_estimate(diagonal_ek1_error_estimated, d):
+        error_estimate, _ = diagonal_ek1_error_estimated
+        assert error_estimate.shape == (d,)
+        assert jnp.all(error_estimate >= 0.0)
 
 
 # Auxiliary functions
