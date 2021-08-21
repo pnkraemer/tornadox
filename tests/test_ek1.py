@@ -210,29 +210,28 @@ def test_approx_ek1_attempt_step_reference_state(approx_stepped, ivp, num_deriva
 
 
 @only_ek1_diagonal
-def test_approx_ek1_attempt_step_y_values(approx_stepped):
+def test_diagonal_ek1_attempt_step_y_values(approx_stepped):
     step_ref, step_approx = approx_stepped
     ref_cov_as_batch = full_cov_as_batched_cov(
         step_ref.y.cov, expected_shape=step_approx.y.cov.shape
     )
-
-    assert jnp.allclose(step_approx.y.mean, step_ref.y.mean)
-    assert jnp.allclose(step_approx.y.cov.todense(), ref_cov_as_batch)
+    assert jnp.allclose(step_approx.y.mean.reshape((-1,), order="F"), step_ref.y.mean)
+    assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch)
 
 
 @only_ek1_truncated
-def test_approx_ek1_attempt_step_y_values(approx_stepped):
+def test_truncated_ek1_attempt_step_y_values(approx_stepped):
     step_ref, step_approx = approx_stepped
 
-    num_blocks = step_approx.y.cov.array_stack.shape[0]
-    block_shape = step_approx.y.cov.array_stack.shape[1:3]
+    num_blocks = step_approx.y.cov.shape[0]
+    block_shape = step_approx.y.cov.shape[1:3]
     ref_cov_as_batch = tornado.linops.truncate_block_diagonal(
         step_ref.y.cov,
         num_blocks=num_blocks,
         block_shape=block_shape,
     )
 
-    assert jnp.allclose(step_approx.y.mean, step_ref.y.mean)
+    assert jnp.allclose(step_approx.y.mean.reshape((-1,), order="F"), step_ref.y.mean)
     assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch, rtol=5e-4, atol=5e-4)
 
 

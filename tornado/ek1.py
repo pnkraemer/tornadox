@@ -256,7 +256,7 @@ class DiagonalEK1(odesolver.ODEFilter):
         sc_bd_no_precon = p_1d @ sc_bd  # shape (d,n,n)
         sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
         sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
-        h_sc_bd = sc_bd_no_precon_1 - J @ sc_bd_no_precon_0  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
         kh_sc_bd = kgain @ h_sc_bd[:, None, :]  # shape (d,n,n)
         new_sc = sc_bd - kh_sc_bd  # shape (d,n,n)
         return new_sc
@@ -342,8 +342,8 @@ class TruncatedEK1(odesolver.ODEFilter):
         # Extract previous states and pull them into "preconditioned space"
         # assert isinstance(state.y.cov_sqrtm, linops.BlockDiagonal)
         # assert state.y.cov_sqrtm.array_stack.shape == (d, n, n)
-        m = Pinv @ state.y.mean
-        SC = Pinv @ state.y.cov_sqrtm
+        m = Pinv @ state.y.mean.reshape((-1,), order="F")
+        SC = Pinv @ linops.BlockDiagonal(state.y.cov_sqrtm)
         # assert isinstance(SC, linops.BlockDiagonal)
         # assert SC.array_stack.shape == (d, n, n)
 
@@ -443,20 +443,20 @@ class TruncatedEK1(odesolver.ODEFilter):
         # assert cov_sqrtm.array_stack.shape == (d, n, n)
 
         # Push mean and covariance back into "normal space"
-        new_mean = P @ new_mean
-        cov_sqrtm = P @ cov_sqrtm
+        new_mean = (P @ new_mean).reshape((n, d), order="F")
+        cov_sqrtm = (P @ cov_sqrtm).array_stack
         # assert isinstance(cov_sqrtm, linops.BlockDiagonal)
         # assert cov_sqrtm.array_stack.shape == (d, n, n)
 
-        y1 = jnp.abs(self.P0 @ state.y.mean)
-        y2 = jnp.abs(self.P0 @ new_mean)
+        y1 = jnp.abs(self.P0 @ state.y.mean.reshape((-1,), order="F"))
+        y2 = jnp.abs(self.P0 @ new_mean.reshape((-1,), order="F"))
         reference_state = jnp.maximum(y1, y2)
         # assert isinstance(reference_state, jnp.ndarray)
         # assert reference_state.shape == (d,)
         # assert jnp.all(reference_state >= 0.0), reference_state
 
         # Return new state
-        new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
+        new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,
