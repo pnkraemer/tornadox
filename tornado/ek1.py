@@ -38,29 +38,17 @@ class ReferenceEK1(odesolver.ODEFilter):
     def attempt_step(self, state, dt):
         # Extract system matrices
         P, Pinv = self.iwp.nordsieck_preconditioner(dt=dt)
-        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
         A, SQ = self.iwp.preconditioned_discretize
-
-        m_pred = self.predict_mean(m=m, phi=A)
-
-        # Evaluate ODE and create linearisation
         t = state.t + dt
-        H, z = self.evaluate_ode(
-            t=t,
-            f=state.ivp.f,
-            df=state.ivp.df,
-            p=P,
-            m_pred=m_pred,
-            e0=self.P0,
-            e1=self.P1,
+
+        # Pull states into preconditioned state
+        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
+
+        cov_cholesky, error_estimate, new_mean = self.attempt_unit_step(
+            A, P, SC, SQ, m, state, t
         )
-        error_estimate, sigma = self.estimate_error(h=H, sq=SQ, z=z)
-        SC_pred = self.predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
 
-        # Update (observation and correction in one sweep)
-        cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
-        new_mean = m_pred - Kgain @ z
-
+        # Push back to non-preconditioned state
         cov_cholesky = P @ cov_cholesky
         new_mean = P @ new_mean
         new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
@@ -77,6 +65,23 @@ class ReferenceEK1(odesolver.ODEFilter):
             error_estimate=error_estimate,
             reference_state=reference_state,
         )
+
+    def attempt_unit_step(self, A, P, SC, SQ, m, state, t):
+        m_pred = self.predict_mean(m=m, phi=A)
+        H, z = self.evaluate_ode(
+            t=t,
+            f=state.ivp.f,
+            df=state.ivp.df,
+            p=P,
+            m_pred=m_pred,
+            e0=self.P0,
+            e1=self.P1,
+        )
+        error_estimate, sigma = self.estimate_error(h=H, sq=SQ, z=z)
+        SC_pred = self.predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
+        cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
+        new_mean = m_pred - Kgain @ z
+        return cov_cholesky, error_estimate, new_mean
 
     # Low level functions
 

@@ -280,6 +280,9 @@ def p_1d(n):
     return jnp.diag(jnp.arange(n))
 
 
+# Easy access fixtures for the ODE attributes
+
+
 @pytest.fixture
 def t(ivp):
     return ivp.t0 + 0.123456
@@ -333,7 +336,7 @@ class TestLowLevelReferenceEK1Functions:
     def p(p_1d, d):
         return jnp.kron(jnp.eye(d), p_1d)
 
-    # ODE fixtures: jacobians, residuals
+    # ODE fixtures (Jacobians, residuals, linearisations)
 
     @staticmethod
     @pytest.fixture
@@ -405,6 +408,8 @@ class TestLowLevelReferenceEK1Functions:
 class TestLowLevelDiagonalEK1Functions:
     """Test suite for low-level, diagonal EK1 functions."""
 
+    # Batched versions of 1d system matrices
+
     @staticmethod
     @pytest.fixture
     def sc_as_bd(sc_1d, d):
@@ -414,6 +419,8 @@ class TestLowLevelDiagonalEK1Functions:
     @pytest.fixture
     def sq_as_bd(sq_1d, d):
         return jnp.stack([sq_1d] * d)
+
+    # ODE fixtures
 
     @staticmethod
     @pytest.fixture
@@ -433,6 +440,8 @@ class TestLowLevelDiagonalEK1Functions:
     def z(evaluated):
         _, _, z = evaluated
         return z
+
+    # Tests for the low-level functions
 
     @staticmethod
     def test_evaluate_ode_type(evaluated):
