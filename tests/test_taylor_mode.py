@@ -75,31 +75,90 @@ THREEBODY_INITS = jnp.array(
 ).flatten()
 
 
-class TestTaylorModeInitialization:
-    @pytest.fixture(autouse=True)
-    def _setup(self):
-        self.taylor_init = tornado.taylor_mode.TaylorModeInitialization()
+@pytest.fixture
+def ivp():
+    return tornado.ivp.threebody()
 
-    def _construct_prior(self, order, spatialdim, t0):
-        """Construct a prior process of appropriate size."""
-        prior = tornado.iwp.IntegratedWienerTransition(
-            wiener_process_dimension=spatialdim, num_derivatives=order
-        )
-        return prior
 
-    @pytest.mark.parametrize("any_order", [0, 1, 2, 3])
-    def test_call(self, any_order):
-        threebody_ivp = tornado.ivp.threebody()
+@pytest.fixture
+def nordsieck_y0(ivp, num_derivatives):
+    return tornado.taylor_mode.taylor_mode(
+        fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=num_derivatives
+    )
 
-        prior = self._construct_prior(
-            order=any_order, spatialdim=threebody_ivp.dimension, t0=threebody_ivp.t0
-        )
 
-        expected = prior.reorder_state_from_derivative_to_coordinate(
-            THREEBODY_INITS[: threebody_ivp.dimension * (any_order + 1)]
-        )
+@pytest.mark.parametrize("num_derivatives", [0, 1, 3])
+def test_taylor_mode_shape(nordsieck_y0, ivp, num_derivatives):
+    assert nordsieck_y0.shape == (num_derivatives + 1, ivp.dimension)
 
-        received_array = self.taylor_init(ivp=threebody_ivp, prior=prior)
 
-        assert isinstance(received_array, jnp.ndarray)
-        assert jnp.allclose(received_array, expected)
+@pytest.mark.parametrize("num_derivatives", [3])
+def test_taylor_mode_first_value_is_y0(nordsieck_y0, ivp):
+    """Check the ordering is correct."""
+    assert jnp.allclose(nordsieck_y0[0], ivp.y0)
+
+
+@pytest.fixture
+def threebody_nordsieck_initval():
+    threebody_dimension = 4
+    return THREEBODY_INITS.reshape((-1, threebody_dimension), order="C")
+
+
+@pytest.mark.parametrize("num_derivatives", [3])
+def test_taylor_expected_values(
+    nordsieck_y0, threebody_nordsieck_initval, num_derivatives
+):
+    """Check the ordering is correct."""
+    assert jnp.allclose(
+        nordsieck_y0, threebody_nordsieck_initval[: (num_derivatives + 1)]
+    )
+
+
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+# class TestTaylorModeInitialization:
+#     @pytest.fixture(autouse=True)
+#     def _setup(self):
+#         self.taylor_init = tornado.taylor_mode.TaylorModeInitialization()
+#
+#     def _construct_prior(self, order, spatialdim, t0):
+#         """Construct a prior process of appropriate size."""
+#         prior = tornado.iwp.IntegratedWienerTransition(
+#             wiener_process_dimension=spatialdim, num_derivatives=order
+#         )
+#         return prior
+#
+#     @pytest.mark.parametrize("any_order", [0, 1, 2, 3])
+#     def test_call(self, any_order):
+#         threebody_ivp = tornado.ivp.threebody()
+#
+#         prior = self._construct_prior(
+#             order=any_order, spatialdim=threebody_ivp.dimension, t0=threebody_ivp.t0
+#         )
+#
+#         expected = prior.reorder_state_from_derivative_to_coordinate(
+#             THREEBODY_INITS[: threebody_ivp.dimension * (any_order + 1)]
+#         )
+#
+#         received_array = self.taylor_init(ivp=threebody_ivp, prior=prior)
+#
+#         assert isinstance(received_array, jnp.ndarray)
+#         assert jnp.allclose(received_array, expected)
