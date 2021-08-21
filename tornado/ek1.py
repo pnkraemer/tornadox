@@ -123,6 +123,20 @@ class ReferenceEK1(odesolver.ODEFilter):
 class BatchedEK1(odesolver.ODEFilter):
     """Common functionality for EK1 variations that act on batched multivariate normals."""
 
+    def __init__(self, num_derivatives, ode_dimension, steprule):
+        super().__init__(
+            ode_dimension=ode_dimension,
+            steprule=steprule,
+            num_derivatives=num_derivatives,
+        )
+
+        d = self.iwp.wiener_process_dimension
+        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
+
+        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
+        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
+        self.batched_sq = jnp.stack([self.sq_1d] * d)
+
     def initialize(self, ivp):
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
@@ -138,25 +152,8 @@ class BatchedEK1(odesolver.ODEFilter):
             reference_state=None,
         )
 
-
-class DiagonalEK1(BatchedEK1):
-    def __init__(self, num_derivatives, ode_dimension, steprule):
-        super().__init__(
-            ode_dimension=ode_dimension,
-            steprule=steprule,
-            num_derivatives=num_derivatives,
-        )
-
-        d = self.iwp.wiener_process_dimension
-        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
-
-        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
-        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
-        self.batched_sq = jnp.stack([self.sq_1d] * d)
-
     def attempt_step(self, state, dt):
 
-        # Todo: make the preconditioners into vectors, not matrices
         p_1d_raw, p_inv_1d_raw = self.iwp.nordsieck_preconditioner_1d_raw(dt=dt)
         m = p_inv_1d_raw[:, None] * state.y.mean
         sc = p_inv_1d_raw[None, :, None] * state.y.cov_sqrtm
@@ -181,6 +178,18 @@ class DiagonalEK1(BatchedEK1):
             reference_state=reference_state,
         )
 
+    @staticmethod
+    @jax.jit
+    def predict_mean(m, phi_1d):
+        return phi_1d @ m
+
+    @staticmethod
+    @jax.jit
+    def predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
+        return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
+
+
+class DiagonalEK1(BatchedEK1):
     @partial(jax.jit, static_argnums=(0, 1, 2))
     def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
@@ -205,11 +214,6 @@ class DiagonalEK1(BatchedEK1):
         return new_mean, cov_sqrtm, error
 
     @staticmethod
-    @jax.jit
-    def predict_mean(m, phi_1d):
-        return phi_1d @ m
-
-    @staticmethod
     @partial(jax.jit, static_argnums=(1, 2))
     def evaluate_ode(t, f, df, p_1d_raw, m_pred):
         m_pred_no_precon = p_1d_raw[:, None] * m_pred
@@ -221,11 +225,6 @@ class DiagonalEK1(BatchedEK1):
         Jx = jnp.diag(df(t, m_at))
 
         return fx, Jx, z
-
-    @staticmethod
-    @jax.jit
-    def predict_cov_sqrtm(sc_bd, phi_1d, sq_bd):
-        return sqrt.batched_propagate_cholesky_factor(phi_1d @ sc_bd, sq_bd)
 
     @staticmethod
     @jax.jit
@@ -280,61 +279,29 @@ class DiagonalEK1(BatchedEK1):
 
 
 class TruncationEK1(BatchedEK1):
-    def __init__(self, num_derivatives, ode_dimension, steprule):
-        super().__init__(
-            ode_dimension=ode_dimension,
-            steprule=steprule,
-            num_derivatives=num_derivatives,
+    def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
+        m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
+
+        assert False
+        f, J, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
+        error, sigma = self.estimate_error(
+            p_1d_raw=p_1d_raw,
+            J=J,
+            sq_bd=self.batched_sq,
+            z=z,
         )
-
-        d = self.iwp.wiener_process_dimension
-        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
-
-        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
-        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
-        self.batched_sq = jnp.stack([self.sq_1d] * d)
-
-    def initialize(self, ivp):
-        extended_dy0 = self.tm(
-            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
+        sc_pred = self.predict_cov_sqrtm(
+            sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
-        d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
-        cov_sqrtm = jnp.zeros((d, n, n))
-        new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
-        return odesolver.ODEFilterState(
-            ivp=ivp,
-            t=ivp.t0,
-            y=new_rv,
-            error_estimate=None,
-            reference_state=None,
+        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
+        cov_sqrtm = self.correct_cov_sqrtm(
+            J=J,
+            p_1d_raw=p_1d_raw,
+            sc_bd=sc_pred,
+            kgain=kgain,
         )
-
-    def attempt_step(self, state, dt):
-
-        # Todo: make the preconditioners into vectors, not matrices
-        p_1d_raw, p_inv_1d_raw = self.iwp.nordsieck_preconditioner_1d_raw(dt=dt)
-        m = p_inv_1d_raw[:, None] * state.y.mean
-        sc = p_inv_1d_raw[None, :, None] * state.y.cov_sqrtm
-
-        t = state.t + dt
-        new_mean, cov_sqrtm, error = self.attempt_unit_step(
-            f=state.ivp.f, df=state.ivp.df, p_1d_raw=p_1d_raw, m=m, sc=sc, t=t
-        )
-        new_mean = p_1d_raw[:, None] * new_mean
-        cov_sqrtm = p_1d_raw[None, :, None] * cov_sqrtm
-
-        y1 = jnp.abs(state.y.mean[0])
-        y2 = jnp.abs(new_mean[0])
-        reference_state = jnp.maximum(y1, y2)
-
-        new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
-        return odesolver.ODEFilterState(
-            ivp=state.ivp,
-            t=t,
-            y=new_rv,
-            error_estimate=error,
-            reference_state=reference_state,
-        )
+        new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
+        return new_mean, cov_sqrtm, error
 
 
 class EarlyTruncationEK1(odesolver.ODEFilter):
