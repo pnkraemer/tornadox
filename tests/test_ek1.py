@@ -377,16 +377,14 @@ class TestLowLevelReferenceEK1Functions:
 
     @staticmethod
     def test_evaluate_ode_type(evaluated):
-        h, b, z = evaluated
+        h, z = evaluated
         assert isinstance(h, jnp.ndarray)
-        assert isinstance(b, jnp.ndarray)
         assert isinstance(z, jnp.ndarray)
 
     @staticmethod
     def test_evaluate_ode_shape(evaluated, d, n):
-        h, b, z = evaluated
+        h, z = evaluated
         assert h.shape == (d, d * n)
-        assert b.shape == (d,)
         assert z.shape == (d,)
 
     @staticmethod

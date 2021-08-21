@@ -38,8 +38,6 @@ class ReferenceEK1(odesolver.ODEFilter):
     def attempt_step(self, state, dt):
         # Extract system matrices
         P, Pinv = self.iwp.nordsieck_preconditioner(dt=dt)
-        P0 = self.P0 @ P
-        P1 = self.P1 @ P
         m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
         A, SQ = self.iwp.preconditioned_discretize
 
@@ -47,7 +45,7 @@ class ReferenceEK1(odesolver.ODEFilter):
 
         # Evaluate ODE and create linearisation
         t = state.t + dt
-        H, b, z = self.evaluate_ode(
+        H, z = self.evaluate_ode(
             t=t,
             f=state.ivp.f,
             df=state.ivp.df,
@@ -56,11 +54,7 @@ class ReferenceEK1(odesolver.ODEFilter):
             e0=self.P0,
             e1=self.P1,
         )
-
-        # Calibrate
         error_estimate, sigma = self.estimate_error(h=H, sq=SQ, z=z)
-
-        # Predict covariance
         SC_pred = self.predict_cov_sqrtm(sc=SC, phi=A, sq=sigma * SQ)
 
         # Update (observation and correction in one sweep)
@@ -107,7 +101,7 @@ class ReferenceEK1(odesolver.ODEFilter):
         H = P1 - J @ P0
         b = J @ m_at - f
         z = H @ m_pred + b
-        return H, b, z
+        return H, z
 
     @staticmethod
     @jax.jit
