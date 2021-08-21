@@ -65,7 +65,6 @@ def test_solve_constant(solve_method, order, time_domain, dt):
     for mean, cov_chol, cov in zip(solution.mean, solution.cov_sqrtm, solution.cov):
         try:
             cov = cov.todense()
-            cov_chol = cov_chol.todense()
         except AttributeError:
             pass
         if isinstance(solver, (tornado.ek1.DiagonalEK1, tornado.ek1.TruncatedEK1)):

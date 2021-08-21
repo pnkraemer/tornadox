@@ -150,16 +150,16 @@ class DiagonalEK1(odesolver.ODEFilter):
     def attempt_step(self, state, dt):
 
         # Todo: make the preconditioners into vectors, not matrices
-        p_1d, p_inv_1d = self.iwp.nordsieck_preconditioner_1d(dt=dt)
-        m = p_inv_1d @ state.y.mean
-        sc = p_inv_1d @ state.y.cov_sqrtm
+        p_1d_raw, p_inv_1d_raw = self.iwp.nordsieck_preconditioner_1d_raw(dt=dt)
+        m = p_inv_1d_raw[:, None] * state.y.mean
+        sc = p_inv_1d_raw[None, :, None] * state.y.cov_sqrtm
 
         t = state.t + dt
         new_mean, cov_sqrtm, error = self.attempt_unit_step(
-            f=state.ivp.f, df=state.ivp.df, p_1d=p_1d, m=m, sc=sc, t=t
+            f=state.ivp.f, df=state.ivp.df, p_1d_raw=p_1d_raw, m=m, sc=sc, t=t
         )
-        new_mean = p_1d @ new_mean
-        cov_sqrtm = p_1d @ cov_sqrtm
+        new_mean = p_1d_raw[:, None] * new_mean
+        cov_sqrtm = p_1d_raw[None, :, None] * cov_sqrtm
 
         y1 = jnp.abs(state.y.mean[0])
         y2 = jnp.abs(new_mean[0])
@@ -175,11 +175,11 @@ class DiagonalEK1(odesolver.ODEFilter):
         )
 
     @partial(jax.jit, static_argnums=(0, 1, 2))
-    def attempt_unit_step(self, f, df, p_1d, m, sc, t):
+    def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
-        f, J, z = self.evaluate_ode(t=t, f=f, df=df, p_1d=p_1d, m_pred=m_pred)
+        f, J, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
         error, sigma = self.estimate_error(
-            p_1d=p_1d,
+            p_1d_raw=p_1d_raw,
             J=J,
             sq_bd=self.batched_sq,
             z=z,
@@ -187,10 +187,10 @@ class DiagonalEK1(odesolver.ODEFilter):
         sc_pred = self.predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
-        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d=p_1d, sc_bd=sc_pred)
+        ss, kgain = self.observe_cov_sqrtm(J=J, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
         cov_sqrtm = self.correct_cov_sqrtm(
             J=J,
-            p_1d=p_1d,
+            p_1d_raw=p_1d_raw,
             sc_bd=sc_pred,
             kgain=kgain,
         )
@@ -204,8 +204,8 @@ class DiagonalEK1(odesolver.ODEFilter):
 
     @staticmethod
     @partial(jax.jit, static_argnums=(1, 2))
-    def evaluate_ode(t, f, df, p_1d, m_pred):
-        m_pred_no_precon = p_1d @ m_pred
+    def evaluate_ode(t, f, df, p_1d_raw, m_pred):
+        m_pred_no_precon = p_1d_raw[:, None] * m_pred
         m_at = m_pred_no_precon[0]
         fx = f(t, m_at)
         Jx = jnp.diag(df(t, m_at))
@@ -219,9 +219,9 @@ class DiagonalEK1(odesolver.ODEFilter):
 
     @staticmethod
     @jax.jit
-    def estimate_error(p_1d, J, sq_bd, z):
+    def estimate_error(p_1d_raw, J, sq_bd, z):
 
-        sq_bd_no_precon = p_1d @ sq_bd  # shape (d,n,n)
+        sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
         sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
         sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
         h_sq_bd = sq_bd_no_precon_1 - J[:, None] * sq_bd_no_precon_0  # shape (d,n)
@@ -237,9 +237,9 @@ class DiagonalEK1(odesolver.ODEFilter):
 
     @staticmethod
     @jax.jit
-    def observe_cov_sqrtm(p_1d, J, sc_bd):
+    def observe_cov_sqrtm(p_1d_raw, J, sc_bd):
 
-        sc_bd_no_precon = p_1d @ sc_bd  # shape (d,n,n)
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
         sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
         sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
         h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)
@@ -252,8 +252,8 @@ class DiagonalEK1(odesolver.ODEFilter):
 
     @staticmethod
     @jax.jit
-    def correct_cov_sqrtm(p_1d, J, sc_bd, kgain):
-        sc_bd_no_precon = p_1d @ sc_bd  # shape (d,n,n)
+    def correct_cov_sqrtm(p_1d_raw, J, sc_bd, kgain):
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
         sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
         sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
         h_sc_bd = sc_bd_no_precon_1 - J[:, None] * sc_bd_no_precon_0  # shape (d,n)

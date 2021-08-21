@@ -275,8 +275,13 @@ def sq_1d(n):
 
 
 @pytest.fixture
-def p_1d(n):
-    return jnp.diag(jnp.arange(n))
+def p_1d_raw(n):
+    return jnp.arange(n)
+
+
+@pytest.fixture
+def p_1d(p_1d_raw):
+    return jnp.diag(p_1d_raw)
 
 
 # Easy access fixtures for the ODE attributes
@@ -423,9 +428,9 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def evaluated(t, f, df, p_1d, m_as_matrix):
+    def evaluated(t, f, df, p_1d_raw, m_as_matrix):
         return tornado.ek1.DiagonalEK1.evaluate_ode(
-            t=t, f=f, df=df, p_1d=p_1d, m_pred=m_as_matrix
+            t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_as_matrix
         )
 
     @staticmethod
@@ -470,9 +475,9 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def diagonal_ek1_error_estimated(p_1d, J, sq_as_bd, z):
+    def diagonal_ek1_error_estimated(p_1d_raw, J, sq_as_bd, z):
         return tornado.ek1.DiagonalEK1.estimate_error(
-            p_1d=p_1d, J=J, sq_bd=sq_as_bd, z=z
+            p_1d_raw=p_1d_raw, J=J, sq_bd=sq_as_bd, z=z
         )
 
     @staticmethod
@@ -489,9 +494,9 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def observed(J, p_1d, sc_as_bd):
+    def observed(J, p_1d_raw, sc_as_bd):
         return tornado.ek1.DiagonalEK1.observe_cov_sqrtm(
-            p_1d=p_1d,
+            p_1d_raw=p_1d_raw,
             J=J,
             sc_bd=sc_as_bd,
         )
@@ -503,10 +508,10 @@ class TestLowLevelDiagonalEK1Functions:
         assert kgain.shape == (d, n, 1)
 
     @staticmethod
-    def test_correct_cov_sqrtm(J, p_1d, observed, sc_as_bd, d, n):
+    def test_correct_cov_sqrtm(J, p_1d_raw, observed, sc_as_bd, d, n):
         _, kgain = observed
         new_sc = tornado.ek1.DiagonalEK1.correct_cov_sqrtm(
-            p_1d=p_1d,
+            p_1d_raw=p_1d_raw,
             J=J,
             sc_bd=sc_as_bd,
             kgain=kgain,
