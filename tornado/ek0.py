@@ -7,21 +7,15 @@ from tornado import ivp, iwp, odesolver, rv, sqrt, step, taylor_mode
 
 class ReferenceEK0(odesolver.ODEFilter):
     def initialize(self, ivp):
-        d = ivp.dimension
-        q = self.num_derivatives
-        self.iwp = iwp.IntegratedWienerTransition(
-            wiener_process_dimension=d, num_derivatives=q
-        )
         self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
-        self.I = jnp.eye(d * (q + 1))
 
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
         mean = extended_dy0.reshape((-1,), order="F")
         cov_sqrtm = jnp.zeros((mean.shape[0], mean.shape[0]))
-        y = rv.MultivariateNormal(mean, cov_sqrtm)
+        y = rv.MultivariateNormal(mean=mean, cov_sqrtm=cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
@@ -67,30 +61,29 @@ class ReferenceEK0(odesolver.ODEFilter):
 
 class KroneckerEK0(odesolver.ODEFilter):
     def initialize(self, ivp):
-        self.d = ivp.dimension
-        self.q = self.num_derivatives
-        self.iwp = iwp.IntegratedWienerTransition(
-            wiener_process_dimension=self.d, num_derivatives=self.q
-        )
+
         self.A, self.Ql = self.iwp.preconditioned_discretize_1d
 
         extended_dy0 = self.tm(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
         )
-        mean = extended_dy0.reshape((-1,), order="F")
-        Y0_kron = rv.MultivariateNormal(mean, jnp.zeros((self.q + 1, self.q + 1)))
+        mean = extended_dy0
+        n, d = self.iwp.num_derivatives + 1, self.iwp.wiener_process_dimension
 
         self.P0 = self.iwp.projection_matrix(0)
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
-        self.Iq1 = jnp.eye(self.q + 1)
+
+        y = rv.MatrixNormal(
+            mean=mean, cov_sqrtm_1=jnp.zeros((n, n)), cov_sqrtm_2=jnp.zeros((d, d))
+        )
 
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             error_estimate=None,
             reference_state=ivp.y0,
-            y=Y0_kron,
+            y=y,
         )
 
     def attempt_step(self, state, dt, verbose=False):

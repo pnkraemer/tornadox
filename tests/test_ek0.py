@@ -115,16 +115,17 @@ def stepped_both(solver_tuple, ivp, initialized_both):
 
 def test_init_type(initialized_both):
     kronecker_init, _ = initialized_both
-    assert isinstance(kronecker_init.y, tornado.rv.MultivariateNormal)
+    assert isinstance(kronecker_init.y, tornado.rv.MatrixNormal)
 
 
 def test_init_values(initialized_both, d):
     kronecker_init, reference_init = initialized_both
 
-    kron_cov_sqrtm = jnp.kron(jnp.eye(d), kronecker_init.y.cov_sqrtm)
-    kron_cov = jnp.kron(jnp.eye(d), kronecker_init.y.cov)
+    kron_mean = kronecker_init.y.mean.reshape((-1,), order="F")
+    kron_cov_sqrtm = kronecker_init.y.dense_cov_sqrtm()
+    kron_cov = kronecker_init.y.dense_cov()
     assert jnp.allclose(kronecker_init.t, reference_init.t)
-    assert jnp.allclose(kronecker_init.y.mean, reference_init.y.mean)
+    assert jnp.allclose(kron_mean, reference_init.y.mean)
     assert jnp.allclose(kron_cov_sqrtm, reference_init.y.cov_sqrtm)
     assert jnp.allclose(kron_cov, reference_init.y.cov)
 
@@ -135,11 +136,13 @@ def test_init_shape_kronecker(initialized_both, d, num_derivatives):
     # shorthand
     n = num_derivatives + 1
     y = kronecker_init.y
-    m, sc, c = y.mean, y.cov_sqrtm, y.cov
+    m, sc1, sc2, c1, c2 = y.mean, y.cov_sqrtm_1, y.cov_sqrtm_2, y.cov_1, y.cov_2
 
-    assert m.shape == (d * n,)
-    assert sc.shape == (n, n)
-    assert c.shape == (n, n)
+    assert m.shape == (n, d)
+    assert sc1.shape == (n, n)
+    assert sc2.shape == (d, d)
+    assert c1.shape == (n, n)
+    assert c2.shape == (d, d)
 
 
 def test_init_shape_reference(initialized_both, d, num_derivatives):
