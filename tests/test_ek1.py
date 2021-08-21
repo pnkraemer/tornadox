@@ -61,7 +61,7 @@ def test_full_solve_compare_scipy(
             pass
 
     final_t_ek1 = state.t
-    final_y_ek1 = ek1.P0 @ state.y.mean
+    final_y_ek1 = state.y.mean[0]
     assert jnp.allclose(final_t_scipy, final_t_ek1)
     assert jnp.allclose(final_y_scipy, final_y_ek1, rtol=1e-3, atol=1e-3)
 
@@ -133,21 +133,21 @@ def approx_stepped(solver_triple, approx_initialized):
 
 
 @all_ek1_approximations
-def test_approx_ek1_initialize_values(approx_initialized, d, n):
-    init_ref, init_approx = approx_initialized
-    zeros = jnp.zeros((d, n, n))
-    assert jnp.allclose(init_approx.t, init_ref.t)
-    assert jnp.allclose(init_approx.y.mean, init_ref.y.mean.reshape((n, d), order="F"))
-    assert jnp.allclose(init_approx.y.cov_sqrtm, zeros)
-    assert jnp.allclose(init_approx.y.cov, zeros)
+def test_init_type(approx_initialized):
+    _, init_approx = approx_initialized
+    assert isinstance(init_approx.y, tornado.rv.BatchedMultivariateNormal)
 
 
 @all_ek1_approximations
-def test_approx_ek1_initialize_cov_type(approx_initialized):
-    _, init_approx = approx_initialized
-
-    assert isinstance(init_approx.y.cov_sqrtm, jnp.ndarray)
-    assert isinstance(init_approx.y.cov, jnp.ndarray)
+def test_approx_ek1_initialize_values(approx_initialized, d, n):
+    init_ref, init_approx = approx_initialized
+    full_cov_as_batch = full_cov_as_batched_cov(
+        init_ref.y.cov, expected_shape=init_approx.y.cov.shape
+    )
+    assert jnp.allclose(init_approx.t, init_ref.t)
+    assert jnp.allclose(init_approx.y.mean, init_ref.y.mean.reshape((n, d), order="F"))
+    assert jnp.allclose(init_approx.y.cov_sqrtm, full_cov_as_batch)
+    assert jnp.allclose(init_approx.y.cov, full_cov_as_batch)
 
 
 @all_ek1_approximations
@@ -162,20 +162,26 @@ def test_approx_ek1_initialize_cov_type(approx_initialized):
 
 
 @all_ek1_approximations
+def test_attempt_step_type(approx_stepped):
+    _, step_approx = approx_stepped
+    assert isinstance(step_approx.y, tornado.rv.BatchedMultivariateNormal)
+
+
+@all_ek1_approximations
 def test_approx_ek1_attempt_step_y_shapes(approx_stepped, ivp, num_derivatives):
     step_ref, step_approx = approx_stepped
-    d, n = ivp.dimension, num_derivatives
+    d, n = ivp.dimension, num_derivatives + 1
 
-    assert step_approx.y.mean.shape == (d * (n + 1),)
-    assert step_approx.y.cov_sqrtm.todense().shape == step_ref.y.cov_sqrtm.shape
-    assert step_approx.y.cov.todense().shape == step_ref.y.cov.shape
+    assert step_approx.y.mean.shape == (n, d)
+    assert step_approx.y.cov_sqrtm.shape == (d, n, n)
+    assert step_approx.y.cov.shape == (d, n, n)
 
 
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_y_cov_type(approx_stepped):
     _, step_approx = approx_stepped
-    assert isinstance(step_approx.y.cov_sqrtm, tornado.linops.BlockDiagonal)
-    assert isinstance(step_approx.y.cov, tornado.linops.BlockDiagonal)
+    assert isinstance(step_approx.y.cov_sqrtm, jnp.ndarray)
+    assert isinstance(step_approx.y.cov, jnp.ndarray)
 
 
 @all_ek1_approximations
@@ -202,8 +208,12 @@ def test_approx_ek1_attempt_step_reference_state(approx_stepped, ivp, num_deriva
 @only_ek1_diagonal
 def test_approx_ek1_attempt_step_y_values(approx_stepped):
     step_ref, step_approx = approx_stepped
+    ref_cov_as_batch = full_cov_as_batched_cov(
+        step_ref.y.cov, expected_shape=step_approx.y.cov.shape
+    )
+
     assert jnp.allclose(step_approx.y.mean, step_ref.y.mean)
-    assert jnp.allclose(step_approx.y.cov.todense(), step_ref.y.cov)
+    assert jnp.allclose(step_approx.y.cov.todense(), ref_cov_as_batch)
 
 
 @only_ek1_truncated
@@ -212,19 +222,14 @@ def test_approx_ek1_attempt_step_y_values(approx_stepped):
 
     num_blocks = step_approx.y.cov.array_stack.shape[0]
     block_shape = step_approx.y.cov.array_stack.shape[1:3]
-    ref_cov_as_bd_array_stack = tornado.linops.truncate_block_diagonal(
+    ref_cov_as_batch = tornado.linops.truncate_block_diagonal(
         step_ref.y.cov,
         num_blocks=num_blocks,
         block_shape=block_shape,
     )
-    truncated_ref_cov = tornado.linops.BlockDiagonal(
-        ref_cov_as_bd_array_stack
-    ).todense()
 
     assert jnp.allclose(step_approx.y.mean, step_ref.y.mean)
-    assert jnp.allclose(
-        step_approx.y.cov.todense(), truncated_ref_cov, rtol=5e-4, atol=5e-4
-    )
+    assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch, rtol=5e-4, atol=5e-4)
 
 
 # Tests for lower-level functions (only types and shapes, not values)
@@ -428,3 +433,9 @@ def test_diagonal_ek1_correct_mean(m_as_matrix, observed, z, d, n):
     _, kgain = observed
     new_mean = tornado.ek1.diagonal_ek1_correct_mean(m=m_as_matrix, kgain=kgain, z=z)
     assert new_mean.shape == (n, d)
+
+
+def full_cov_as_batched_cov(cov, expected_shape):
+    """Auxiliary function to make tests more convenient."""
+    n, m, k = expected_shape
+    return tornado.linops.truncate_block_diagonal(cov, num_blocks=n, block_shape=(m, k))

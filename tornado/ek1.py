@@ -142,11 +142,10 @@ class DiagonalEK1(odesolver.ODEFilter):
         SQ_bd = jnp.stack([SQ_1d] * d)
 
         # Extract previous states and pull them into "preconditioned space"
-        mean_reshaped = state.y.mean.reshape((n, d), order="F")
 
         m, SC = (
-            Pinv_1d @ mean_reshaped,
-            Pinv_1d @ state.y.cov_sqrtm.array_stack,
+            Pinv_1d @ state.y.mean,
+            Pinv_1d @ state.y.cov_sqrtm,
         )
 
         # Predict [mean]
@@ -186,16 +185,15 @@ class DiagonalEK1(odesolver.ODEFilter):
         new_mean = diagonal_ek1_correct_mean(m=m_pred, kgain=kgain, z=z)
 
         # Push mean and covariance back into "normal space"
-        new_mean_ = P_1d @ new_mean
-        new_mean = new_mean_.reshape((-1,), order="F")
-        cov_sqrtm = linops.BlockDiagonal(P_1d @ cov_sqrtm)
+        new_mean = P_1d @ new_mean
+        cov_sqrtm = P_1d @ cov_sqrtm
 
-        y1 = jnp.abs(self.P0 @ state.y.mean)
-        y2 = jnp.abs(new_mean_[0])
+        y1 = jnp.abs(state.y.mean[0])
+        y2 = jnp.abs(new_mean[0])
         reference_state = jnp.maximum(y1, y2)
 
         # Return new state
-        new_rv = rv.MultivariateNormal(new_mean, cov_sqrtm)
+        new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=state.ivp,
             t=t,
