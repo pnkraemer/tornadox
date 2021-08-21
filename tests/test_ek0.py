@@ -12,6 +12,11 @@ def ivp():
 
 
 @pytest.fixture
+def d(ivp):
+    return ivp.y0.shape[0]
+
+
+@pytest.fixture
 def steps():
     dt = 0.1
     return tornado.step.AdaptiveSteps(first_dt=dt, abstol=1e-3, reltol=1e-3)
@@ -66,6 +71,62 @@ def test_full_solve_compare_scipy(ek0_solution, scipy_solution):
 
     assert jnp.allclose(final_t_scipy, final_t_ek0)
     assert jnp.allclose(final_y_scipy, final_y_ek0, rtol=1e-3, atol=1e-3)
+
+
+# Test fixtures for attempt_step and initialize
+
+
+@pytest.fixture
+def solver_tuple(steps, num_derivatives, d):
+    reference_ek0 = tornado.ek0.ReferenceEK0(
+        num_derivatives=num_derivatives, ode_dimension=d, steprule=steps
+    )
+    kronecker_ek0 = tornado.ek0.KroneckerEK0(
+        num_derivatives=num_derivatives, ode_dimension=d, steprule=steps
+    )
+
+    return kronecker_ek0, reference_ek0
+
+
+@pytest.fixture
+def initialized_both(solver_tuple, ivp):
+    kronecker_ek0, reference_ek0 = solver_tuple
+
+    kronecker_init = kronecker_ek0.initialize(ivp=ivp)
+    reference_init = reference_ek0.initialize(ivp=ivp)
+
+    return kronecker_init, reference_init
+
+
+@pytest.fixture
+def stepped_both(solver_tuple, ivp, initialized_both):
+
+    kronecker_ek0, reference_ek0 = solver_tuple
+    kronecker_init, reference_init = initialized_both
+
+    kronecker_stepped = kronecker_ek0.attempt_step(state=kronecker_init, dt=0.12345)
+    reference_stepped = reference_ek0.attempt_step(state=reference_init, dt=0.12345)
+
+    return kronecker_stepped, reference_stepped
+
+
+# Tests for initialize
+
+
+def test_init_type(initialized_both):
+    kronecker_init, _ = initialized_both
+    assert isinstance(kronecker_init.y, tornado.rv.MultivariateNormal)
+
+
+def test_init_values(initialized_both, d):
+    kronecker_init, reference_init = initialized_both
+
+    kron_cov_sqrtm = jnp.kron(jnp.eye(d), kronecker_init.y.cov_sqrtm)
+    kron_cov = jnp.kron(jnp.eye(d), kronecker_init.y.cov)
+    assert jnp.allclose(kronecker_init.t, reference_init.t)
+    assert jnp.allclose(kronecker_init.y.mean, reference_init.y.mean)
+    assert jnp.allclose(kron_cov_sqrtm, reference_init.y.cov_sqrtm)
+    assert jnp.allclose(kron_cov, reference_init.y.cov)
 
 
 #
