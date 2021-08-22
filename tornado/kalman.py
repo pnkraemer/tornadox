@@ -25,7 +25,7 @@ def filter_step(m, sc, phi, sq, h, b, data):
     return m, sc, sgain, m_pred, sc_pred
 
 
-def smoother_step(m, sc, m_fut, sc_fut, sgain, mp, scp):
+def smoother_step_traditional(m, sc, m_fut, sc_fut, sgain, mp, scp):
 
     c = sc @ sc.T
     c_fut = sc_fut @ sc_fut.T

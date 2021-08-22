@@ -82,10 +82,10 @@ def test_filter_step_shapes(filter_stepped, n):
     assert scp.shape == (n, n)
 
 
-def test_smoother_step(m, sc, filter_stepped):
+def test_smoother_step_traditional(m, sc, filter_stepped):
     m_fut, sc_fut, sgain, mp, scp = filter_stepped
 
-    m, sc = tornado.kalman.smoother_step(
+    m, sc = tornado.kalman.smoother_step_traditional(
         m=m,
         sc=sc,
         m_fut=m_fut,
