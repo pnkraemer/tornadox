@@ -2,7 +2,7 @@ import dataclasses
 
 import jax.numpy as jnp
 
-from tornado import ivp, iwp, odesolver, rv, sqrt, step, taylor_mode
+from tornado import init, ivp, iwp, odesolver, rv, sqrt, step
 
 
 class ReferenceEK0(odesolver.ODEFilter):
