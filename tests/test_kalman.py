@@ -82,7 +82,8 @@ def test_filter_step_shapes(filter_stepped, n):
     assert scp.shape == (n, n)
 
 
-def test_smoother_step_traditional(m, sc, filter_stepped):
+@pytest.fixture
+def smother_stepped_traditional(m, sc, filter_stepped):
     m_fut, sc_fut, sgain, mp, scp = filter_stepped
 
     m, sc = tornado.kalman.smoother_step_traditional(
@@ -94,5 +95,10 @@ def test_smoother_step_traditional(m, sc, filter_stepped):
         mp=mp,
         scp=scp,
     )
+    return m, sc
+
+
+def test_smoother_step_traditional(smother_stepped_traditional):
+    m, sc = smother_stepped_traditional
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
