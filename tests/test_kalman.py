@@ -47,7 +47,8 @@ def data(n):
     return jnp.arange(10, 10 + n // 2)
 
 
-def test_filter_step(m, sc, phi, sq, h, b, data):
+@pytest.fixture
+def filter_stepped(m, sc, phi, sq, h, b, data):
 
     m, sc, sgain, mp, scp = tornado.kalman.filter_step(
         m=m,
@@ -58,6 +59,12 @@ def test_filter_step(m, sc, phi, sq, h, b, data):
         b=b,
         data=data,
     )
+    return m, sc, sgain, mp, scp
+
+
+def test_filter_step_types(filter_stepped):
+    m, sc, sgain, mp, scp = filter_stepped
+
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
     assert isinstance(sgain, jnp.ndarray)
