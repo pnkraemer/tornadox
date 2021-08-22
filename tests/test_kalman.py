@@ -19,17 +19,17 @@ def m(n):
 
 @pytest.fixture
 def sc(n):
-    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+    return jnp.eye(n)  # + 0.001* jnp.arange(1, 1 + n ** 2).reshape((n, n)).T
 
 
 @pytest.fixture
 def phi(n):
-    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+    return jnp.triu(jnp.arange(1, 1 + n ** 2).reshape((n, n)).T)
 
 
 @pytest.fixture
 def sq(n):
-    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+    return jnp.eye(n)
 
 
 @pytest.fixture
@@ -84,7 +84,7 @@ def test_filter_step_shapes(filter_stepped, n):
 
 
 @pytest.fixture
-def smother_stepped_traditional(m, sc, filter_stepped):
+def smoother_stepped_traditional(m, sc, filter_stepped):
     m_fut, sc_fut, sgain, mp, scp, _ = filter_stepped
 
     m, sc = tornado.kalman.smoother_step_traditional(
@@ -116,8 +116,8 @@ def smoother_stepped_sqrt(m, sc, sq, filter_stepped):
     return m, sc
 
 
-def test_smoother_step_traditional(smother_stepped_traditional):
-    m, sc = smother_stepped_traditional
+def test_smoother_step_traditional(smoother_stepped_traditional):
+    m, sc = smoother_stepped_traditional
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
 
@@ -126,3 +126,10 @@ def test_smoother_step_sqrt(smoother_stepped_sqrt):
     m, sc = smoother_stepped_sqrt
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
+
+
+def test_smoother_step_values(smoother_stepped_sqrt, smoother_stepped_traditional):
+    m1, sc1 = smoother_stepped_sqrt
+    m2, sc2 = smoother_stepped_traditional
+    assert jnp.allclose(m1, m2)
+    assert jnp.allclose(sc1, sc2)
