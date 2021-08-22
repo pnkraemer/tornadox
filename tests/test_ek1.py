@@ -129,14 +129,13 @@ def approx_initialized(solver_triple):
 
 
 @pytest.fixture
-def approx_stepped(solver_triple, approx_initialized):
+def approx_stepped(solver_triple, approx_initialized, dt=10.0):
     """Attempt a step with the to-be-tested-EK1 and the reference EK1."""
-
     ek1_approx, reference_ek1, _ = solver_triple
     init_ref, init_approx = approx_initialized
 
-    step_ref = reference_ek1.attempt_step(state=init_ref, dt=0.12345)
-    step_approx = ek1_approx.attempt_step(state=init_approx, dt=0.12345)
+    step_ref = reference_ek1.attempt_step(state=init_ref, dt=dt)
+    step_approx = ek1_approx.attempt_step(state=init_approx, dt=dt)
 
     return step_ref, step_approx
 
@@ -181,7 +180,7 @@ def test_attempt_step_type(approx_stepped):
 
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_y_shapes(approx_stepped, ivp, num_derivatives):
-    step_ref, step_approx = approx_stepped
+    _, step_approx = approx_stepped
     d, n = ivp.dimension, num_derivatives + 1
 
     assert step_approx.y.mean.shape == (n, d)
@@ -190,28 +189,60 @@ def test_approx_ek1_attempt_step_y_shapes(approx_stepped, ivp, num_derivatives):
 
 
 @all_ek1_approximations
-def test_approx_ek1_attempt_step_y_cov_type(approx_stepped):
+def test_approx_ek1_attempt_step_y_types(approx_stepped):
     _, step_approx = approx_stepped
     assert isinstance(step_approx.y.cov_sqrtm, jnp.ndarray)
     assert isinstance(step_approx.y.cov, jnp.ndarray)
 
 
 @all_ek1_approximations
-def test_approx_ek1_attempt_step_error_estimate(approx_stepped, ivp):
+def test_approx_ek1_attempt_step_error_estimate_type(approx_stepped, ivp):
     _, step_approx = approx_stepped
 
     assert isinstance(step_approx.error_estimate, jnp.ndarray)
+
+
+@all_ek1_approximations
+def test_approx_ek1_attempt_step_error_estimate_shapes(approx_stepped, ivp):
+    _, step_approx = approx_stepped
+
     assert step_approx.error_estimate.shape == (ivp.dimension,)
     assert jnp.all(step_approx.error_estimate >= 0)
 
 
 @all_ek1_approximations
-def test_approx_ek1_attempt_step_reference_state(approx_stepped, ivp, num_derivatives):
+def test_approx_ek1_attempt_step_error_estimate_values(approx_stepped, ivp):
     step_ref, step_approx = approx_stepped
 
+    assert jnp.all(step_approx.error_estimate >= 0)
+    assert jnp.allclose(step_approx.error_estimate, step_ref.error_estimate)
+
+
+@all_ek1_approximations
+def test_approx_ek1_attempt_step_reference_state_type(
+    approx_stepped, ivp, num_derivatives
+):
+    _, step_approx = approx_stepped
+
     assert isinstance(step_approx.reference_state, jnp.ndarray)
+
+
+@all_ek1_approximations
+def test_approx_ek1_attempt_step_reference_state_shape(
+    approx_stepped, ivp, num_derivatives
+):
+    _, step_approx = approx_stepped
     assert step_approx.reference_state.shape == (ivp.dimension,)
+
+
+@all_ek1_approximations
+def test_approx_ek1_attempt_step_reference_state_value(
+    approx_stepped, ivp, num_derivatives
+):
+    step_ref, step_approx = approx_stepped
+
     assert jnp.all(step_approx.reference_state >= 0)
+    assert jnp.allclose(step_approx.reference_state, step_ref.reference_state)
 
 
 # Tests for attempt_step (specific to some approximations)

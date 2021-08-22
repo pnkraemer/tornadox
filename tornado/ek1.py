@@ -348,11 +348,12 @@ class TruncationEK1(BatchedEK1):
         c = sc_bd_no_precon @ jnp.transpose(sc_bd_no_precon, axes=(0, 2, 1))
         c_00 = c[:, 0, 0]
         c_01 = c[:, 0, 1]
+        c_10 = c[:, 1, 0]
         c_11 = c[:, 1, 1]
         s = (
             jnp.diag(c_11)
             - Jx * c_01[None, :]
-            - c_01[:, None] * Jx.T
+            - c_10[:, None] * Jx.T
             + (Jx * c_00[None, :]) @ Jx.T
         )
 
