@@ -7,7 +7,7 @@ from typing import Iterable, Union
 import jax.numpy as jnp
 import numpy as np
 
-from tornado import ivp, iwp, rv, taylor_mode
+from tornado import init, ivp, iwp, rv
 
 
 @dataclasses.dataclass
@@ -36,7 +36,7 @@ class ODEFilter(ABC):
         )
 
         # Initialization strategy
-        self.tm = taylor_mode.taylor_mode
+        self.tm = init.taylor_mode
 
     def solution_generator(self, ivp, stop_at=None):
         """Generate ODE solver steps."""
