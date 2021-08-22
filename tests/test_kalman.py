@@ -49,7 +49,7 @@ def data(n):
 
 def test_filter_step(m, sc, phi, sq, h, b, data):
 
-    m, sc, sgain = tornado.kalman.filter_step(
+    m, sc, sgain, mp, scp = tornado.kalman.filter_step(
         m=m,
         sc=sc,
         phi=phi,
@@ -61,3 +61,5 @@ def test_filter_step(m, sc, phi, sq, h, b, data):
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
     assert isinstance(sgain, jnp.ndarray)
+    assert isinstance(mp, jnp.ndarray)
+    assert isinstance(scp, jnp.ndarray)

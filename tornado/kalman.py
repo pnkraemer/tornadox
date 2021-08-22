@@ -21,4 +21,4 @@ def filter_step(m, sc, phi, sq, h, b, data):
     z = h @ m_pred + b
     m = m_pred - kgain @ (z - data)
 
-    return m, sc, sgain
+    return m, sc, sgain, m_pred, sc_pred
