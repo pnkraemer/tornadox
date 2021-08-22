@@ -316,6 +316,7 @@ class TruncationEK1(BatchedEK1):
         return fx, Jx, z
 
     @staticmethod
+    @jax.jit
     def estimate_error(p_1d_raw, Jx, sq_bd, z):
 
         sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
@@ -341,6 +342,7 @@ class TruncationEK1(BatchedEK1):
         return error_estimate, sigma
 
     @staticmethod
+    @jax.jit
     def observe_cov_sqrtm(p_1d_raw, Jx, sc_bd):
 
         # Assemble S = H C- H.T efficiently
