@@ -162,6 +162,7 @@ class BatchedEK1(odesolver.ODEFilter):
         new_mean, cov_sqrtm, error = self.attempt_unit_step(
             f=state.ivp.f, df=state.ivp.df, p_1d_raw=p_1d_raw, m=m, sc=sc, t=t
         )
+
         new_mean = p_1d_raw[:, None] * new_mean
         cov_sqrtm = p_1d_raw[None, :, None] * cov_sqrtm
 
@@ -211,6 +212,7 @@ class DiagonalEK1(BatchedEK1):
             kgain=kgain,
         )
         new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
+
         return new_mean, cov_sqrtm, error
 
     @staticmethod
@@ -281,7 +283,6 @@ class DiagonalEK1(BatchedEK1):
 class TruncationEK1(BatchedEK1):
     def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
-
         f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
         error, sigma = self.estimate_error(
             p_1d_raw=p_1d_raw,
@@ -315,52 +316,55 @@ class TruncationEK1(BatchedEK1):
         return fx, Jx, z
 
     @staticmethod
-    @jax.jit
     def estimate_error(p_1d_raw, Jx, sq_bd, z):
 
         sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
-        sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
-        sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
-
-        h_sq_bd = sq_bd_no_precon_1 - Jx @ sq_bd_no_precon_0  # shape (d,n)
-        s = h_sq_bd @ h_sq_bd.T  # shape (d,d)
+        q = sq_bd_no_precon @ jnp.transpose(sq_bd_no_precon, axes=(0, 2, 1))
+        q_00 = q[:, 0, 0]
+        q_01 = q[:, 0, 1]
+        q_11 = q[:, 1, 1]
+        s = (
+            jnp.diag(q_11)
+            - Jx * q_01[None, :]
+            - q_01[:, None] * Jx.T
+            + (Jx * q_00[None, :]) @ Jx.T
+        )
 
         # Careful!! Here is one of the expensive bits!
         s_sqrtm = jax.scipy.linalg.cholesky(s, lower=True)
-        xi = jax.scipy.linalg.cho_solve((s_sqrtm, True), z)
+        xi = jax.scipy.linalg.solve_triangular(s_sqrtm.T, z, lower=False)
 
         sigma_squared = xi.T @ xi / xi.shape[0]  # shape ()
         sigma = jnp.sqrt(sigma_squared)  # shape ()
         error_estimate = sigma * jnp.sqrt(jnp.diag(s))  # shape (d,)
+
         return error_estimate, sigma
 
     @staticmethod
-    @jax.jit
     def observe_cov_sqrtm(p_1d_raw, Jx, sc_bd):
 
-        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
-
         # Assemble S = H C- H.T efficiently
-        sc_00 = sc_bd_no_precon[:, 0, 0]
-        sc_01 = sc_bd_no_precon[:, 0, 1]
-        sc_11 = sc_bd_no_precon[:, 1, 1]
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
+        c = sc_bd_no_precon @ jnp.transpose(sc_bd_no_precon, axes=(0, 2, 1))
+        c_00 = c[:, 0, 0]
+        c_01 = c[:, 0, 1]
+        c_11 = c[:, 1, 1]
         s = (
-            sc_11
-            - Jx * sc_01[None, :]
-            - sc_01[:, None] * Jx.T
-            + (Jx * sc_00[None, :]) @ Jx.T
+            jnp.diag(c_11)
+            - Jx * c_01[None, :]
+            - c_01[:, None] * Jx.T
+            + (Jx * c_00[None, :]) @ Jx.T
         )
 
-        h_sc_bd = (
-            sc_bd_no_precon[:, 1, :] - Jx @ sc_bd_no_precon[:, 0, :]
-        )  # shape (d,n)
-
-        cross = (
-            linops.BlockDiagonal(sc_bd).todense()
-            @ linops.BlockDiagonal(h_sc_bd[..., None]).todense()
-        )  # shape (d*n,d)
-
+        # Assemble C- H.T = \sqrt(C-) \sqrt(C-).T H.T efficiently
         # Careful!! Here is one of the expensive bits!
+        c_p = sc_bd @ jnp.transpose(sc_bd_no_precon, axes=(0, 2, 1))
+        c_p_0 = jnp.transpose(c_p, axes=(0, 2, 1))[:, 0, :]
+        c_p_1 = jnp.transpose(c_p, axes=(0, 2, 1))[:, 1, :]
+
+        c_p_0_dense = jax.scipy.linalg.block_diag(*c_p_0[:, None, :])
+        c_p_1_dense = jax.scipy.linalg.block_diag(*c_p_1[:, None, :])
+        cross = (c_p_1_dense - Jx @ c_p_0_dense).T
         s_sqrtm = jax.scipy.linalg.cholesky(s, lower=True)
         kgain = jax.scipy.linalg.cho_solve((s_sqrtm, True), cross.T).T
         return s_sqrtm, kgain
@@ -375,17 +379,21 @@ class TruncationEK1(BatchedEK1):
     @staticmethod
     @jax.jit
     def correct_cov_sqrtm(p_1d_raw, Jx, sc_bd, kgain):
+
+        # Evaluate H P \sqrt(C)
         sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
         sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
         sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
+        sc0 = jax.scipy.linalg.block_diag(*sc_bd_no_precon_0[:, None, :])
+        sc1 = jax.scipy.linalg.block_diag(*sc_bd_no_precon_1[:, None, :])
+        Jx_sc0 = Jx @ sc0
+        h_sc = sc1 - Jx_sc0
 
-        sc0 = jax.scipy.linalg.block_diag(*sc_bd_no_precon_0)
-        sc1 = jax.scipy.linalg.block_diag(*sc_bd_no_precon_1)
-        Jx_sc1 = Jx @ sc0
-        h_sc = sc1 - Jx_sc1
+        # Evaluate \sqrt(C) - K (H P \sqrt(C))
         sc_dense = jax.scipy.linalg.block_diag(*sc_bd)
         new_cov_sqrtm = sc_dense - kgain @ h_sc
 
+        # Split into d rows and QR-decompose the rows into valid blocks
         d = Jx.shape[0]
         split_covs = jnp.stack(jnp.split(new_cov_sqrtm, d, axis=0))
         new_sc = sqrt.batched_sqrtm_to_cholesky(
