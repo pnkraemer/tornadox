@@ -1,5 +1,6 @@
 """Gaussian filtering and smoothing routines."""
 
+import jax.numpy as jnp
 import jax.scipy.linalg
 
 from tornado import sqrt
@@ -22,3 +23,15 @@ def filter_step(m, sc, phi, sq, h, b, data):
     m = m_pred - kgain @ (z - data)
 
     return m, sc, sgain, m_pred, sc_pred
+
+
+def smoother_step(m, sc, m_fut, sc_fut, sgain, mp, scp):
+
+    c = sc @ sc.T
+    c_fut = sc_fut @ sc_fut.T
+    cp = scp @ scp.T
+
+    new_mean = m - sgain @ (mp - m_fut)
+
+    new_cov = c - sgain @ (cp - c_fut) @ sgain.T
+    return new_mean, jnp.linalg.cholesky(new_cov)
