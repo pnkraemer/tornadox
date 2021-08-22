@@ -70,3 +70,13 @@ def test_filter_step_types(filter_stepped):
     assert isinstance(sgain, jnp.ndarray)
     assert isinstance(mp, jnp.ndarray)
     assert isinstance(scp, jnp.ndarray)
+
+
+def test_filter_step_shapes(filter_stepped, n):
+    m, sc, sgain, mp, scp = filter_stepped
+
+    assert m.shape == (n,)
+    assert sc.shape == (n, n)
+    assert sgain.shape == (n, n)
+    assert mp.shape == (n,)
+    assert scp.shape == (n, n)
