@@ -294,7 +294,6 @@ class TruncationEK1(BatchedEK1):
         )
         ss, kgain = self.observe_cov_sqrtm(Jx=Jx, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
         new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
-        assert False
         cov_sqrtm = self.correct_cov_sqrtm(
             Jx=Jx,
             p_1d_raw=p_1d_raw,
@@ -369,9 +368,30 @@ class TruncationEK1(BatchedEK1):
     @staticmethod
     @jax.jit
     def correct_mean(m, kgain, z):
-        correction = kgain @ z  # shape (d,n,1)
+        correction = kgain @ z  # shape (d*n, d)
         new_mean = m - correction.reshape(m.shape, order="F")  # shape (n,d)
         return new_mean
+
+    @staticmethod
+    @jax.jit
+    def correct_cov_sqrtm(p_1d_raw, Jx, sc_bd, kgain):
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
+        sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
+        sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
+
+        sc0 = jax.scipy.linalg.block_diag(*sc_bd_no_precon_0)
+        sc1 = jax.scipy.linalg.block_diag(*sc_bd_no_precon_1)
+        Jx_sc1 = Jx @ sc0
+        h_sc = sc1 - Jx_sc1
+        sc_dense = jax.scipy.linalg.block_diag(*sc_bd)
+        new_cov_sqrtm = sc_dense - kgain @ h_sc
+
+        d = Jx.shape[0]
+        split_covs = jnp.stack(jnp.split(new_cov_sqrtm, d, axis=0))
+        new_sc = sqrt.batched_sqrtm_to_cholesky(
+            jnp.transpose(split_covs, axes=(0, 2, 1))
+        )
+        return new_sc
 
 
 class EarlyTruncationEK1(odesolver.ODEFilter):

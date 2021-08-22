@@ -617,6 +617,17 @@ class TestLowLevelTruncationEK1Functions:
         )
         assert new_mean.shape == (n, d)
 
+    @staticmethod
+    def test_correct_cov_sqrtm(Jx, p_1d_raw, observed, sc_as_bd, d, n):
+        _, kgain = observed
+        new_sc = tornado.ek1.TruncationEK1.correct_cov_sqrtm(
+            p_1d_raw=p_1d_raw,
+            Jx=Jx,
+            sc_bd=sc_as_bd,
+            kgain=kgain,
+        )
+        assert new_sc.shape == (d, n, n)
+
 
 # Auxiliary functions
 
