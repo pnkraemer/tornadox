@@ -13,32 +13,32 @@ def n():
 
 
 @pytest.fixture
-def m_1d(n):
+def m(n):
     return jnp.arange(1, 1 + n)
 
 
 @pytest.fixture
-def sc_1d(n):
+def sc(n):
     return jnp.arange(1, 1 + n ** 2).reshape((n, n))
 
 
 @pytest.fixture
-def phi_1d(n):
+def phi(n):
     return jnp.arange(1, 1 + n ** 2).reshape((n, n))
 
 
 @pytest.fixture
-def sq_1d(n):
+def sq(n):
     return jnp.arange(1, 1 + n ** 2).reshape((n, n))
 
 
 @pytest.fixture
-def h_1d(n):
+def h(n):
     return jnp.eye(n // 2, n)
 
 
 @pytest.fixture
-def b_1d(n):
+def b(n):
     return jnp.arange(1, 1 + n // 2)
 
 
@@ -47,15 +47,15 @@ def data(n):
     return jnp.arange(10, 10 + n // 2)
 
 
-def test_filter_step(m_1d, sc_1d, phi_1d, sq_1d, h_1d, b_1d, data):
+def test_filter_step(m, sc, phi, sq, h, b, data):
 
-    m, sc, sgain = tornado.kalman.filter_step_1d(
-        m_1d=m_1d,
-        sc_1d=sc_1d,
-        phi_1d=phi_1d,
-        sq_1d=sq_1d,
-        h_1d=h_1d,
-        b_1d=b_1d,
+    m, sc, sgain = tornado.kalman.filter_step(
+        m=m,
+        sc=sc,
+        phi=phi,
+        sq=sq,
+        h=h,
+        b=b,
         data=data,
     )
     assert isinstance(m, jnp.ndarray)
