@@ -83,12 +83,15 @@ all_ek1_approximations = pytest.mark.parametrize(
         tornado.ek1.TruncationEK1,
     ],
 )
-no_ek1_early_truncation = pytest.mark.parametrize(
+all_ek1_approximations_except_early_truncation = pytest.mark.parametrize(
     "approx_solver", [tornado.ek1.DiagonalEK1, tornado.ek1.TruncationEK1]
 )
 only_ek1_early_truncation = pytest.mark.parametrize(
     "approx_solver", [tornado.ek1.EarlyTruncationEK1]
 )
+
+
+large_and_small_steps = pytest.mark.parametrize("dt", [0.12121, 12.345])
 
 
 @pytest.fixture
@@ -129,7 +132,7 @@ def approx_initialized(solver_triple):
 
 
 @pytest.fixture
-def approx_stepped(solver_triple, approx_initialized, dt=10.0):
+def approx_stepped(solver_triple, approx_initialized, dt):
     """Attempt a step with the to-be-tested-EK1 and the reference EK1."""
     ek1_approx, reference_ek1, _ = solver_triple
     init_ref, init_approx = approx_initialized
@@ -172,12 +175,14 @@ def test_approx_ek1_initialize_cov_type(approx_initialized):
 # Tests for attempt_step (common for all approximations)
 
 
+@large_and_small_steps
 @all_ek1_approximations
 def test_attempt_step_type(approx_stepped):
     _, step_approx = approx_stepped
     assert isinstance(step_approx.y, tornado.rv.BatchedMultivariateNormal)
 
 
+@large_and_small_steps
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_y_shapes(approx_stepped, ivp, num_derivatives):
     _, step_approx = approx_stepped
@@ -188,6 +193,7 @@ def test_approx_ek1_attempt_step_y_shapes(approx_stepped, ivp, num_derivatives):
     assert step_approx.y.cov.shape == (d, n, n)
 
 
+@large_and_small_steps
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_y_types(approx_stepped):
     _, step_approx = approx_stepped
@@ -195,6 +201,7 @@ def test_approx_ek1_attempt_step_y_types(approx_stepped):
     assert isinstance(step_approx.y.cov, jnp.ndarray)
 
 
+@large_and_small_steps
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_error_estimate_type(approx_stepped, ivp):
     _, step_approx = approx_stepped
@@ -202,13 +209,15 @@ def test_approx_ek1_attempt_step_error_estimate_type(approx_stepped, ivp):
     assert isinstance(step_approx.error_estimate, jnp.ndarray)
 
 
+@large_and_small_steps
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_error_estimate_shapes(approx_stepped, ivp):
     _, step_approx = approx_stepped
     assert step_approx.error_estimate.shape == (ivp.dimension,)
 
 
-@no_ek1_early_truncation
+@large_and_small_steps
+@all_ek1_approximations_except_early_truncation
 def test_approx_ek1_attempt_step_error_estimate_values(approx_stepped, ivp):
     step_ref, step_approx = approx_stepped
 
@@ -216,6 +225,7 @@ def test_approx_ek1_attempt_step_error_estimate_values(approx_stepped, ivp):
     assert jnp.allclose(step_approx.error_estimate, step_ref.error_estimate)
 
 
+@large_and_small_steps
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_reference_state_type(
     approx_stepped, ivp, num_derivatives
@@ -225,6 +235,7 @@ def test_approx_ek1_attempt_step_reference_state_type(
     assert isinstance(step_approx.reference_state, jnp.ndarray)
 
 
+@large_and_small_steps
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_reference_state_shape(
     approx_stepped, ivp, num_derivatives
@@ -233,6 +244,7 @@ def test_approx_ek1_attempt_step_reference_state_shape(
     assert step_approx.reference_state.shape == (ivp.dimension,)
 
 
+@large_and_small_steps
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_reference_state_value(
     approx_stepped, ivp, num_derivatives
@@ -246,19 +258,18 @@ def test_approx_ek1_attempt_step_reference_state_value(
 # Tests for attempt_step (specific to some approximations)
 
 
-@no_ek1_early_truncation
+@large_and_small_steps
+@all_ek1_approximations_except_early_truncation
 def test_ek1_attempt_step_y_values(approx_stepped):
     step_ref, step_approx = approx_stepped
     ref_cov_as_batch = full_cov_as_batched_cov(
         step_ref.y.cov, expected_shape=step_approx.y.cov.shape
     )
-    print(step_approx.y.cov)
-    print(ref_cov_as_batch)
-    print((step_approx.y.cov - ref_cov_as_batch) / ref_cov_as_batch)
     assert jnp.allclose(step_approx.y.mean.reshape((-1,), order="F"), step_ref.y.mean)
     assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch)
 
 
+@large_and_small_steps
 @only_ek1_early_truncation
 def test_truncated_ek1_attempt_step_y_values(approx_stepped):
     step_ref, step_approx = approx_stepped
