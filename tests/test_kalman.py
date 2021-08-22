@@ -50,7 +50,7 @@ def data(n):
 @pytest.fixture
 def filter_stepped(m, sc, phi, sq, h, b, data):
 
-    m, sc, sgain, mp, scp = tornado.kalman.filter_step(
+    return tornado.kalman.filter_step(
         m=m,
         sc=sc,
         phi=phi,
@@ -59,32 +59,33 @@ def filter_stepped(m, sc, phi, sq, h, b, data):
         b=b,
         data=data,
     )
-    return m, sc, sgain, mp, scp
 
 
 def test_filter_step_types(filter_stepped):
-    m, sc, sgain, mp, scp = filter_stepped
+    m, sc, sgain, mp, scp, x = filter_stepped
 
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
     assert isinstance(sgain, jnp.ndarray)
     assert isinstance(mp, jnp.ndarray)
     assert isinstance(scp, jnp.ndarray)
+    assert isinstance(x, jnp.ndarray)
 
 
 def test_filter_step_shapes(filter_stepped, n):
-    m, sc, sgain, mp, scp = filter_stepped
+    m, sc, sgain, mp, scp, x = filter_stepped
 
     assert m.shape == (n,)
     assert sc.shape == (n, n)
     assert sgain.shape == (n, n)
     assert mp.shape == (n,)
     assert scp.shape == (n, n)
+    assert x.shape == (n, n)
 
 
 @pytest.fixture
 def smother_stepped_traditional(m, sc, filter_stepped):
-    m_fut, sc_fut, sgain, mp, scp = filter_stepped
+    m_fut, sc_fut, sgain, mp, scp, _ = filter_stepped
 
     m, sc = tornado.kalman.smoother_step_traditional(
         m=m,
@@ -98,7 +99,30 @@ def smother_stepped_traditional(m, sc, filter_stepped):
     return m, sc
 
 
+@pytest.fixture
+def smoother_stepped_sqrt(m, sc, sq, filter_stepped):
+    m_fut, sc_fut, sgain, mp, scp, x = filter_stepped
+
+    m, sc = tornado.kalman.smoother_step_sqrt(
+        m=m,
+        sc=sc,
+        m_fut=m_fut,
+        sc_fut=sc_fut,
+        sgain=sgain,
+        mp=mp,
+        sq=sq,
+        x=x,
+    )
+    return m, sc
+
+
 def test_smoother_step_traditional(smother_stepped_traditional):
     m, sc = smother_stepped_traditional
+    assert isinstance(m, jnp.ndarray)
+    assert isinstance(sc, jnp.ndarray)
+
+
+def test_smoother_step_sqrt(smoother_stepped_sqrt):
+    m, sc = smoother_stepped_sqrt
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)

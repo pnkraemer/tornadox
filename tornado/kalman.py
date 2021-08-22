@@ -22,7 +22,7 @@ def filter_step(m, sc, phi, sq, h, b, data):
     z = h @ m_pred + b
     m = m_pred - kgain @ (z - data)
 
-    return m, sc, sgain, m_pred, sc_pred
+    return m, sc, sgain, m_pred, sc_pred, x1
 
 
 def smoother_step_traditional(m, sc, m_fut, sc_fut, sgain, mp, scp):
@@ -35,3 +35,22 @@ def smoother_step_traditional(m, sc, m_fut, sc_fut, sgain, mp, scp):
 
     new_cov = c - sgain @ (cp - c_fut) @ sgain.T
     return new_mean, jnp.linalg.cholesky(new_cov)
+
+
+def smoother_step_sqrt(m, sc, m_fut, sc_fut, sgain, sq, mp, x):
+    d = m.shape[0]
+
+    new_mean = m - sgain @ (mp - m_fut)
+
+    zeros = jnp.zeros((d, d))
+
+    M = jnp.block(
+        [
+            [x.T, sc.T],
+            [sq.T, zeros.T],
+            [zeros.T, sc_fut.T @ sgain.T],
+        ]
+    )
+    R = jax.scipy.linalg.qr(M, mode="r", pivoting=False)
+    new_cov_cholesky = R[:d, d:].T
+    return new_mean, new_cov_cholesky
