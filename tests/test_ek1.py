@@ -205,12 +205,10 @@ def test_approx_ek1_attempt_step_error_estimate_type(approx_stepped, ivp):
 @all_ek1_approximations
 def test_approx_ek1_attempt_step_error_estimate_shapes(approx_stepped, ivp):
     _, step_approx = approx_stepped
-
     assert step_approx.error_estimate.shape == (ivp.dimension,)
-    assert jnp.all(step_approx.error_estimate >= 0)
 
 
-@all_ek1_approximations
+@no_ek1_early_truncation
 def test_approx_ek1_attempt_step_error_estimate_values(approx_stepped, ivp):
     step_ref, step_approx = approx_stepped
 
@@ -274,10 +272,8 @@ def test_truncated_ek1_attempt_step_y_values(approx_stepped):
     )
 
     assert jnp.allclose(step_approx.y.mean.reshape((-1,), order="F"), step_ref.y.mean)
-
-    # This approximation is not particularly good, and also step-size dependent.
-    # Therefore we only check that the ballpark figures match.
-    assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch, rtol=1e-1, atol=1e-1)
+    # The cov approximation is not particularly good, and also step-size dependent.
+    # Therefore we do not check values here.
 
 
 # Tests for lower-level functions (only types and shapes, not values)

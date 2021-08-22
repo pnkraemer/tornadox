@@ -109,11 +109,11 @@ class ReferenceEK1(odesolver.ODEFilter):
         return H, z
 
     @staticmethod
-    @jax.jit
     def estimate_error(h, sq, z):
         s_sqrtm = h @ sq
         s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
-        whitened_res = jax.scipy.linalg.solve_triangular(s_chol, z)
+
+        whitened_res = jax.scipy.linalg.solve_triangular(s_chol.T, z, lower=False)
         sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
         sigma = jnp.sqrt(sigma_squared)
         error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
@@ -367,7 +367,7 @@ class TruncationEK1(BatchedEK1):
         c_p_1_dense = jax.scipy.linalg.block_diag(*c_p_1[:, None, :])
         cross = (c_p_1_dense - Jx @ c_p_0_dense).T
         s_sqrtm = jax.scipy.linalg.cholesky(s, lower=True)
-        kgain = jax.scipy.linalg.cho_solve((s_sqrtm, True), cross.T).T
+        kgain = jax.scipy.linalg.cho_solve((s_sqrtm.T, False), cross.T).T
         return s_sqrtm, kgain
 
     @staticmethod
