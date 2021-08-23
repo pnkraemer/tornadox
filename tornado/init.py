@@ -5,6 +5,7 @@ import jax.numpy as jnp
 import scipy.integrate
 from jax.experimental.jet import jet
 
+import tornado.iwp
 from tornado import rv
 
 
@@ -95,7 +96,9 @@ def rk_init(t0, num_derivatives, ts, ys):
     d = ys[0].shape[0]
     assert d == 4
     n = num_derivatives + 1
-
+    iwp = tornado.iwp.IntegratedWienerTransition(
+        num_derivatives=num_derivatives, wiener_process_dimension=d
+    )
     # Initial mean and cov
     m0 = jnp.zeros((n, d))
     sc0 = 1e4 * jnp.eye(n)
@@ -104,15 +107,41 @@ def rk_init(t0, num_derivatives, ts, ys):
     ss = sc0[0, 0]
     kgain = sc0[:, 0] / (ss ** 2)
     z = m0[0]
-
     m_loc = m0 - kgain @ (z - ys[0])
     sc_loc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
     t_loc = t0
     ms, scs = [m_loc], [sc_loc]
 
+    # System matrices
+    phi_1d, sq_1d = iwp.preconditioned_discretize_1d
+
     for t, y in zip(ts[1:], ys[1:]):
 
-        # Predict from t_loc to t
+        # Apply preconditioner (TODO: use raw preconditioner)
         dt = t - t_loc
+        p_1d, p_inv_1d = iwp.nordsieck_preconditioner_1d(dt)
+        m = p_1d @ m_loc
+        sc = p_inv_1d @ sc_loc
+
+        # Predict from t_loc to t
+        m_pred = phi_1d @ m
+        sc_pred = tornado.sqrt.propagate_cholesky_factor(phi_1d @ sc, sq_1d)
+        # Todo: compute gains and shit
+
+        # Measure and update
+        ss = (p_inv_1d @ sc_pred @ sc_pred.T @ p_inv_1d.T)[0, 0]
+        kgain = sc_pred @ (sc_pred.T @ p_inv_1d.T)[:, 0] / ss
+        z = (p_inv_1d @ m_pred)[0]
+        m_loc = m_pred - kgain @ (z - y)
+        sc_loc = sc_pred - kgain[:, None] @ (sc_pred[0, :])[None, :]
+
+        # Undo preconditioning
+        m = p_inv_1d @ m_loc
+        sc = p_inv_1d @ sc_loc
+
+        # Update local parameters
+        ms.append(m)
+        scs.append(sc)
+        t_loc = t
 
     return jnp.stack(ms), jnp.stack(scs)
