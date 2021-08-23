@@ -102,7 +102,7 @@ def rk_data(f, t0, dt, num_steps, y0, method, df=None):
 # and does not need to see f, df, y0
 # signature: rk_improve(m0, t0, ts, ys)
 # respectively rk_improve(m0, c0, t0, ts, ys)
-# which can also be run in an EM style.
+# which can then also be run in an EM style.
 def rk_init(f, df, y0, t0, num_derivatives, ts, ys):
 
     d = ys[0].shape[0]
@@ -207,7 +207,7 @@ def rk_init(f, df, y0, t0, num_derivatives, ts, ys):
         # Only for the result of the smoothing step.
         # The other means and covariances are not used anymore.
         m_fut, sc_fut = p_1d_raw[:, None] * m_fut__, p_1d_raw[:, None] * sc_fut__
-        print(p_1d_raw[:, None] * m_fut__)
+
         # Read out the new parameters
         # They are alreay preconditioned. m_fut, sc_fut are not,
         # but will be pushed into the correct coordinates in the next iteration.

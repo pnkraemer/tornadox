@@ -155,7 +155,7 @@ def dt():
 
 @pytest.fixture
 def num_derivatives():
-    return 5
+    return 4
 
 
 @pytest.fixture
@@ -224,10 +224,16 @@ def test_rk_init_shapes(rk_init, n, d):
     assert isinstance(sc, jnp.ndarray)
 
 
-@all_rk_methods
-def test_rk_init_values(rk_init, threebody_nordsieck_initval, n):
-    print(threebody_nordsieck_initval[:n])
-    print(jnp.round(rk_init[0], 1))
+@pytest.fixture
+def ref_init(f, y0, t0, num_derivatives):
+    return tornado.init.taylor_mode(
+        fun=f, y0=y0, t0=t0, num_derivatives=num_derivatives
+    )
 
-    # print(jnp.round(jnp.log10(jnp.diag(rk_init[1] @ rk_init[1].T)), 1))
-    assert False
+
+@all_rk_methods
+def test_rk_init_values(rk_init, ref_init):
+
+    # Relaxed tolerance, because initialisation is only for ballpark estimates
+    # The current values are rather sharp
+    assert jnp.allclose(rk_init[0], ref_init, rtol=1e-1, atol=1e-10)
