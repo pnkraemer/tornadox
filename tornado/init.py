@@ -76,14 +76,14 @@ def _evaluate_ode_for_extended_state(extended_state, fun, y0):
 
 
 def rk_data(f, t0, dt, num_steps, y0, method, df=None):
-    t_eval = jnp.arange(t0, t0 + (num_steps + 1) * dt, dt)
+    t_eval = jnp.arange(t0, t0 + num_steps * dt, dt)
     df = df if df is not None and method == "Radau" else None
     sol = scipy.integrate.solve_ivp(
         f,
-        (t0, t0 + (num_steps + 1) * dt),
+        (t0, t0 + (num_steps - 1) * dt),
         y0=y0,
-        atol=1e-12,
-        rtol=1e-12,
+        atol=1e12,
+        rtol=1e12,
         t_eval=t_eval,
         method=method,
         jac=df,

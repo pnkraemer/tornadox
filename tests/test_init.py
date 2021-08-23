@@ -138,6 +138,11 @@ def df(ivp):
 
 
 @pytest.fixture
+def d(ivp):
+    return ivp.dimension
+
+
+@pytest.fixture
 def dt():
     return 0.1
 
@@ -147,6 +152,9 @@ def num_steps():
     return 11
 
 
+all_rk_methods = pytest.mark.parametrize("method", ["RK45", "Radau"])
+
+
 @pytest.fixture
 def rk_data(f, y0, t0, dt, num_steps, method, df):
     return tornado.init.rk_data(
@@ -154,15 +162,22 @@ def rk_data(f, y0, t0, dt, num_steps, method, df):
     )
 
 
-@pytest.mark.parametrize("method", ["RK45", "Radau"])
-def test_rk_init_generate_data(rk_data):
+@all_rk_methods
+def test_rk_init_generate_data_types(rk_data):
     ts, ys = rk_data
     assert isinstance(ts, jnp.ndarray)
     assert isinstance(ys, jnp.ndarray)
 
 
+@all_rk_methods
+def test_rk_init_generate_data_shapes(rk_data, num_steps, d):
+    ts, ys = rk_data
+    assert ts.shape == (num_steps,)
+    assert ys.shape == (num_steps, d)
+
+
 @pytest.mark.parametrize("num_derivatives", [3])
-@pytest.mark.parametrize("method", ["RK45", "Radau"])
+@all_rk_methods
 def test_rk_init(t0, num_derivatives, rk_data):
 
     ts, ys = rk_data
