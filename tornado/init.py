@@ -97,6 +97,12 @@ def rk_data(f, t0, dt, num_steps, y0, method, df=None):
     return sol.t, sol.y.T
 
 
+# todo:
+# phrase this as "improve m0", which already knows num_derivatives and dim,
+# and does not need to see f, df, y0
+# signature: rk_improve(m0, t0, ts, ys)
+# respectively rk_improve(m0, c0, t0, ts, ys)
+# which can also be run in an EM style.
 def rk_init(f, df, y0, t0, num_derivatives, ts, ys):
 
     d = ys[0].shape[0]
