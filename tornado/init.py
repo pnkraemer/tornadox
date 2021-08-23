@@ -75,13 +75,12 @@ def _evaluate_ode_for_extended_state(extended_state, fun, y0):
 # RK initialisation
 
 
-def rk_data(f, t0, dt, num_steps, y0, method, df=None):
+def rk_data(f, t0, dt, num_steps, y0, method):
 
     # Force fixed steps via t_eval
     t_eval = jnp.arange(t0, t0 + num_steps * dt, dt)
 
-    # Radau should get the Jacobian if existant
-    df = df if df is not None and method == "Radau" else None
+    # Radau should get the Jacobian if existent
 
     # Compute the data with atol=rtol=1e12 (we want fixed steps!)
     sol = scipy.integrate.solve_ivp(
@@ -92,7 +91,6 @@ def rk_data(f, t0, dt, num_steps, y0, method, df=None):
         rtol=1e12,
         t_eval=t_eval,
         method=method,
-        jac=df,
     )
     return sol.t, sol.y.T
 
@@ -114,22 +112,6 @@ def rk_init(f, df, y0, t0, num_derivatives, ts, ys):
     phi_1d, sq_1d = iwp.preconditioned_discretize_1d
 
     # Initial mean and cov
-    n = num_derivatives + 1
-    m0 = jnp.zeros((n, d))
-    sc0 = 1e2 * jnp.eye(n)
-
-    # Initial update: (no preconditioning, conditioning is fine here)
-    s = (sc0 @ sc0.T)[0, 0]
-    kgain = (sc0 @ sc0.T)[:, 0] / s
-
-    # Observe
-    z = m0[0]
-    ys0 = ys[0]
-
-    # Correct
-    m = m0 - kgain[:, None] @ (z - ys0)[None, :]
-    sc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
-
     m, sc = stack_initial_state_jac(
         f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
     )
@@ -222,7 +204,7 @@ def stack_initial_state_jac(f, df, y0, t0, num_derivatives):
     fy = f(t0, y0)
     dfy = df(t0, y0)
     m = jnp.stack([y0, fy, dfy @ fy] + [jnp.zeros(d)] * (n - 3))
-    sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1.0] * (n - 3)))
+    sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1e3] * (n - 3)))
     return m, sc
 
 
@@ -232,5 +214,5 @@ def stack_initial_state_no_jac(f, y0, t0, num_derivatives):
 
     fy = f(t0, y0)
     m = jnp.stack([y0, fy] + [jnp.zeros(d)] * (n - 2))
-    sc = jnp.diag(jnp.array([0.0, 0.0] + [1.0] * (n - 2)))
+    sc = jnp.diag(jnp.array([0.0, 0.0] + [1e3] * (n - 2)))
     return m, sc

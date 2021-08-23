@@ -172,9 +172,9 @@ all_rk_methods = pytest.mark.parametrize("method", ["DOP853"])
 
 
 @pytest.fixture
-def rk_data(f, y0, t0, dt, num_steps, method, df):
+def rk_data(f, y0, t0, dt, num_steps, method):
     return tornado.init.rk_data(
-        f=f, t0=t0, dt=dt, num_steps=num_steps, y0=y0, method=method, df=df
+        f=f, t0=t0, dt=dt, num_steps=num_steps, y0=y0, method=method
     )
 
 
