@@ -95,6 +95,7 @@ def rk_data(f, t0, dt, num_steps, y0, method):
 
 
 def rk_init_improve(m, sc, t0, ts, ys):
+    """Improve an initial mean estimate by fitting it to a number of RK steps."""
 
     d = m.shape[1]
     num_derivatives = m.shape[0] - 1
@@ -117,34 +118,9 @@ def rk_init_improve(m, sc, t0, ts, ys):
         dt = t - t_loc
         p_1d_raw, p_inv_1d_raw = iwp.nordsieck_preconditioner_1d_raw(dt)
 
-        # Apply preconditioner
-        m = p_inv_1d_raw[:, None] * m
-        sc = p_inv_1d_raw[:, None] * sc
-
-        # Predict from t_loc to t
-        m_pred = phi_1d @ m
-        x = phi_1d @ sc
-        sc_pred = tornado.sqrt.propagate_cholesky_factor(x, sq_1d)
-
-        # Compute the gainzz
-        cross = (x @ sc.T).T
-        sgain = jax.scipy.linalg.cho_solve((sc_pred, True), cross.T).T
-
-        # Measure (H := "slicing" \circ "remove preconditioner")
-        sc_pred_np = p_1d_raw[:, None] * sc_pred
-        h_sc_pred = sc_pred_np[0, :]
-        s = h_sc_pred @ h_sc_pred.T
-        cross = sc_pred @ h_sc_pred.T
-
-        kgain = cross / s
-        z = (p_1d_raw[:, None] * m_pred)[0]
-
-        m_loc = m_pred - kgain[:, None] * (z - y)[None, :]
-        sc_loc = sc_pred - kgain[:, None] * h_sc_pred[None, :]
-
-        # Undo preconditioning
-        m = p_1d_raw[:, None] * m_loc
-        sc = p_1d_raw[:, None] * sc_loc
+        m, sc, m_pred, sc_pred, sgain, x = _forward_filter_step(
+            y, sc, m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d
+        )
 
         # Store parameters:
         # (m, sc) are in "normal" coordinates,
@@ -188,6 +164,40 @@ def rk_init_improve(m, sc, t0, ts, ys):
     return m_fut, sc_fut
 
 
+def _forward_filter_step(y, sc, m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d):
+
+    # Apply preconditioner
+    m = p_inv_1d_raw[:, None] * m
+    sc = p_inv_1d_raw[:, None] * sc
+
+    # Predict from t_loc to t
+    m_pred = phi_1d @ m
+    x = phi_1d @ sc
+    sc_pred = tornado.sqrt.propagate_cholesky_factor(x, sq_1d)
+
+    # Compute the gainzz
+    cross = (x @ sc.T).T
+    sgain = jax.scipy.linalg.cho_solve((sc_pred, True), cross.T).T
+
+    # Measure (H := "slicing" \circ "remove preconditioner")
+    sc_pred_np = p_1d_raw[:, None] * sc_pred
+    h_sc_pred = sc_pred_np[0, :]
+    s = h_sc_pred @ h_sc_pred.T
+    cross = sc_pred @ h_sc_pred.T
+    kgain = cross / s
+    z = (p_1d_raw[:, None] * m_pred)[0]
+
+    # Update (with a good sprinkle of broadcasting)
+    m_loc = m_pred - kgain[:, None] * (z - y)[None, :]
+    sc_loc = sc_pred - kgain[:, None] * h_sc_pred[None, :]
+
+    # Undo preconditioning
+    m = p_1d_raw[:, None] * m_loc
+    sc = p_1d_raw[:, None] * sc_loc
+
+    return m, sc, m_pred, sc_pred, sgain, x
+
+
 def stack_initial_state_jac(f, df, y0, t0, num_derivatives):
     d = y0.shape[0]
     n = num_derivatives + 1
@@ -196,14 +206,4 @@ def stack_initial_state_jac(f, df, y0, t0, num_derivatives):
     dfy = df(t0, y0)
     m = jnp.stack([y0, fy, dfy @ fy] + [jnp.zeros(d)] * (n - 3))
     sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1e3] * (n - 3)))
-    return m, sc
-
-
-def stack_initial_state_no_jac(f, y0, t0, num_derivatives):
-    d = y0.shape[0]
-    n = num_derivatives + 1
-
-    fy = f(t0, y0)
-    m = jnp.stack([y0, fy] + [jnp.zeros(d)] * (n - 2))
-    sc = jnp.diag(jnp.array([0.0, 0.0] + [1e3] * (n - 2)))
     return m, sc
