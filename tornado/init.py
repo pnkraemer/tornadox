@@ -109,9 +109,9 @@ def rk_init(t0, num_derivatives, ts, ys):
     m0 = jnp.zeros((n, d))
     sc0 = 1e4 * jnp.eye(n)
 
-    # Initial update:
-    ss = sc0[0, 0]
-    kgain = sc0[:, 0] / (ss ** 2)
+    # Initial update: (no preconditioning, conditioning is fine here)
+    ss = (sc0 @ sc0.T)[0, 0]
+    kgain = (sc0 @ sc0.T)[:, 0] / (ss ** 2)
     z = m0[0]
     m_loc = m0 - kgain @ (z - ys[0])
     sc_loc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
@@ -127,7 +127,7 @@ def rk_init(t0, num_derivatives, ts, ys):
         # Apply preconditioner (TODO: use raw preconditioner)
         dt = t - t_loc
         p_1d, p_inv_1d = iwp.nordsieck_preconditioner_1d(dt)
-        m = p_1d @ m_loc
+        m = p_inv_1d @ m_loc
         sc = p_inv_1d @ sc_loc
 
         # Predict from t_loc to t
@@ -138,15 +138,18 @@ def rk_init(t0, num_derivatives, ts, ys):
         sgain = jax.scipy.linalg.cho_solve((sc_pred, True), cross.T).T
 
         # Measure and update
-        ss = (p_inv_1d @ sc_pred @ sc_pred.T @ p_inv_1d.T)[0, 0]
-        kgain = sc_pred @ (sc_pred.T @ p_inv_1d.T)[:, 0] / ss
-        z = (p_inv_1d @ m_pred)[0]
+        sc_pred_np = p_1d @ sc_pred
+        h_sc_pred = sc_pred_np[0, :]
+        ss = (sc_pred_np @ sc_pred_np.T)[0, 0]
+        cross = sc_pred @ h_sc_pred.T
+        kgain = cross / ss
+        z = (p_1d @ m_pred)[0]
         m_loc = m_pred - kgain @ (z - y)
-        sc_loc = sc_pred - kgain[:, None] @ (sc_pred[0, :])[None, :]
+        sc_loc = sc_pred - kgain[:, None] @ h_sc_pred[None, :]
 
         # Undo preconditioning
-        m = p_inv_1d @ m_loc
-        sc = p_inv_1d @ sc_loc
+        m = p_1d @ m_loc
+        sc = p_1d @ sc_loc
 
         # Store parameters:
         # (m, sc) are in "normal" coordinates,
@@ -157,12 +160,12 @@ def rk_init(t0, num_derivatives, ts, ys):
     # Smoothing pass
     final_out = filter_res[-1]
     m_fut, sc_fut, sgain_fut, m_pred, sc_pref, x, p_1d, p_inv_1d = final_out
-    ms, scs = [m_fut], [sc_fut]
     for filter_output in reversed(filter_res[:-1]):
 
         # Push means and covariances into the preconditioned space
-        m, sc = p_1d @ filter_output[0], p_1d @ filter_output[1]
-        m_fut, sc_fut = p_1d @ m_fut, p_1d @ sc_fut
+        m, sc = filter_output[0], filter_output[1]
+        m, sc = p_inv_1d @ m, p_inv_1d @ sc
+        m_fut, sc_fut = p_inv_1d @ m_fut, p_inv_1d @ sc_fut
 
         # Make smoothing step
         m_fut, sc_fut = tornado.kalman.smoother_step_sqrt(
@@ -179,15 +182,11 @@ def rk_init(t0, num_derivatives, ts, ys):
         # Pull means and covariances back into old coordinates
         # Only for the result of the smoothing step.
         # The other means and covariances are not used anymore.
-        m_fut, sc_fut = p_inv_1d @ m_fut, p_inv_1d @ sc_fut
-
-        # Store results
-        ms.append(m_fut)
-        scs.append(sc_fut)
+        m_fut, sc_fut = p_1d @ m_fut, p_1d @ sc_fut
 
         # Read out the new parameters
         # They are alreay preconditioned. m_fut, sc_fut are not,
         # but will be pushed into the correct coordinates in the next iteration.
         _, _, sgain_fut, m_pred, sc_pref, x, p_1d, p_inv_1d = filter_output
 
-    return jnp.stack(list(reversed(ms))), jnp.stack(list(reversed(scs)))
+    return m_fut, sc_fut

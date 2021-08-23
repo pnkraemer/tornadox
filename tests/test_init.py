@@ -144,7 +144,7 @@ def d(ivp):
 
 @pytest.fixture
 def dt():
-    return 0.1
+    return 0.001
 
 
 @pytest.fixture
@@ -205,11 +205,18 @@ def test_rk_init_types(rk_init):
 
 
 @all_rk_methods
-def test_rk_init_shapes(rk_init, n, d, num_steps):
+def test_rk_init_shapes(rk_init, n, d):
     m, sc = rk_init
 
-    assert m.shape == (num_steps, n, d)
-    assert sc.shape == (num_steps, n, n)
+    assert m.shape == (n, d)
+    assert sc.shape == (n, n)
 
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
+
+
+@all_rk_methods
+def test_rk_init_values(rk_init, threebody_nordsieck_initval, n):
+    print(threebody_nordsieck_initval[:n])
+    print(rk_init[0])
+    assert False
