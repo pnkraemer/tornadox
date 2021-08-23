@@ -200,7 +200,7 @@ def init_stack(f, df, y0, t0, num_derivatives):
 
 
 @pytest.fixture
-def rk_init(init_stack, t0, rk_data):
+def rk_init_improved(init_stack, t0, rk_data):
     m, sc = init_stack
     ts, ys = rk_data
     return tornado.init.rk_init_improve(
@@ -213,15 +213,15 @@ def rk_init(init_stack, t0, rk_data):
 
 
 @all_rk_methods
-def test_rk_init_types(rk_init):
-    m, sc = rk_init
+def test_rk_init_types(rk_init_improved):
+    m, sc = rk_init_improved
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
 
 
 @all_rk_methods
-def test_rk_init_shapes(rk_init, n, d):
-    m, sc = rk_init
+def test_rk_init_shapes(rk_init_improved, n, d):
+    m, sc = rk_init_improved
 
     assert m.shape == (n, d)
     assert sc.shape == (n, n)
@@ -238,11 +238,11 @@ def ref_init(f, y0, t0, num_derivatives):
 
 
 @all_rk_methods
-def test_rk_init_values(rk_init, ref_init):
+def test_rk_init_values(rk_init_improved, ref_init):
 
     # Relaxed tolerance, because initialisation is only for ballpark estimates
     # The current values are rather sharp
-    assert jnp.allclose(rk_init[0], ref_init, rtol=1e-1, atol=1e-10)
+    assert jnp.allclose(rk_init_improved[0], ref_init, rtol=1e-1, atol=1e-10)
 
 
 def test_stack_initial_state_jac(f, df, y0, t0, num_derivatives):
