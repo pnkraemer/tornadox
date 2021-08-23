@@ -120,7 +120,6 @@ def test_taylor_expected_values(
 @pytest.fixture
 def ivp2():
     return tornado.ivp.vanderpol(stiffness_constant=10, t0=0.0, tmax=30.0)
-    # return tornado.ivp.threebody()
 
 
 @pytest.fixture

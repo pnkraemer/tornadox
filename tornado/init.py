@@ -79,8 +79,6 @@ def rk_data(f, t0, dt, num_steps, y0, method):
     # Force fixed steps via t_eval
     t_eval = jnp.arange(t0, t0 + num_steps * dt, dt)
 
-    # Radau should get the Jacobian if existent
-
     # Compute the data with atol=rtol=1e12 (we want fixed steps!)
     sol = scipy.integrate.solve_ivp(
         fun=f,
@@ -106,7 +104,7 @@ def rk_init_improve(m, sc, t0, ts, ys):
     )
     phi_1d, sq_1d = iwp.preconditioned_discretize_1d
 
-    # Store
+    # Store  -- mean and cov are needed, the other ones should be taken from future steps!
     filter_res = [(m, sc, None, None, None, None, None, None)]
     t_loc = t0
 
@@ -118,17 +116,18 @@ def rk_init_improve(m, sc, t0, ts, ys):
         dt = t - t_loc
         p_1d_raw, p_inv_1d_raw = iwp.nordsieck_preconditioner_1d_raw(dt)
 
+        # Make the next step but return ALL the intermediate quantities
+        # (they are needed for efficient smoothing)
         m, sc, m_pred, sc_pred, sgain, x = _forward_filter_step(
             y, sc, m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d
         )
 
-        # Store parameters:
-        # (m, sc) are in "normal" coordinates,
-        # the others are already preconditioned!
+        # Store parameters;
+        # (m, sc) are in "normal" coordinates, the others are already preconditioned!
         filter_res.append((m, sc, sgain, m_pred, sc_pred, x, p_1d_raw, p_inv_1d_raw))
         t_loc = t
 
-    # Smoothing pass
+    # Smoothing pass. Make heavy use of the filter output.
     final_out = filter_res[-1]
     m_fut, sc_fut, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw = final_out
 
@@ -157,7 +156,7 @@ def rk_init_improve(m, sc, t0, ts, ys):
         m_fut, sc_fut = p_1d_raw[:, None] * m_fut__, p_1d_raw[:, None] * sc_fut__
 
         # Read out the new parameters
-        # They are alreay preconditioned. m_fut, sc_fut are not,
+        # They are already preconditioned. m_fut, sc_fut are not,
         # but will be pushed into the correct coordinates in the next iteration.
         _, _, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw = filter_output
 
