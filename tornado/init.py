@@ -71,6 +71,9 @@ def _evaluate_ode_for_extended_state(extended_state, fun, y0):
     return stacked_ode_eval
 
 
+# RK initialisation
+
+
 def rk_data(f, t0, dt, num_steps, y0, method, df=None):
     t_eval = jnp.arange(t0, t0 + (num_steps + 1) * dt, dt)
     df = df if df is not None and method == "Radau" else None
@@ -85,3 +88,31 @@ def rk_data(f, t0, dt, num_steps, y0, method, df=None):
         jac=df,
     )
     return sol.t, sol.y.T
+
+
+def rk_init(t0, num_derivatives, ts, ys):
+
+    d = ys[0].shape[0]
+    assert d == 4
+    n = num_derivatives + 1
+
+    # Initial mean and cov
+    m0 = jnp.zeros((n, d))
+    sc0 = 1e4 * jnp.eye(n)
+
+    # Initial update:
+    ss = sc0[0, 0]
+    kgain = sc0[:, 0] / (ss ** 2)
+    z = m0[0]
+
+    m_loc = m0 - kgain @ (z - ys[0])
+    sc_loc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
+    t_loc = t0
+    ms, scs = [m_loc], [sc_loc]
+
+    for t, y in zip(ts[1:], ys[1:]):
+
+        # Predict from t_loc to t
+        dt = t - t_loc
+
+    return jnp.stack(ms), jnp.stack(scs)

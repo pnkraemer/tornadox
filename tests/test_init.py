@@ -114,6 +114,9 @@ def test_taylor_expected_values(
     )
 
 
+# Tests for RK init
+
+
 @pytest.fixture
 def t0(ivp):
     return ivp.t0
@@ -144,11 +147,31 @@ def num_steps():
     return 11
 
 
-@pytest.mark.parametrize("method", ["RK45", "Radau"])
-def test_rk_init_generate_data(f, t0, dt, num_steps, y0, method, df):
-    ts, ys = tornado.init.rk_data(
+@pytest.fixture
+def rk_data(f, y0, t0, dt, num_steps, method, df):
+    return tornado.init.rk_data(
         f=f, t0=t0, dt=dt, num_steps=num_steps, y0=y0, method=method, df=df
     )
 
+
+@pytest.mark.parametrize("method", ["RK45", "Radau"])
+def test_rk_init_generate_data(rk_data):
+    ts, ys = rk_data
     assert isinstance(ts, jnp.ndarray)
     assert isinstance(ys, jnp.ndarray)
+
+
+@pytest.mark.parametrize("num_derivatives", [3])
+@pytest.mark.parametrize("method", ["RK45", "Radau"])
+def test_rk_init(t0, num_derivatives, rk_data):
+
+    ts, ys = rk_data
+    m0, sc0 = tornado.init.rk_init(
+        t0=t0,
+        num_derivatives=num_derivatives,
+        ts=ts,
+        ys=ys,
+    )
+
+    assert isinstance(m0, jnp.ndarray)
+    assert isinstance(sc0, jnp.ndarray)
