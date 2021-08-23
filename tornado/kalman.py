@@ -1,11 +1,14 @@
 """Gaussian filtering and smoothing routines."""
 
+import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
 
 from tornado import sqrt
 
 
+# Most popular for testing the smoother (and debugging other filters)
+@jax.jit
 def filter_step(m, sc, phi, sq, h, b, data):
 
     # Prediction
@@ -26,6 +29,7 @@ def filter_step(m, sc, phi, sq, h, b, data):
 
 
 # Most popular for testing the square-root implementation
+@jax.jit
 def smoother_step_traditional(m, sc, m_fut, sc_fut, sgain, mp, scp):
 
     # Assemble full covariances
@@ -41,6 +45,7 @@ def smoother_step_traditional(m, sc, m_fut, sc_fut, sgain, mp, scp):
     return new_mean, new_sc
 
 
+@jax.jit
 def smoother_step_sqrt(m, sc, m_fut, sc_fut, sgain, sq, mp, x):
 
     # Update mean straightaway
