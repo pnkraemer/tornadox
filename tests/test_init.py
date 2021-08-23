@@ -152,6 +152,11 @@ def num_steps():
     return 11
 
 
+@pytest.fixture
+def num_derivatives():
+    return 3
+
+
 all_rk_methods = pytest.mark.parametrize("method", ["RK45", "Radau"])
 
 
@@ -176,17 +181,19 @@ def test_rk_init_generate_data_shapes(rk_data, num_steps, d):
     assert ys.shape == (num_steps, d)
 
 
-@pytest.mark.parametrize("num_derivatives", [3])
-@all_rk_methods
-def test_rk_init(t0, num_derivatives, rk_data):
-
+@pytest.fixture
+def rk_init(t0, num_derivatives, rk_data):
     ts, ys = rk_data
-    m0, sc0 = tornado.init.rk_init(
+    return tornado.init.rk_init(
         t0=t0,
         num_derivatives=num_derivatives,
         ts=ts,
         ys=ys,
     )
 
-    assert isinstance(m0, jnp.ndarray)
-    assert isinstance(sc0, jnp.ndarray)
+
+@all_rk_methods
+def test_rk_init(rk_init):
+    m, sc = rk_init
+    assert isinstance(m, jnp.ndarray)
+    assert isinstance(sc, jnp.ndarray)
