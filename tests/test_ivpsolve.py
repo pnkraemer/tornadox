@@ -10,6 +10,7 @@ import tornado
     params=[
         "ek1_reference",
         "ek1_diagonal",
+        "ek1_truncation",
         "ek1_early_truncation",
         "ek0_reference",
         "ek0_kronecker",
@@ -68,7 +69,11 @@ def test_solve_constant(solve_method, order, time_domain, dt):
         except AttributeError:
             pass
 
-        batched_ek1s = (tornado.ek1.DiagonalEK1, tornado.ek1.EarlyTruncationEK1)
+        batched_ek1s = (
+            tornado.ek1.DiagonalEK1,
+            tornado.ek1.EarlyTruncationEK1,
+            tornado.ek1.TruncationEK1,
+        )
         matrix_solvers = batched_ek1s + (tornado.ek0.KroneckerEK0,)
         if isinstance(solver, matrix_solvers):
             assert mean.shape == (order + 1, ivp.dimension)
