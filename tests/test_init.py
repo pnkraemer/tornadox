@@ -157,6 +157,11 @@ def num_derivatives():
     return 3
 
 
+@pytest.fixture
+def n(num_derivatives):
+    return num_derivatives + 1
+
+
 all_rk_methods = pytest.mark.parametrize("method", ["RK45", "Radau"])
 
 
@@ -193,7 +198,18 @@ def rk_init(t0, num_derivatives, rk_data):
 
 
 @all_rk_methods
-def test_rk_init(rk_init):
+def test_rk_init_types(rk_init):
     m, sc = rk_init
+    assert isinstance(m, jnp.ndarray)
+    assert isinstance(sc, jnp.ndarray)
+
+
+@all_rk_methods
+def test_rk_init_shapes(rk_init, n, d, num_steps):
+    m, sc = rk_init
+
+    assert m.shape == (num_steps, n, d)
+    assert sc.shape == (num_steps, n, n)
+
     assert isinstance(m, jnp.ndarray)
     assert isinstance(sc, jnp.ndarray)
