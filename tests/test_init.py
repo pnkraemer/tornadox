@@ -237,3 +237,21 @@ def test_rk_init_values(rk_init, ref_init):
     # Relaxed tolerance, because initialisation is only for ballpark estimates
     # The current values are rather sharp
     assert jnp.allclose(rk_init[0], ref_init, rtol=1e-1, atol=1e-10)
+
+
+def test_stack_initial_state_jac(f, df, y0, t0, num_derivatives):
+    m0, sc0 = tornado.init.stack_initial_state_jac(
+        f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+    )
+
+    assert m0.shape == (num_derivatives + 1, y0.shape[0])
+    assert sc0.shape == (num_derivatives + 1, num_derivatives + 1)
+
+
+def test_stack_initial_state_no_jac(f, df, y0, t0, num_derivatives):
+    m0, sc0 = tornado.init.stack_initial_state_no_jac(
+        f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
+    )
+
+    assert m0.shape == (num_derivatives + 1, y0.shape[0])
+    assert sc0.shape == (num_derivatives + 1, num_derivatives + 1)

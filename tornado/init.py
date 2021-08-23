@@ -130,10 +130,9 @@ def rk_init(f, df, y0, t0, num_derivatives, ts, ys):
     m = m0 - kgain[:, None] @ (z - ys0)[None, :]
     sc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
 
-    fy = f(t0, y0)
-    dfy = df(t0, y0)
-    m = jnp.stack([y0, fy, dfy @ fy] + [jnp.zeros(d)] * (n - 3))
-    sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1.0] * (n - 3)))
+    m, sc = stack_initial_state_jac(
+        f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+    )
 
     # Store
     filter_res = [(m, sc, None, None, None, None, None, None)]
@@ -214,3 +213,24 @@ def rk_init(f, df, y0, t0, num_derivatives, ts, ys):
         _, _, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw = filter_output
 
     return m_fut, sc_fut
+
+
+def stack_initial_state_jac(f, df, y0, t0, num_derivatives):
+    d = y0.shape[0]
+    n = num_derivatives + 1
+
+    fy = f(t0, y0)
+    dfy = df(t0, y0)
+    m = jnp.stack([y0, fy, dfy @ fy] + [jnp.zeros(d)] * (n - 3))
+    sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1.0] * (n - 3)))
+    return m, sc
+
+
+def stack_initial_state_no_jac(f, y0, t0, num_derivatives):
+    d = y0.shape[0]
+    n = num_derivatives + 1
+
+    fy = f(t0, y0)
+    m = jnp.stack([y0, fy] + [jnp.zeros(d)] * (n - 2))
+    sc = jnp.diag(jnp.array([0.0, 0.0] + [1.0] * (n - 2)))
+    return m, sc
