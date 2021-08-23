@@ -112,3 +112,43 @@ def test_taylor_expected_values(
     assert jnp.allclose(
         nordsieck_y0, threebody_nordsieck_initval[: (num_derivatives + 1)]
     )
+
+
+@pytest.fixture
+def t0(ivp):
+    return ivp.t0
+
+
+@pytest.fixture
+def y0(ivp):
+    return ivp.y0
+
+
+@pytest.fixture
+def f(ivp):
+    return ivp.f
+
+
+@pytest.fixture
+def df(ivp):
+    return ivp.df
+
+
+@pytest.fixture
+def dt():
+    return 0.1
+
+
+@pytest.fixture
+def num_steps():
+    return 11
+
+
+@pytest.mark.parametrize("method", ["RK45", "Radau"])
+def test_rk_init_generate_data(f, t0, dt, num_steps, y0, method, df):
+    ts, ys = tornado.init.rk_data(
+        f=f, t0=t0, dt=dt, num_steps=num_steps, y0=y0, method=method, df=df
+    )
+
+    assert isinstance(ts, jnp.ndarray)
+    assert isinstance(ys, jnp.ndarray)
