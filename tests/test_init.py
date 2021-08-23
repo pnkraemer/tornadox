@@ -193,14 +193,20 @@ def test_rk_init_generate_data_shapes(rk_data, num_steps, d):
 
 
 @pytest.fixture
-def rk_init(f, df, y0, t0, num_derivatives, rk_data, d):
+def init_stack(f, df, y0, t0, num_derivatives):
+    return tornado.init.stack_initial_state_jac(
+        f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+    )
+
+
+@pytest.fixture
+def rk_init(init_stack, t0, rk_data):
+    m, sc = init_stack
     ts, ys = rk_data
-    return tornado.init.rk_init(
-        f=f,
-        df=df,
-        y0=y0,
+    return tornado.init.rk_init_improve(
+        m=m,
+        sc=sc,
         t0=t0,
-        num_derivatives=num_derivatives,
         ts=ts,
         ys=ys,
     )

@@ -6,7 +6,6 @@ import scipy.integrate
 from jax.experimental.jet import jet
 
 import tornado.iwp
-from tornado import rv
 
 
 def taylor_mode(fun, y0, t0, num_derivatives):
@@ -95,31 +94,23 @@ def rk_data(f, t0, dt, num_steps, y0, method):
     return sol.t, sol.y.T
 
 
-# todo:
-# phrase this as "improve m0", which already knows num_derivatives and dim,
-# and does not need to see f, df, y0
-# signature: rk_improve(m0, t0, ts, ys)
-# respectively rk_improve(m0, c0, t0, ts, ys)
-# which can then also be run in an EM style.
-def rk_init(f, df, y0, t0, num_derivatives, ts, ys):
+def rk_init_improve(m, sc, t0, ts, ys):
 
-    d = ys[0].shape[0]
+    d = m.shape[1]
+    num_derivatives = m.shape[0] - 1
+
+    # Prior
     iwp = tornado.iwp.IntegratedWienerTransition(
         num_derivatives=num_derivatives, wiener_process_dimension=d // 2
     )
-
-    # System matrices
     phi_1d, sq_1d = iwp.preconditioned_discretize_1d
-
-    # Initial mean and cov
-    m, sc = stack_initial_state_jac(
-        f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
-    )
 
     # Store
     filter_res = [(m, sc, None, None, None, None, None, None)]
     t_loc = t0
 
+    # Ignore the first (t,y) pair because this information is already contained in the initial value
+    # with certainty, thus it would lead to clashes.
     for t, y in zip(ts[1:], ys[1:]):
 
         # Fetch preconditioner
