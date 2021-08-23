@@ -119,7 +119,8 @@ def test_taylor_expected_values(
 
 @pytest.fixture
 def ivp2():
-    return tornado.ivp.threebody()
+    return tornado.ivp.vanderpol(stiffness_constant=10, t0=0.0, tmax=30.0)
+    # return tornado.ivp.threebody()
 
 
 @pytest.fixture
@@ -167,7 +168,7 @@ def n(num_derivatives):
     return num_derivatives + 1
 
 
-all_rk_methods = pytest.mark.parametrize("method", ["RK45", "Radau"])
+all_rk_methods = pytest.mark.parametrize("method", ["DOP853"])
 
 
 @pytest.fixture
@@ -192,9 +193,12 @@ def test_rk_init_generate_data_shapes(rk_data, num_steps, d):
 
 
 @pytest.fixture
-def rk_init(t0, num_derivatives, rk_data):
+def rk_init(f, df, y0, t0, num_derivatives, rk_data, d):
     ts, ys = rk_data
     return tornado.init.rk_init(
+        f=f,
+        df=df,
+        y0=y0,
         t0=t0,
         num_derivatives=num_derivatives,
         ts=ts,
@@ -223,5 +227,7 @@ def test_rk_init_shapes(rk_init, n, d):
 @all_rk_methods
 def test_rk_init_values(rk_init, threebody_nordsieck_initval, n):
     print(threebody_nordsieck_initval[:n])
-    print(rk_init[0])
+    print(jnp.round(rk_init[0], 1))
+
+    # print(jnp.round(jnp.log10(jnp.diag(rk_init[1] @ rk_init[1].T)), 1))
     assert False

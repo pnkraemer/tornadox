@@ -97,7 +97,7 @@ def rk_data(f, t0, dt, num_steps, y0, method, df=None):
     return sol.t, sol.y.T
 
 
-def rk_init(t0, num_derivatives, ts, ys):
+def rk_init(f, df, y0, t0, num_derivatives, ts, ys):
 
     d = ys[0].shape[0]
     iwp = tornado.iwp.IntegratedWienerTransition(
@@ -123,6 +123,11 @@ def rk_init(t0, num_derivatives, ts, ys):
     # Correct
     m = m0 - kgain[:, None] @ (z - ys0)[None, :]
     sc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
+
+    fy = f(t0, y0)
+    dfy = df(t0, y0)
+    m = jnp.stack([y0, fy, dfy @ fy] + [jnp.zeros(d)] * (n - 3))
+    sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1.0] * (n - 3)))
 
     # Store
     filter_res = [(m, sc, None, None, None, None, None, None)]
@@ -156,8 +161,8 @@ def rk_init(t0, num_derivatives, ts, ys):
         kgain = cross / s
         z = (p_1d_raw[:, None] * m_pred)[0]
 
-        m_loc = m_pred - kgain[:, None] @ (z - y)[None, :]
-        sc_loc = sc_pred - kgain[:, None] @ h_sc_pred[None, :]
+        m_loc = m_pred - kgain[:, None] * (z - y)[None, :]
+        sc_loc = sc_pred - kgain[:, None] * h_sc_pred[None, :]
 
         # Undo preconditioning
         m = p_1d_raw[:, None] * m_loc
@@ -172,6 +177,7 @@ def rk_init(t0, num_derivatives, ts, ys):
     # Smoothing pass
     final_out = filter_res[-1]
     m_fut, sc_fut, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw = final_out
+
     for filter_output in reversed(filter_res[:-1]):
 
         # Push means and covariances into the preconditioned space
@@ -195,7 +201,7 @@ def rk_init(t0, num_derivatives, ts, ys):
         # Only for the result of the smoothing step.
         # The other means and covariances are not used anymore.
         m_fut, sc_fut = p_1d_raw[:, None] * m_fut__, p_1d_raw[:, None] * sc_fut__
-
+        print(p_1d_raw[:, None] * m_fut__)
         # Read out the new parameters
         # They are alreay preconditioned. m_fut, sc_fut are not,
         # but will be pushed into the correct coordinates in the next iteration.
