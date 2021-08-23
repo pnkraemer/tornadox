@@ -116,7 +116,8 @@ def rk_init(t0, num_derivatives, ts, ys):
     m_loc = m0 - kgain @ (z - ys[0])
     sc_loc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
     t_loc = t0
-    ms, scs = [m_loc], [sc_loc]
+
+    filter_res = [(m_loc, sc_loc, None, m0, sc0, None, None, None)]
 
     # System matrices
     phi_1d, sq_1d = iwp.preconditioned_discretize_1d
@@ -131,8 +132,10 @@ def rk_init(t0, num_derivatives, ts, ys):
 
         # Predict from t_loc to t
         m_pred = phi_1d @ m
-        sc_pred = tornado.sqrt.propagate_cholesky_factor(phi_1d @ sc, sq_1d)
-        # Todo: compute gains and shit
+        x = phi_1d @ sc
+        sc_pred = tornado.sqrt.propagate_cholesky_factor(x, sq_1d)
+        cross = (x @ sc.T).T
+        sgain = jax.scipy.linalg.cho_solve((sc_pred, True), cross.T).T
 
         # Measure and update
         ss = (p_inv_1d @ sc_pred @ sc_pred.T @ p_inv_1d.T)[0, 0]
@@ -145,9 +148,46 @@ def rk_init(t0, num_derivatives, ts, ys):
         m = p_inv_1d @ m_loc
         sc = p_inv_1d @ sc_loc
 
-        # Update local parameters
-        ms.append(m)
-        scs.append(sc)
+        # Store parameters:
+        # (m, sc) are in "normal" coordinates,
+        # the others are already preconditioned!
+        filter_res.append((m, sc, sgain, m_pred, sc_pred, x, p_1d, p_inv_1d))
         t_loc = t
 
-    return jnp.stack(ms), jnp.stack(scs)
+    # Smoothing pass
+    final_out = filter_res[-1]
+    m_fut, sc_fut, sgain_fut, m_pred, sc_pref, x, p_1d, p_inv_1d = final_out
+    ms, scs = [m_fut], [sc_fut]
+    for filter_output in reversed(filter_res[:-1]):
+
+        # Push means and covariances into the preconditioned space
+        m, sc = p_1d @ filter_output[0], p_1d @ filter_output[1]
+        m_fut, sc_fut = p_1d @ m_fut, p_1d @ sc_fut
+
+        # Make smoothing step
+        m_fut, sc_fut = tornado.kalman.smoother_step_sqrt(
+            m=m,
+            sc=sc,
+            m_fut=m_fut,
+            sc_fut=sc_fut,
+            sgain=sgain_fut,
+            sq=sq_1d,
+            mp=m_pred,
+            x=x,
+        )
+
+        # Pull means and covariances back into old coordinates
+        # Only for the result of the smoothing step.
+        # The other means and covariances are not used anymore.
+        m_fut, sc_fut = p_inv_1d @ m_fut, p_inv_1d @ sc_fut
+
+        # Store results
+        ms.append(m_fut)
+        scs.append(sc_fut)
+
+        # Read out the new parameters
+        # They are alreay preconditioned. m_fut, sc_fut are not,
+        # but will be pushed into the correct coordinates in the next iteration.
+        _, _, sgain_fut, m_pred, sc_pref, x, p_1d, p_inv_1d = filter_output
+
+    return jnp.stack(list(reversed(ms))), jnp.stack(list(reversed(scs)))
