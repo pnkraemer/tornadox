@@ -118,43 +118,48 @@ def test_taylor_expected_values(
 
 
 @pytest.fixture
-def t0(ivp):
-    return ivp.t0
+def ivp2():
+    return tornado.ivp.threebody()
 
 
 @pytest.fixture
-def y0(ivp):
-    return ivp.y0
+def t0(ivp2):
+    return ivp2.t0
 
 
 @pytest.fixture
-def f(ivp):
-    return ivp.f
+def y0(ivp2):
+    return ivp2.y0
 
 
 @pytest.fixture
-def df(ivp):
-    return ivp.df
+def f(ivp2):
+    return ivp2.f
 
 
 @pytest.fixture
-def d(ivp):
-    return ivp.dimension
+def df(ivp2):
+    return ivp2.df
+
+
+@pytest.fixture
+def d(ivp2):
+    return ivp2.dimension
 
 
 @pytest.fixture
 def dt():
-    return 0.001
-
-
-@pytest.fixture
-def num_steps():
-    return 11
+    return 0.01
 
 
 @pytest.fixture
 def num_derivatives():
-    return 3
+    return 5
+
+
+@pytest.fixture
+def num_steps(num_derivatives):
+    return 2 * num_derivatives + 1
 
 
 @pytest.fixture

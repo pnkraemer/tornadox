@@ -86,7 +86,7 @@ def rk_data(f, t0, dt, num_steps, y0, method, df=None):
     # Compute the data with atol=rtol=1e12 (we want fixed steps!)
     sol = scipy.integrate.solve_ivp(
         fun=f,
-        t_span=(t0, t0 + (num_steps - 1) * dt),
+        t_span=(min(t_eval), max(t_eval)),
         y0=y0,
         atol=1e12,
         rtol=1e12,
@@ -100,79 +100,91 @@ def rk_data(f, t0, dt, num_steps, y0, method, df=None):
 def rk_init(t0, num_derivatives, ts, ys):
 
     d = ys[0].shape[0]
-    assert d == 4
-    n = num_derivatives + 1
     iwp = tornado.iwp.IntegratedWienerTransition(
-        num_derivatives=num_derivatives, wiener_process_dimension=d
+        num_derivatives=num_derivatives, wiener_process_dimension=d // 2
     )
-    # Initial mean and cov
-    m0 = jnp.zeros((n, d))
-    sc0 = 1e4 * jnp.eye(n)
-
-    # Initial update: (no preconditioning, conditioning is fine here)
-    ss = (sc0 @ sc0.T)[0, 0]
-    kgain = (sc0 @ sc0.T)[:, 0] / (ss ** 2)
-    z = m0[0]
-    m_loc = m0 - kgain @ (z - ys[0])
-    sc_loc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
-    t_loc = t0
-
-    filter_res = [(m_loc, sc_loc, None, m0, sc0, None, None, None)]
 
     # System matrices
     phi_1d, sq_1d = iwp.preconditioned_discretize_1d
 
+    # Initial mean and cov
+    n = num_derivatives + 1
+    m0 = jnp.zeros((n, d))
+    sc0 = 1e2 * jnp.eye(n)
+
+    # Initial update: (no preconditioning, conditioning is fine here)
+    s = (sc0 @ sc0.T)[0, 0]
+    kgain = (sc0 @ sc0.T)[:, 0] / s
+
+    # Observe
+    z = m0[0]
+    ys0 = ys[0]
+
+    # Correct
+    m = m0 - kgain[:, None] @ (z - ys0)[None, :]
+    sc = sc0 - kgain[:, None] @ (sc0[0, :])[None, :]
+
+    # Store
+    filter_res = [(m, sc, None, None, None, None, None, None)]
+    t_loc = t0
+
     for t, y in zip(ts[1:], ys[1:]):
 
-        # Apply preconditioner (TODO: use raw preconditioner)
+        # Fetch preconditioner
         dt = t - t_loc
-        p_1d, p_inv_1d = iwp.nordsieck_preconditioner_1d(dt)
-        m = p_inv_1d @ m_loc
-        sc = p_inv_1d @ sc_loc
+        p_1d_raw, p_inv_1d_raw = iwp.nordsieck_preconditioner_1d_raw(dt)
+
+        # Apply preconditioner
+        m = p_inv_1d_raw[:, None] * m
+        sc = p_inv_1d_raw[:, None] * sc
 
         # Predict from t_loc to t
         m_pred = phi_1d @ m
         x = phi_1d @ sc
         sc_pred = tornado.sqrt.propagate_cholesky_factor(x, sq_1d)
+
+        # Compute the gainzz
         cross = (x @ sc.T).T
         sgain = jax.scipy.linalg.cho_solve((sc_pred, True), cross.T).T
 
-        # Measure and update
-        sc_pred_np = p_1d @ sc_pred
+        # Measure (H := "slicing" \circ "remove preconditioner")
+        sc_pred_np = p_1d_raw[:, None] * sc_pred
         h_sc_pred = sc_pred_np[0, :]
-        ss = (sc_pred_np @ sc_pred_np.T)[0, 0]
+        s = h_sc_pred @ h_sc_pred.T
         cross = sc_pred @ h_sc_pred.T
-        kgain = cross / ss
-        z = (p_1d @ m_pred)[0]
-        m_loc = m_pred - kgain @ (z - y)
+
+        kgain = cross / s
+        z = (p_1d_raw[:, None] * m_pred)[0]
+
+        m_loc = m_pred - kgain[:, None] @ (z - y)[None, :]
         sc_loc = sc_pred - kgain[:, None] @ h_sc_pred[None, :]
 
         # Undo preconditioning
-        m = p_1d @ m_loc
-        sc = p_1d @ sc_loc
+        m = p_1d_raw[:, None] * m_loc
+        sc = p_1d_raw[:, None] * sc_loc
 
         # Store parameters:
         # (m, sc) are in "normal" coordinates,
         # the others are already preconditioned!
-        filter_res.append((m, sc, sgain, m_pred, sc_pred, x, p_1d, p_inv_1d))
+        filter_res.append((m, sc, sgain, m_pred, sc_pred, x, p_1d_raw, p_inv_1d_raw))
         t_loc = t
 
     # Smoothing pass
     final_out = filter_res[-1]
-    m_fut, sc_fut, sgain_fut, m_pred, sc_pref, x, p_1d, p_inv_1d = final_out
+    m_fut, sc_fut, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw = final_out
     for filter_output in reversed(filter_res[:-1]):
 
         # Push means and covariances into the preconditioned space
-        m, sc = filter_output[0], filter_output[1]
-        m, sc = p_inv_1d @ m, p_inv_1d @ sc
-        m_fut, sc_fut = p_inv_1d @ m_fut, p_inv_1d @ sc_fut
+        m_, sc_ = filter_output[0], filter_output[1]
+        m, sc = p_inv_1d_raw[:, None] * m_, p_inv_1d_raw[:, None] * sc_
+        m_fut_, sc_fut_ = p_inv_1d_raw[:, None] * m_fut, p_inv_1d_raw[:, None] * sc_fut
 
         # Make smoothing step
-        m_fut, sc_fut = tornado.kalman.smoother_step_sqrt(
+        m_fut__, sc_fut__ = tornado.kalman.smoother_step_sqrt(
             m=m,
             sc=sc,
-            m_fut=m_fut,
-            sc_fut=sc_fut,
+            m_fut=m_fut_,
+            sc_fut=sc_fut_,
             sgain=sgain_fut,
             sq=sq_1d,
             mp=m_pred,
@@ -182,11 +194,11 @@ def rk_init(t0, num_derivatives, ts, ys):
         # Pull means and covariances back into old coordinates
         # Only for the result of the smoothing step.
         # The other means and covariances are not used anymore.
-        m_fut, sc_fut = p_1d @ m_fut, p_1d @ sc_fut
+        m_fut, sc_fut = p_1d_raw[:, None] * m_fut__, p_1d_raw[:, None] * sc_fut__
 
         # Read out the new parameters
         # They are alreay preconditioned. m_fut, sc_fut are not,
         # but will be pushed into the correct coordinates in the next iteration.
-        _, _, sgain_fut, m_pred, sc_pref, x, p_1d, p_inv_1d = filter_output
+        _, _, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw = filter_output
 
     return m_fut, sc_fut
