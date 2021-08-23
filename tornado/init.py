@@ -92,6 +92,8 @@ def rk_data(f, t0, dt, num_steps, y0, method):
     return sol.t, sol.y.T
 
 
+# Jitting this is possibly, but debatable -- it is not very fast due to the for-loop logic underneath.
+# I think for now we leave it to a "user" -> us :)
 def rk_init_improve(m, sc, t0, ts, ys):
     """Improve an initial mean estimate by fitting it to a number of RK steps."""
 
@@ -163,6 +165,7 @@ def rk_init_improve(m, sc, t0, ts, ys):
     return m_fut, sc_fut
 
 
+@jax.jit
 def _forward_filter_step(y, sc, m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d):
 
     # Apply preconditioner
@@ -197,6 +200,7 @@ def _forward_filter_step(y, sc, m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d):
     return m, sc, m_pred, sc_pred, sgain, x
 
 
+@partial(jax.jit, static_argnums=(0, 1, 4))
 def stack_initial_state_jac(f, df, y0, t0, num_derivatives):
     d = y0.shape[0]
     n = num_derivatives + 1
