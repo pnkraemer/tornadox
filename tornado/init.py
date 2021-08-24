@@ -8,72 +8,77 @@ from jax.experimental.jet import jet
 import tornado.iwp
 
 
-def taylor_mode(fun, y0, t0, num_derivatives):
-    """Initialize a probabilistic ODE solver with Taylor-mode automatic differentiation."""
+class TaylorMode:
+    @staticmethod
+    def taylor_mode(fun, y0, t0, num_derivatives):
+        """Initialize a probabilistic ODE solver with Taylor-mode automatic differentiation."""
 
-    extended_state = jnp.concatenate((jnp.ravel(y0), jnp.array([t0])))
-    evaluate_ode_for_extended_state = partial(
-        _evaluate_ode_for_extended_state, fun=fun, y0=y0
-    )
-
-    # Corner case 1: num_derivatives == 0
-    derivs = [y0]
-    if num_derivatives == 0:
-        return jnp.stack(derivs)
-
-    # Corner case 2: num_derivatives == 1
-    initial_series = (jnp.ones_like(extended_state),)
-    initial_taylor_coefficient, taylor_coefficients = augment_taylor_coefficients(
-        evaluate_ode_for_extended_state, extended_state, initial_series
-    )
-    derivs.append(initial_taylor_coefficient[:-1])
-    if num_derivatives == 1:
-        return jnp.stack(derivs)
-
-    # Order > 1
-    for _ in range(1, num_derivatives):
-        _, taylor_coefficients = augment_taylor_coefficients(
-            evaluate_ode_for_extended_state, extended_state, taylor_coefficients
+        extended_state = jnp.concatenate((jnp.ravel(y0), jnp.array([t0])))
+        evaluate_ode_for_extended_state = partial(
+            TaylorMode._evaluate_ode_for_extended_state, fun=fun, y0=y0
         )
-        derivs.append(taylor_coefficients[-2][:-1])
-    return jnp.stack(derivs)
 
+        # Corner case 1: num_derivatives == 0
+        derivs = [y0]
+        if num_derivatives == 0:
+            return jnp.stack(derivs)
 
-def augment_taylor_coefficients(fun, x, taylor_coefficients):
-    (init_coeff, [*remaining_taylor_coefficents]) = jet(
-        fun=fun,
-        primals=(x,),
-        series=(taylor_coefficients,),
-    )
-    taylor_coefficients = (
-        init_coeff,
-        *remaining_taylor_coefficents,
-    )
+        # Corner case 2: num_derivatives == 1
+        initial_series = (jnp.ones_like(extended_state),)
+        (
+            initial_taylor_coefficient,
+            taylor_coefficients,
+        ) = TaylorMode.augment_taylor_coefficients(
+            evaluate_ode_for_extended_state, extended_state, initial_series
+        )
+        derivs.append(initial_taylor_coefficient[:-1])
+        if num_derivatives == 1:
+            return jnp.stack(derivs)
 
-    return init_coeff, taylor_coefficients
+        # Order > 1
+        for _ in range(1, num_derivatives):
+            _, taylor_coefficients = TaylorMode.augment_taylor_coefficients(
+                evaluate_ode_for_extended_state, extended_state, taylor_coefficients
+            )
+            derivs.append(taylor_coefficients[-2][:-1])
+        return jnp.stack(derivs)
 
+    @staticmethod
+    def augment_taylor_coefficients(fun, x, taylor_coefficients):
+        (init_coeff, [*remaining_taylor_coefficents]) = jet(
+            fun=fun,
+            primals=(x,),
+            series=(taylor_coefficients,),
+        )
+        taylor_coefficients = (
+            init_coeff,
+            *remaining_taylor_coefficents,
+        )
 
-def _evaluate_ode_for_extended_state(extended_state, fun, y0):
-    r"""Evaluate the ODE for an extended state (x(t), t).
+        return init_coeff, taylor_coefficients
 
-    More precisely, compute the derivative of the stacked state (x(t), t) according to the ODE.
-    This function implements a rewriting of non-autonomous as autonomous ODEs.
-    This means that
+    @staticmethod
+    def _evaluate_ode_for_extended_state(extended_state, fun, y0):
+        r"""Evaluate the ODE for an extended state (x(t), t).
 
-    .. math:: \dot x(t) = f(t, x(t))
+        More precisely, compute the derivative of the stacked state (x(t), t) according to the ODE.
+        This function implements a rewriting of non-autonomous as autonomous ODEs.
+        This means that
 
-    becomes
+        .. math:: \dot x(t) = f(t, x(t))
 
-    .. math:: \dot z(t) = \dot (x(t), t) = (f(x(t), t), 1).
+        becomes
 
-    Only considering autonomous ODEs makes the jet-implementation
-    (and automatic differentiation in general) easier.
-    """
-    x, t = jnp.reshape(extended_state[:-1], y0.shape), extended_state[-1]
-    dx = fun(t, x)
-    dx_ravelled = jnp.ravel(dx)
-    stacked_ode_eval = jnp.concatenate((dx_ravelled, jnp.array([1.0])))
-    return stacked_ode_eval
+        .. math:: \dot z(t) = \dot (x(t), t) = (f(x(t), t), 1).
+
+        Only considering autonomous ODEs makes the jet-implementation
+        (and automatic differentiation in general) easier.
+        """
+        x, t = jnp.reshape(extended_state[:-1], y0.shape), extended_state[-1]
+        dx = fun(t, x)
+        dx_ravelled = jnp.ravel(dx)
+        stacked_ode_eval = jnp.concatenate((dx_ravelled, jnp.array([1.0])))
+        return stacked_ode_eval
 
 
 # RK initialisation

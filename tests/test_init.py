@@ -82,7 +82,7 @@ def ivp():
 
 @pytest.fixture
 def nordsieck_y0(ivp, num_derivatives):
-    return tornado.init.taylor_mode(
+    return tornado.init.TaylorMode.taylor_mode(
         fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=num_derivatives
     )
 
@@ -231,7 +231,7 @@ def test_rk_init_shapes(rk_init_improved, n, d):
 
 @pytest.fixture
 def ref_init(f, y0, t0, num_derivatives):
-    return tornado.init.taylor_mode(
+    return tornado.init.TaylorMode.taylor_mode(
         fun=f, y0=y0, t0=t0, num_derivatives=num_derivatives
     )
 
