@@ -9,6 +9,14 @@ import tornado.iwp
 
 
 class TaylorMode:
+
+    # Adapter to make it work with ODEFilters
+    def __call__(self, f, df, y0, t0, num_derivatives):
+        m0 = TaylorMode.taylor_mode(
+            fun=f, y0=y0, t0=t0, num_derivatives=num_derivatives
+        )
+        return m0, jnp.zeros((num_derivatives + 1, num_derivatives + 1))
+
     @staticmethod
     def taylor_mode(fun, y0, t0, num_derivatives):
         """Initialize a probabilistic ODE solver with Taylor-mode automatic differentiation."""
@@ -85,6 +93,20 @@ class TaylorMode:
 
 
 class RungeKutta:
+    def __init__(self, dt=0.01, method="RK45"):
+        self.dt = dt
+        self.method = method
+
+    def __call__(self, f, df, y0, t0, num_derivatives):
+        num_steps = num_derivatives + 1
+        ts, ys = self.rk_data(
+            f=f, t0=t0, dt=self.dt, num_steps=num_steps, y0=y0, method=self.method
+        )
+        m, sc = stack_initial_state_jac(
+            f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+        )
+        return RungeKutta.rk_init_improve(m=m, sc=sc, t0=t0, ts=ts, ys=ys)
+
     @staticmethod
     def rk_data(f, t0, dt, num_steps, y0, method):
 
