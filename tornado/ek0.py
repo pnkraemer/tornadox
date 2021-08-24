@@ -10,12 +10,17 @@ class ReferenceEK0(odesolver.ODEFilter):
         self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
 
-        extended_dy0 = self.tm(
-            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
+        extended_dy0, cov_sqrtm = self.init(
+            f=ivp.f,
+            df=ivp.df,
+            y0=ivp.y0,
+            t0=ivp.t0,
+            num_derivatives=self.iwp.num_derivatives,
         )
         mean = extended_dy0.reshape((-1,), order="F")
-        cov_sqrtm = jnp.zeros((mean.shape[0], mean.shape[0]))
-        y = rv.MultivariateNormal(mean=mean, cov_sqrtm=cov_sqrtm)
+        y = rv.MultivariateNormal(
+            mean=mean, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
+        )
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
@@ -64,8 +69,12 @@ class KroneckerEK0(odesolver.ODEFilter):
 
         self.A, self.Ql = self.iwp.preconditioned_discretize_1d
 
-        extended_dy0 = self.tm(
-            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
+        extended_dy0, cov_sqrtm = self.init(
+            f=ivp.f,
+            df=ivp.df,
+            y0=ivp.y0,
+            t0=ivp.t0,
+            num_derivatives=self.iwp.num_derivatives,
         )
         mean = extended_dy0
         n, d = self.iwp.num_derivatives + 1, self.iwp.wiener_process_dimension
@@ -74,9 +83,7 @@ class KroneckerEK0(odesolver.ODEFilter):
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
 
-        y = rv.MatrixNormal(
-            mean=mean, cov_sqrtm_1=jnp.eye(d), cov_sqrtm_2=jnp.zeros((n, n))
-        )
+        y = rv.MatrixNormal(mean=mean, cov_sqrtm_1=jnp.eye(d), cov_sqrtm_2=cov_sqrtm)
 
         return odesolver.ODEFilterState(
             ivp=ivp,
