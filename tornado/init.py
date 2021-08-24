@@ -23,10 +23,8 @@ def taylor_mode(fun, y0, t0, num_derivatives):
 
     # Corner case 2: num_derivatives == 1
     initial_series = (jnp.ones_like(extended_state),)
-    (initial_taylor_coefficient, [*remaining_taylor_coefficents]) = jet(
-        fun=evaluate_ode_for_extended_state,
-        primals=(extended_state,),
-        series=(initial_series,),
+    initial_taylor_coefficient, taylor_coefficients = augment_taylor_coefficients(
+        evaluate_ode_for_extended_state, extended_state, initial_series
     )
     derivs.append(initial_taylor_coefficient[:-1])
     if num_derivatives == 1:
@@ -34,20 +32,27 @@ def taylor_mode(fun, y0, t0, num_derivatives):
 
     # Order > 1
     for _ in range(1, num_derivatives):
-        taylor_coefficients = (
-            initial_taylor_coefficient,
-            *remaining_taylor_coefficents,
+        _, taylor_coefficients = augment_taylor_coefficients(
+            evaluate_ode_for_extended_state, extended_state, taylor_coefficients
         )
-        (_, [*remaining_taylor_coefficents]) = jet(
-            fun=evaluate_ode_for_extended_state,
-            primals=(extended_state,),
-            series=(taylor_coefficients,),
-        )
-        derivs.append(remaining_taylor_coefficents[-2][:-1])
+        derivs.append(taylor_coefficients[-2][:-1])
     return jnp.stack(derivs)
 
 
-# @partial(jax.jit, static_argnums=(1,))
+def augment_taylor_coefficients(fun, x, taylor_coefficients):
+    (init_coeff, [*remaining_taylor_coefficents]) = jet(
+        fun=fun,
+        primals=(x,),
+        series=(taylor_coefficients,),
+    )
+    taylor_coefficients = (
+        init_coeff,
+        *remaining_taylor_coefficents,
+    )
+
+    return init_coeff, taylor_coefficients
+
+
 def _evaluate_ode_for_extended_state(extended_state, fun, y0):
     r"""Evaluate the ODE for an extended state (x(t), t).
 
