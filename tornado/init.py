@@ -84,7 +84,7 @@ class TaylorMode:
 # RK initialisation
 
 
-class RungeKuttaInitialization:
+class RungeKutta:
     @staticmethod
     def rk_data(f, t0, dt, num_steps, y0, method):
 
@@ -132,14 +132,7 @@ class RungeKuttaInitialization:
 
             # Make the next step but return ALL the intermediate quantities
             # (they are needed for efficient smoothing)
-            (
-                m,
-                sc,
-                m_pred,
-                sc_pred,
-                sgain,
-                x,
-            ) = RungeKuttaInitialization._forward_filter_step(
+            (m, sc, m_pred, sc_pred, sgain, x,) = RungeKutta._forward_filter_step(
                 y, sc, m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d
             )
 

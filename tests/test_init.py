@@ -172,7 +172,7 @@ all_rk_methods = pytest.mark.parametrize("method", ["DOP853"])
 
 @pytest.fixture
 def rk_data(f, y0, t0, dt, num_steps, method):
-    return tornado.init.RungeKuttaInitialization.rk_data(
+    return tornado.init.RungeKutta.rk_data(
         f=f, t0=t0, dt=dt, num_steps=num_steps, y0=y0, method=method
     )
 
@@ -202,7 +202,7 @@ def init_stack(f, df, y0, t0, num_derivatives):
 def rk_init_improved(init_stack, t0, rk_data):
     m, sc = init_stack
     ts, ys = rk_data
-    return tornado.init.RungeKuttaInitialization.rk_init_improve(
+    return tornado.init.RungeKutta.rk_init_improve(
         m=m,
         sc=sc,
         t0=t0,
