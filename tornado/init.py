@@ -1,3 +1,4 @@
+import abc
 from functools import partial
 
 import jax
@@ -8,7 +9,13 @@ from jax.experimental.jet import jet
 import tornado.iwp
 
 
-class TaylorMode:
+class InitializationRoutine(abc.ABC):
+    @abc.abstractmethod
+    def __call__(self, f, df, y0, t0, num_derivatives):
+        raise NotImplementedError
+
+
+class TaylorMode(InitializationRoutine):
 
     # Adapter to make it work with ODEFilters
     def __call__(self, f, df, y0, t0, num_derivatives):
@@ -92,17 +99,18 @@ class TaylorMode:
 # RK initialisation
 
 
-class RungeKutta:
-    def __init__(self, dt=0.01, method="RK45"):
+class RungeKutta(InitializationRoutine):
+    def __init__(self, dt=0.01, method="RK45", use_df=True):
         self.dt = dt
         self.method = method
+        self.stack_initvals = Stack(use_df=use_df)
 
     def __call__(self, f, df, y0, t0, num_derivatives):
         num_steps = num_derivatives + 1
         ts, ys = self.rk_data(
             f=f, t0=t0, dt=self.dt, num_steps=num_steps, y0=y0, method=self.method
         )
-        m, sc = stack_initial_state_jac(
+        m, sc = self.stack_initvals(
             f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
         return RungeKutta.rk_init_improve(m=m, sc=sc, t0=t0, ts=ts, ys=ys)
@@ -239,13 +247,38 @@ class RungeKutta:
         return m, sc, m_pred, sc_pred, sgain, x
 
 
-@partial(jax.jit, static_argnums=(0, 1, 4))
-def stack_initial_state_jac(f, df, y0, t0, num_derivatives):
-    d = y0.shape[0]
-    n = num_derivatives + 1
+class Stack(InitializationRoutine):
+    def __init__(self, use_df=True):
+        self.use_df = use_df
 
-    fy = f(t0, y0)
-    dfy = df(t0, y0)
-    m = jnp.stack([y0, fy, dfy @ fy] + [jnp.zeros(d)] * (n - 3))
-    sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1e3] * (n - 3)))
-    return m, sc
+    def __call__(self, f, df, y0, t0, num_derivatives):
+        if self.use_df:
+            return Stack.initial_state_jac(
+                f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+            )
+        return Stack.initial_state_no_jac(
+            f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
+        )
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(0, 1, 4))
+    def initial_state_jac(f, df, y0, t0, num_derivatives):
+        d = y0.shape[0]
+        n = num_derivatives + 1
+
+        fy = f(t0, y0)
+        dfy = df(t0, y0)
+        m = jnp.stack([y0, fy, dfy @ fy] + [jnp.zeros(d)] * (n - 3))
+        sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1e3] * (n - 3)))
+        return m, sc
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(0, 3))
+    def initial_state_no_jac(f, y0, t0, num_derivatives):
+        d = y0.shape[0]
+        n = num_derivatives + 1
+
+        fy = f(t0, y0)
+        m = jnp.stack([y0, fy] + [jnp.zeros(d)] * (n - 2))
+        sc = jnp.diag(jnp.array([0.0, 0.0] + [1e3] * (n - 2)))
+        return m, sc
