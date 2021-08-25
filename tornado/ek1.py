@@ -21,12 +21,15 @@ class ReferenceEK1(odesolver.ODEFilter):
         self.P1 = self.iwp.projection_matrix(1)
 
     def initialize(self, ivp):
-        extended_dy0 = self.tm(
-            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
+        extended_dy0, cov_sqrtm = self.init(
+            f=ivp.f,
+            df=ivp.df,
+            y0=ivp.y0,
+            t0=ivp.t0,
+            num_derivatives=self.iwp.num_derivatives,
         )
         mean = extended_dy0.reshape((-1,), order="F")
-        cov_sqrtm = jnp.zeros((mean.shape[0], mean.shape[0]))
-        y = rv.MultivariateNormal(mean, cov_sqrtm)
+        y = rv.MultivariateNormal(mean, jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm))
         return odesolver.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
@@ -138,11 +141,15 @@ class BatchedEK1(odesolver.ODEFilter):
         self.batched_sq = jnp.stack([self.sq_1d] * d)
 
     def initialize(self, ivp):
-        extended_dy0 = self.tm(
-            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
+        extended_dy0, cov_sqrtm = self.init(
+            f=ivp.f,
+            df=ivp.df,
+            y0=ivp.y0,
+            t0=ivp.t0,
+            num_derivatives=self.iwp.num_derivatives,
         )
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
-        cov_sqrtm = jnp.zeros((d, n, n))
+        cov_sqrtm = jnp.stack([cov_sqrtm] * d)
         new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
@@ -429,11 +436,15 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
         self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d] * d))
 
     def initialize(self, ivp):
-        extended_dy0 = self.tm(
-            fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=self.iwp.num_derivatives
+        extended_dy0, cov_sqrtm = self.init(
+            f=ivp.f,
+            df=ivp.df,
+            y0=ivp.y0,
+            t0=ivp.t0,
+            num_derivatives=self.iwp.num_derivatives,
         )
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
-        cov_sqrtm = jnp.zeros((d, n, n))
+        cov_sqrtm = jnp.stack([cov_sqrtm] * d)
         new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odesolver.ODEFilterState(
             ivp=ivp,
