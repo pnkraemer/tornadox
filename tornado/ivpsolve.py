@@ -78,8 +78,7 @@ def solve(
             raise ValueError(
                 "Please provide absolute and relative tolerance for adaptive steps."
             )
-        first_dt = dt if dt is not None else step.propose_first_dt(ivp)
-        steprule = step.AdaptiveSteps(first_dt=first_dt, abstol=abstol, reltol=reltol)
+        steprule = step.AdaptiveSteps(abstol=abstol, reltol=reltol)
     else:
         steprule = step.ConstantSteps(dt)
 

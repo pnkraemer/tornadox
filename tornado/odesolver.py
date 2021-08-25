@@ -45,7 +45,7 @@ class ODEFilter(ABC):
         state = self.initialize(ivp)
         yield state
 
-        dt = self.steprule.first_dt
+        dt = self.steprule.first_dt(ivp)
 
         # Use state.ivp in case a callback modifies the IVP
         while state.t < state.ivp.tmax:
