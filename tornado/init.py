@@ -1,3 +1,4 @@
+import abc
 from functools import partial
 
 import jax
@@ -8,7 +9,13 @@ from jax.experimental.jet import jet
 import tornado.iwp
 
 
-class Stack:
+class InitializationRoutine(abc.ABC):
+    @abc.abstractmethod
+    def __call__(self, f, df, y0, t0, num_derivatives):
+        raise NotImplementedError
+
+
+class Stack(InitializationRoutine):
     def __call__(self, f, df, y0, t0, num_derivatives):
         m, sc = stack_initial_state_jac(
             f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
@@ -16,7 +23,7 @@ class Stack:
         return m, sc
 
 
-class TaylorMode:
+class TaylorMode(InitializationRoutine):
 
     # Adapter to make it work with ODEFilters
     def __call__(self, f, df, y0, t0, num_derivatives):
@@ -100,7 +107,7 @@ class TaylorMode:
 # RK initialisation
 
 
-class RungeKutta:
+class RungeKutta(InitializationRoutine):
     def __init__(self, dt=0.01, method="RK45"):
         self.dt = dt
         self.method = method

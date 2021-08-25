@@ -85,9 +85,15 @@ ALL_ROUTINES = [
     tornado.init.TaylorMode(),
     tornado.init.Stack(),
 ]
+all_init_routines = pytest.mark.parametrize("routine", ALL_ROUTINES)
 
 
-@pytest.mark.parametrize("routine", ALL_ROUTINES)
+@all_init_routines
+def test_init_routine_type(routine):
+    assert isinstance(routine, tornado.init.InitializationRoutine)
+
+
+@all_init_routines
 def test_init_routine(routine, ivp):
     num_derivatives = 3
     m0, sc0 = routine(
