@@ -10,7 +10,7 @@ import jax.scipy.linalg
 from tornado import init, ivp, iwp, linops, odesolver, rv
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=False)
 class StateEnsemble:
     ivp: ivp.InitialValueProblem
     t: float
@@ -173,10 +173,11 @@ class EnK0(odesolver.ODEFilter):
         # via Eq. (11) in https://www.math.umd.edu/~slud/RITF17/enkf-tutorial.pdf
         sample_cov = pred_samples.sample_cov
         CHT = sample_cov @ H.T
-        to_invert = H @ CHT + _R
+        to_invert = H @ CHT  # + _R
         gain_times_z = CHT @ jnp.linalg.solve(to_invert, z.samples)
 
         # Update
         updated_samples = pred_samples - gain_times_z
+        updated_samples.t = updated_samples.t + dt
 
         return updated_samples
