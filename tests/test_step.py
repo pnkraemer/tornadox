@@ -42,20 +42,28 @@ def steprule(abstol, reltol):
     return steprule
 
 
-def test_adaptive_steps(steprule, abstol, reltol):
+def test_adaptive_step_type(steprule):
     assert isinstance(steprule, tornado.step.AdaptiveSteps)
 
-    # < 1 accepted, > 1 rejected
+
+def test_accept_less_than_1(steprule):
     assert steprule.is_accepted(scaled_error_estimate=0.99)
+
+
+def test_reject_more_than_1(steprule):
     assert not steprule.is_accepted(scaled_error_estimate=1.01)
 
-    # Accepting a step makes the next one larger
+
+def test_accepting_makes_next_step_larger(steprule):
     assert (
         steprule.suggest(
             previous_dt=0.3, scaled_error_estimate=0.5, local_convergence_rate=2
         )
         > 0.3
     )
+
+
+def test_rejecting_makes_next_step_smaller(steprule):
     assert (
         steprule.suggest(
             previous_dt=0.3, scaled_error_estimate=2.0, local_convergence_rate=2
@@ -63,6 +71,8 @@ def test_adaptive_steps(steprule, abstol, reltol):
         < 0.3
     )
 
+
+def test_adaptive_steps(steprule, abstol, reltol):
     # Error estimation to scaled norm 1d
     unscaled_error_estimate = jnp.array([0.5])
     reference_state = jnp.array([2.0])
