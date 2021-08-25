@@ -72,8 +72,7 @@ def test_rejecting_makes_next_step_smaller(steprule):
     )
 
 
-def test_adaptive_steps(steprule, abstol, reltol):
-    # Error estimation to scaled norm 1d
+def test_scale_error_estimate_1d(steprule, abstol, reltol):
     unscaled_error_estimate = jnp.array([0.5])
     reference_state = jnp.array([2.0])
     E = steprule.scale_error_estimate(
@@ -82,7 +81,8 @@ def test_adaptive_steps(steprule, abstol, reltol):
     scaled_error = unscaled_error_estimate / (abstol + reltol * reference_state)
     assert jnp.allclose(E, scaled_error)
 
-    # Error estimation to scaled norm 2d
+
+def test_scale_error_estimate_2d(steprule, abstol, reltol):
     unscaled_error_estimate = jnp.array([0.5, 0.6])
     reference_state = jnp.array([2.0, 3.0])
     E = steprule.scale_error_estimate(
@@ -93,6 +93,10 @@ def test_adaptive_steps(steprule, abstol, reltol):
     ) / jnp.sqrt(2)
     assert jnp.allclose(E, scaled_error)
 
+
+def test_adaptive_steps(steprule, abstol, reltol):
+
+    # Error estimation to scaled norm 2d
     # min_step exception
     steprule.min_step = 0.1
     with pytest.raises(ValueError):
