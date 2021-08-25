@@ -14,6 +14,11 @@ def test_propose_first_dt():
     assert dt > 0
 
 
+@pytest.fixture
+def ivp():
+    return tornado.ivp.vanderpol()
+
+
 class TestConstantSteps:
     @staticmethod
     @pytest.fixture
@@ -40,6 +45,11 @@ class TestConstantSteps:
 
         # "None" does not matter here, these quantities are not used.
         assert steprule.scale_error_estimate(None, None) is None
+
+    @staticmethod
+    def test_first_dt_is_dt(steprule, ivp, dt):
+        first_dt = steprule.first_dt(ivp=ivp)
+        assert first_dt == dt
 
 
 class TestAdaptiveSteps:
@@ -132,11 +142,6 @@ class TestAdaptiveSteps:
                 scaled_error_estimate=1 / 1_000_000_000,
                 local_convergence_rate=1,
             )
-
-    @staticmethod
-    @pytest.fixture
-    def ivp():
-        return tornado.ivp.vanderpol()
 
     @staticmethod
     def test_first_dt(steprule, ivp):
