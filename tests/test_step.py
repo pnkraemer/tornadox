@@ -56,9 +56,7 @@ class TestAdaptiveSteps:
     @staticmethod
     @pytest.fixture
     def steprule(abstol, reltol):
-        steprule = tornado.step.AdaptiveSteps(
-            first_dt=0.1, abstol=abstol, reltol=reltol
-        )
+        steprule = tornado.step.AdaptiveSteps(abstol=abstol, reltol=reltol)
         return steprule
 
     @staticmethod
@@ -134,3 +132,13 @@ class TestAdaptiveSteps:
                 scaled_error_estimate=1 / 1_000_000_000,
                 local_convergence_rate=1,
             )
+
+    @staticmethod
+    @pytest.fixture
+    def ivp():
+        return tornado.ivp.vanderpol()
+
+    @staticmethod
+    def test_first_dt(steprule, ivp):
+        dt = steprule.first_dt(ivp)
+        assert dt > 0.0
