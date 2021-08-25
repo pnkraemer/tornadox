@@ -247,11 +247,17 @@ class RungeKutta(InitializationRoutine):
 
 
 class Stack(InitializationRoutine):
+    def __init__(self, df=True):
+        self.df = df
+
     def __call__(self, f, df, y0, t0, num_derivatives):
-        m, sc = Stack.initial_state_jac(
-            f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+        if self.df:
+            return Stack.initial_state_jac(
+                f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+            )
+        return Stack.initial_state_no_jac(
+            f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
-        return m, sc
 
     @staticmethod
     @partial(jax.jit, static_argnums=(0, 1, 4))

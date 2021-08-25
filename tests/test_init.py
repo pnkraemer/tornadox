@@ -16,6 +16,7 @@ class TestInitializationInterface:
         tornado.init.RungeKutta(),
         tornado.init.TaylorMode(),
         tornado.init.Stack(),
+        tornado.init.Stack(df=False),
     ]
     all_init_routines = pytest.mark.parametrize("routine", ALL_ROUTINES)
 
