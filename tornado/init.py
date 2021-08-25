@@ -264,3 +264,14 @@ def stack_initial_state_jac(f, df, y0, t0, num_derivatives):
     m = jnp.stack([y0, fy, dfy @ fy] + [jnp.zeros(d)] * (n - 3))
     sc = jnp.diag(jnp.array([0.0, 0.0, 0.0] + [1e3] * (n - 3)))
     return m, sc
+
+
+@partial(jax.jit, static_argnums=(0, 3))
+def stack_initial_state_no_jac(f, y0, t0, num_derivatives):
+    d = y0.shape[0]
+    n = num_derivatives + 1
+
+    fy = f(t0, y0)
+    m = jnp.stack([y0, fy] + [jnp.zeros(d)] * (n - 2))
+    sc = jnp.diag(jnp.array([0.0, 0.0] + [1e3] * (n - 2)))
+    return m, sc
