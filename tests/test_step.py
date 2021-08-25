@@ -94,10 +94,7 @@ def test_scale_error_estimate_2d(steprule, abstol, reltol):
     assert jnp.allclose(E, scaled_error)
 
 
-def test_adaptive_steps(steprule, abstol, reltol):
-
-    # Error estimation to scaled norm 2d
-    # min_step exception
+def test_min_step_exception(steprule):
     steprule.min_step = 0.1
     with pytest.raises(ValueError):
         steprule.suggest(
@@ -106,7 +103,8 @@ def test_adaptive_steps(steprule, abstol, reltol):
             local_convergence_rate=1,
         )
 
-    # max_step exception
+
+def test_max_step_exception(steprule):
     steprule.max_step = 10.0
     with pytest.raises(ValueError):
         steprule.suggest(
@@ -114,7 +112,3 @@ def test_adaptive_steps(steprule, abstol, reltol):
             scaled_error_estimate=1 / 1_000_000_000,
             local_convergence_rate=1,
         )
-
-    #
-    # first_dt = steprule.first_dt(ivp, local_convergence_rate)
-    # assert first_dt > 0
