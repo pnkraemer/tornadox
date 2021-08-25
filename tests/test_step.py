@@ -26,89 +26,98 @@ def test_constant_steps():
     assert jnp.isnan(steprule.scale_error_estimate(None, None))
 
 
-@pytest.fixture
-def abstol():
-    return 0.1
+# Tests for adaptive steps
 
 
-@pytest.fixture
-def reltol():
-    return 0.01
+class TestAdaptiveSteps:
+    @staticmethod
+    @pytest.fixture
+    def abstol():
+        return 0.1
 
+    @staticmethod
+    @pytest.fixture
+    def reltol():
+        return 0.01
 
-@pytest.fixture
-def steprule(abstol, reltol):
-    steprule = tornado.step.AdaptiveSteps(first_dt=0.1, abstol=abstol, reltol=reltol)
-    return steprule
-
-
-def test_adaptive_step_type(steprule):
-    assert isinstance(steprule, tornado.step.AdaptiveSteps)
-
-
-def test_accept_less_than_1(steprule):
-    assert steprule.is_accepted(scaled_error_estimate=0.99)
-
-
-def test_reject_more_than_1(steprule):
-    assert not steprule.is_accepted(scaled_error_estimate=1.01)
-
-
-def test_accepting_makes_next_step_larger(steprule):
-    assert (
-        steprule.suggest(
-            previous_dt=0.3, scaled_error_estimate=0.5, local_convergence_rate=2
+    @staticmethod
+    @pytest.fixture
+    def steprule(abstol, reltol):
+        steprule = tornado.step.AdaptiveSteps(
+            first_dt=0.1, abstol=abstol, reltol=reltol
         )
-        > 0.3
-    )
+        return steprule
 
+    @staticmethod
+    def test_type(steprule):
+        assert isinstance(steprule, tornado.step.AdaptiveSteps)
 
-def test_rejecting_makes_next_step_smaller(steprule):
-    assert (
-        steprule.suggest(
-            previous_dt=0.3, scaled_error_estimate=2.0, local_convergence_rate=2
-        )
-        < 0.3
-    )
+    @staticmethod
+    def test_accept_less_than_1(steprule):
+        assert steprule.is_accepted(scaled_error_estimate=0.99)
 
+    @staticmethod
+    def test_reject_more_than_1(steprule):
+        assert not steprule.is_accepted(scaled_error_estimate=1.01)
 
-def test_scale_error_estimate_1d(steprule, abstol, reltol):
-    unscaled_error_estimate = jnp.array([0.5])
-    reference_state = jnp.array([2.0])
-    E = steprule.scale_error_estimate(
-        unscaled_error_estimate=unscaled_error_estimate, reference_state=reference_state
-    )
-    scaled_error = unscaled_error_estimate / (abstol + reltol * reference_state)
-    assert jnp.allclose(E, scaled_error)
-
-
-def test_scale_error_estimate_2d(steprule, abstol, reltol):
-    unscaled_error_estimate = jnp.array([0.5, 0.6])
-    reference_state = jnp.array([2.0, 3.0])
-    E = steprule.scale_error_estimate(
-        unscaled_error_estimate=unscaled_error_estimate, reference_state=reference_state
-    )
-    scaled_error = jnp.linalg.norm(
-        unscaled_error_estimate / (abstol + reltol * reference_state)
-    ) / jnp.sqrt(2)
-    assert jnp.allclose(E, scaled_error)
-
-
-def test_min_step_exception(steprule):
-    steprule.min_step = 0.1
-    with pytest.raises(ValueError):
-        steprule.suggest(
-            previous_dt=1e-1,
-            scaled_error_estimate=1_000_000_000,
-            local_convergence_rate=1,
+    @staticmethod
+    def test_accepting_makes_next_step_larger(steprule):
+        assert (
+            steprule.suggest(
+                previous_dt=0.3, scaled_error_estimate=0.5, local_convergence_rate=2
+            )
+            > 0.3
         )
 
-
-def test_max_step_exception(steprule):
-    steprule.max_step = 10.0
-    with pytest.raises(ValueError):
-        steprule.suggest(
-            previous_dt=9.0,
-            scaled_error_estimate=1 / 1_000_000_000,
-            local_convergence_rate=1,
+    @staticmethod
+    def test_rejecting_makes_next_step_smaller(steprule):
+        assert (
+            steprule.suggest(
+                previous_dt=0.3, scaled_error_estimate=2.0, local_convergence_rate=2
+            )
+            < 0.3
         )
+
+    @staticmethod
+    def test_scale_error_estimate_1d(steprule, abstol, reltol):
+        unscaled_error_estimate = jnp.array([0.5])
+        reference_state = jnp.array([2.0])
+        E = steprule.scale_error_estimate(
+            unscaled_error_estimate=unscaled_error_estimate,
+            reference_state=reference_state,
+        )
+        scaled_error = unscaled_error_estimate / (abstol + reltol * reference_state)
+        assert jnp.allclose(E, scaled_error)
+
+    @staticmethod
+    def test_scale_error_estimate_2d(steprule, abstol, reltol):
+        unscaled_error_estimate = jnp.array([0.5, 0.6])
+        reference_state = jnp.array([2.0, 3.0])
+        E = steprule.scale_error_estimate(
+            unscaled_error_estimate=unscaled_error_estimate,
+            reference_state=reference_state,
+        )
+        scaled_error = jnp.linalg.norm(
+            unscaled_error_estimate / (abstol + reltol * reference_state)
+        ) / jnp.sqrt(2)
+        assert jnp.allclose(E, scaled_error)
+
+    @staticmethod
+    def test_min_step_exception(steprule):
+        steprule.min_step = 0.1
+        with pytest.raises(ValueError):
+            steprule.suggest(
+                previous_dt=1e-1,
+                scaled_error_estimate=1_000_000_000,
+                local_convergence_rate=1,
+            )
+
+    @staticmethod
+    def test_max_step_exception(steprule):
+        steprule.max_step = 10.0
+        with pytest.raises(ValueError):
+            steprule.suggest(
+                previous_dt=9.0,
+                scaled_error_estimate=1 / 1_000_000_000,
+                local_convergence_rate=1,
+            )
