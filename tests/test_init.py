@@ -14,6 +14,7 @@ class TestInitializationInterface:
 
     ALL_ROUTINES = [
         tornado.init.RungeKutta(),
+        tornado.init.RungeKutta(use_df=False),
         tornado.init.TaylorMode(),
         tornado.init.Stack(),
         tornado.init.Stack(use_df=False),

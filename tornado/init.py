@@ -100,18 +100,17 @@ class TaylorMode(InitializationRoutine):
 
 
 class RungeKutta(InitializationRoutine):
-    def __init__(self, dt=0.01, method="RK45"):
+    def __init__(self, dt=0.01, method="RK45", use_df=True):
         self.dt = dt
         self.method = method
+        self.stack = Stack(use_df=use_df)
 
     def __call__(self, f, df, y0, t0, num_derivatives):
         num_steps = num_derivatives + 1
         ts, ys = self.rk_data(
             f=f, t0=t0, dt=self.dt, num_steps=num_steps, y0=y0, method=self.method
         )
-        m, sc = Stack.initial_state_jac(
-            f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
-        )
+        m, sc = self.stack(f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives)
         return RungeKutta.rk_init_improve(m=m, sc=sc, t0=t0, ts=ts, ys=ys)
 
     @staticmethod
