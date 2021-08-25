@@ -129,16 +129,18 @@ class EnK0(odesolver.ODEFilter):
             t0=ivp.t0,
             num_derivatives=self.iwp.num_derivatives,
         )
-        mean = extended_dy0.reshape((-1,), order="F")
-        cov = jnp.kron(
-            jnp.eye(ivp.dimension),
-            cov_sqrtm @ cov_sqrtm.T + 1e-7 * jnp.eye(cov_sqrtm.shape[0]),
-        )
+        mean = extended_dy0.reshape((-1, 1), order="F")
 
-        sampled_states = jax.random.multivariate_normal(
-            jax.random.PRNGKey(0), mean=mean, cov=cov, shape=(self.ensemble_size,)
-        ).T  # shape = [d * (nu + 1), N]
-        return StateEnsemble(ivp=ivp, t=ivp.t0, samples=sampled_states)
+        init_states = jnp.repeat(
+            mean, self.ensemble_size, axis=1
+        )  #  shape = [d * (nu + 1), N]
+        assert init_states.shape == (
+            ivp.dimension * (self.num_derivatives + 1),
+            self.ensemble_size,
+        )
+        assert jnp.allclose(init_states[:, 0], mean.squeeze())
+        assert jnp.allclose(init_states[:, -1], mean.squeeze())
+        return StateEnsemble(ivp=ivp, t=ivp.t0, samples=init_states)
 
     def attempt_step(self, ensemble, dt, verbose=False):
         # [Setup]
@@ -153,19 +155,8 @@ class EnK0(odesolver.ODEFilter):
         ).T
         pred_samples = A @ ensemble + w
 
-        # Simulated observations
-        _R = 1e-7 * jnp.eye(ensemble.ivp.dimension)
-        v = jax.random.multivariate_normal(
-            jax.random.PRNGKey(2),
-            mean=jnp.zeros((ensemble.ivp.dimension,)),
-            cov=_R,
-            shape=(ensemble.ensemble_size,),
-        ).T
-
-        z = (
-            self.E1 @ pred_samples
-            - ensemble.ivp.f(ensemble.t + dt, self.E0 @ pred_samples)
-            - v
+        z = self.E1 @ pred_samples - ensemble.ivp.f(
+            ensemble.t + dt, self.E0 @ pred_samples
         )
         H = self.E1
 
