@@ -43,8 +43,8 @@ class ConstantSteps(StepRule):
         return True
 
     def scale_error_estimate(self, unscaled_error_estimate, reference_state):
-        # Return NaN to make sure this quantity is not used further below
-        return jnp.nan
+        # Return None to make sure this quantity is not used further below
+        return None
 
 
 class AdaptiveSteps(StepRule):

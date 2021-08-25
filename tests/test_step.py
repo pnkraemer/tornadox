@@ -14,16 +14,30 @@ def test_propose_first_dt():
     assert dt > 0
 
 
-def test_constant_steps():
-    dt = 0.1
-    steprule = tornado.step.ConstantSteps(dt)
+@pytest.fixture
+def dt():
+    return 0.1
 
+
+@pytest.fixture
+def steprule(dt):
+    steprule = tornado.step.ConstantSteps(dt)
+    return steprule
+
+
+def test_propose_is_dt(steprule, dt):
     proposed = steprule.suggest(previous_dt=jnp.nan, scaled_error_estimate=0.1)
-    assert proposed == 0.1
+    assert proposed == dt
+
+
+def test_always_accept(steprule):
     assert steprule.is_accepted(scaled_error_estimate=0.1)
 
+
+def test_error_estimate_is_none(steprule):
+
     # "None" does not matter here, these quantities are not used.
-    assert jnp.isnan(steprule.scale_error_estimate(None, None))
+    assert steprule.scale_error_estimate(None, None) is None
 
 
 class TestAdaptiveSteps:
