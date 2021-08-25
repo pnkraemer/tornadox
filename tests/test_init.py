@@ -222,7 +222,7 @@ class TestRungeKutta:
     @staticmethod
     @pytest.fixture
     def init_stack(f, df, y0, t0, num_derivatives):
-        return tornado.init.stack_initial_state_jac(
+        return tornado.init.Stack.initial_state_jac(
             f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
 
@@ -275,8 +275,8 @@ class TestRungeKutta:
 
 class TestStack:
     @staticmethod
-    def test_stack_initial_state_jac(f, df, y0, t0, num_derivatives):
-        m0, sc0 = tornado.init.stack_initial_state_jac(
+    def test_initial_state_jac(f, df, y0, t0, num_derivatives):
+        m0, sc0 = tornado.init.Stack.initial_state_jac(
             f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
 
@@ -284,8 +284,8 @@ class TestStack:
         assert sc0.shape == (num_derivatives + 1, num_derivatives + 1)
 
     @staticmethod
-    def test_stack_initial_state_no_jac(f, df, y0, t0, num_derivatives):
-        m0, sc0 = tornado.init.stack_initial_state_no_jac(
+    def test_initial_state_no_jac(f, df, y0, t0, num_derivatives):
+        m0, sc0 = tornado.init.Stack.initial_state_no_jac(
             f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
 
