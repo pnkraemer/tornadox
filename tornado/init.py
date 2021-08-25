@@ -247,11 +247,11 @@ class RungeKutta(InitializationRoutine):
 
 
 class Stack(InitializationRoutine):
-    def __init__(self, df=True):
-        self.df = df
+    def __init__(self, use_df=True):
+        self.use_df = use_df
 
     def __call__(self, f, df, y0, t0, num_derivatives):
-        if self.df:
+        if self.use_df:
             return Stack.initial_state_jac(
                 f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
             )
