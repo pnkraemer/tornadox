@@ -80,6 +80,20 @@ def ivp():
     return tornado.ivp.threebody()
 
 
+ALL_ROUTINES = [tornado.init.RungeKutta(), tornado.init.TaylorMode()]
+
+
+@pytest.mark.parametrize("routine", ALL_ROUTINES)
+def test_init_routine(routine, ivp):
+    num_derivatives = 3
+    m0, sc0 = routine(
+        f=ivp.f, df=ivp.df, y0=ivp.y0, t0=ivp.t0, num_derivatives=num_derivatives
+    )
+    n, d = num_derivatives + 1, ivp.y0.shape[0]
+    assert m0.shape == (n, d)
+    assert sc0.shape == (n, n)
+
+
 @pytest.fixture
 def nordsieck_y0(ivp, num_derivatives):
     return tornado.init.TaylorMode.taylor_mode(
