@@ -26,10 +26,23 @@ def test_constant_steps():
     assert jnp.isnan(steprule.scale_error_estimate(None, None))
 
 
-def test_adaptive_steps():
-    abstol = 0.1
-    reltol = 0.01
+@pytest.fixture
+def abstol():
+    return 0.1
+
+
+@pytest.fixture
+def reltol():
+    return 0.01
+
+
+@pytest.fixture
+def steprule(abstol, reltol):
     steprule = tornado.step.AdaptiveSteps(first_dt=0.1, abstol=abstol, reltol=reltol)
+    return steprule
+
+
+def test_adaptive_steps(steprule, abstol, reltol):
     assert isinstance(steprule, tornado.step.AdaptiveSteps)
 
     # < 1 accepted, > 1 rejected
@@ -87,3 +100,7 @@ def test_adaptive_steps():
             scaled_error_estimate=1 / 1_000_000_000,
             local_convergence_rate=1,
         )
+
+    #
+    # first_dt = steprule.first_dt(ivp, local_convergence_rate)
+    # assert first_dt > 0
