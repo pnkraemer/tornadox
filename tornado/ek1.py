@@ -11,16 +11,23 @@ from tornado import init, iwp, linops, odesolver, rv, sqrt
 class ReferenceEK1(odesolver.ODEFilter):
     """Naive, reference EK1 implementation. Use this to test against."""
 
-    def __init__(self, ode_dimension, steprule, num_derivatives):
+    def __init__(self, steprule, num_derivatives):
         super().__init__(
-            ode_dimension=ode_dimension,
             steprule=steprule,
             num_derivatives=num_derivatives,
+        )
+        self.P0 = None
+        self.P1 = None
+
+    def initialize(self, ivp):
+
+        self.iwp = iwp.IntegratedWienerTransition(
+            num_derivatives=self.num_derivatives,
+            wiener_process_dimension=ivp.dimension,
         )
         self.P0 = self.iwp.projection_matrix(0)
         self.P1 = self.iwp.projection_matrix(1)
 
-    def initialize(self, ivp):
         extended_dy0, cov_sqrtm = self.init(
             f=ivp.f,
             df=ivp.df,
@@ -126,13 +133,21 @@ class ReferenceEK1(odesolver.ODEFilter):
 class BatchedEK1(odesolver.ODEFilter):
     """Common functionality for EK1 variations that act on batched multivariate normals."""
 
-    def __init__(self, num_derivatives, ode_dimension, steprule):
+    def __init__(self, num_derivatives, steprule):
         super().__init__(
-            ode_dimension=ode_dimension,
             steprule=steprule,
             num_derivatives=num_derivatives,
         )
+        self.phi_1d = None
+        self.sq_1d = None
+        self.batched_sq = None
 
+    def initialize(self, ivp):
+
+        self.iwp = iwp.IntegratedWienerTransition(
+            num_derivatives=self.num_derivatives,
+            wiener_process_dimension=ivp.dimension,
+        )
         d = self.iwp.wiener_process_dimension
         self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
 
@@ -140,7 +155,6 @@ class BatchedEK1(odesolver.ODEFilter):
         # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
         self.batched_sq = jnp.stack([self.sq_1d] * d)
 
-    def initialize(self, ivp):
         extended_dy0, cov_sqrtm = self.init(
             f=ivp.f,
             df=ivp.df,
@@ -421,13 +435,21 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
     (This also means that for the covariance update, we use the inverse of the diagonal of S, not the diagonal of the inverse of S.)
     """
 
-    def __init__(self, num_derivatives, ode_dimension, steprule):
+    def __init__(self, num_derivatives, steprule):
         super().__init__(
-            ode_dimension=ode_dimension,
             steprule=steprule,
             num_derivatives=num_derivatives,
         )
+        self.P0_1d = None
+        self.P1_1d = None
+        self.P0 = None
+        self.P1 = None
 
+    def initialize(self, ivp):
+
+        self.iwp = iwp.IntegratedWienerTransition(
+            num_derivatives=self.num_derivatives, wiener_process_dimension=ivp.dimension
+        )
         self.P0_1d = self.iwp.projection_matrix_1d(0)
         self.P1_1d = self.iwp.projection_matrix_1d(1)
 
@@ -435,7 +457,6 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
         self.P0 = linops.BlockDiagonal(jnp.stack([self.P0_1d] * d))
         self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d] * d))
 
-    def initialize(self, ivp):
         extended_dy0, cov_sqrtm = self.init(
             f=ivp.f,
             df=ivp.df,
