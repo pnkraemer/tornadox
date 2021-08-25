@@ -18,8 +18,7 @@ def d(ivp):
 
 @pytest.fixture
 def steps():
-    dt = 0.1
-    return tornado.step.AdaptiveSteps(first_dt=dt, abstol=1e-3, reltol=1e-3)
+    return tornado.step.AdaptiveSteps(abstol=1e-3, reltol=1e-3)
 
 
 @pytest.fixture

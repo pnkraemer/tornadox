@@ -5,17 +5,8 @@ import abc
 import jax.numpy as jnp
 
 
-def propose_first_dt(ivp):
-    norm_y0 = jnp.linalg.norm(ivp.y0)
-    norm_dy0 = jnp.linalg.norm(ivp.f(ivp.t0, ivp.y0))
-    return 0.01 * norm_y0 / norm_dy0
-
-
 class StepRule(abc.ABC):
     """Step-size selection rules for ODE solvers."""
-
-    def __init__(self, first_dt):
-        self.first_dt = first_dt
 
     @abc.abstractmethod
     def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
@@ -26,6 +17,9 @@ class StepRule(abc.ABC):
         raise NotImplementedError
 
     def scale_error_estimate(self, unscaled_error_estimate, reference_state):
+        raise NotImplementedError
+
+    def first_dt(self, ivp):
         raise NotImplementedError
 
 
@@ -34,7 +28,6 @@ class ConstantSteps(StepRule):
 
     def __init__(self, dt):
         self.dt = dt
-        super().__init__(first_dt=dt)
 
     def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         return self.dt
@@ -43,14 +36,16 @@ class ConstantSteps(StepRule):
         return True
 
     def scale_error_estimate(self, unscaled_error_estimate, reference_state):
-        # Return NaN to make sure this quantity is not used further below
-        return jnp.nan
+        # Return None to make sure this quantity is not used further below
+        return None
+
+    def first_dt(self, ivp):
+        return self.dt
 
 
 class AdaptiveSteps(StepRule):
     def __init__(
         self,
-        first_dt,
         abstol,
         reltol,
         max_changes=(0.2, 10.0),
@@ -58,7 +53,6 @@ class AdaptiveSteps(StepRule):
         min_step=1e-15,
         max_step=1e15,
     ):
-        super().__init__(first_dt=first_dt)
         self.abstol = abstol
         self.reltol = reltol
         self.max_changes = max_changes
@@ -101,3 +95,12 @@ class AdaptiveSteps(StepRule):
         ratio = unscaled_error_estimate / tolerance
         dim = len(ratio) if ratio.ndim > 0 else 1
         return jnp.linalg.norm(ratio) / jnp.sqrt(dim)
+
+    def first_dt(self, ivp):
+        return propose_first_dt(ivp=ivp)
+
+
+def propose_first_dt(ivp):
+    norm_y0 = jnp.linalg.norm(ivp.y0)
+    norm_dy0 = jnp.linalg.norm(ivp.f(ivp.t0, ivp.y0))
+    return 0.01 * norm_y0 / norm_dy0
