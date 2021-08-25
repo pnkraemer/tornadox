@@ -26,9 +26,6 @@ def test_constant_steps():
     assert jnp.isnan(steprule.scale_error_estimate(None, None))
 
 
-# Tests for adaptive steps
-
-
 class TestAdaptiveSteps:
     @staticmethod
     @pytest.fixture
