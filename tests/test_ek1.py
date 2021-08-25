@@ -56,7 +56,7 @@ def test_full_solve_compare_scipy(
     """Assert the ODEFilter solves an ODE appropriately."""
     final_t_scipy, final_y_scipy = scipy_solution
 
-    ek1 = ek1_version(num_derivatives=num_derivatives, ode_dimension=2, steprule=steps)
+    ek1 = ek1_version(num_derivatives=num_derivatives, steprule=steps)
     sol_gen = ek1.solution_generator(ivp=ivp)
     for state in sol_gen:
         if state.t > ivp.t0:
@@ -111,10 +111,8 @@ def solver_triple(ivp, steps, num_derivatives, approx_solver):
         )
 
     d, n = ivp.dimension, num_derivatives
-    reference_ek1 = tornado.ek1.ReferenceEK1(
-        num_derivatives=n, ode_dimension=d, steprule=steps
-    )
-    ek1_approx = approx_solver(num_derivatives=n, ode_dimension=d, steprule=steps)
+    reference_ek1 = tornado.ek1.ReferenceEK1(num_derivatives=n, steprule=steps)
+    ek1_approx = approx_solver(num_derivatives=n, steprule=steps)
 
     return ek1_approx, reference_ek1, ivp
 

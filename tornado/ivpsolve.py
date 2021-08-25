@@ -87,7 +87,6 @@ def solve(
     try:
         solver = _SOLVER_REGISTRY[method](
             num_derivatives=num_derivatives,
-            ode_dimension=ivp.dimension,
             steprule=steprule,
         )
     except KeyError:

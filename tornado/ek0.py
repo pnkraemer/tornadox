@@ -2,11 +2,24 @@ import dataclasses
 
 import jax.numpy as jnp
 
+import tornado.iwp
 from tornado import init, ivp, iwp, odesolver, rv, sqrt, step
 
 
 class ReferenceEK0(odesolver.ODEFilter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.P0 = None
+        self.E0 = None
+        self.E1 = None
+
     def initialize(self, ivp):
+
+        self.iwp = tornado.iwp.IntegratedWienerTransition(
+            num_derivatives=self.num_derivatives,
+            wiener_process_dimension=ivp.dimension,
+        )
+
         self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
 
@@ -65,8 +78,19 @@ class ReferenceEK0(odesolver.ODEFilter):
 
 
 class KroneckerEK0(odesolver.ODEFilter):
-    def initialize(self, ivp):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.P0 = None
+        self.A = None
+        self.Ql = None
+        self.e0 = None
+        self.e1 = None
 
+    def initialize(self, ivp):
+        self.iwp = tornado.iwp.IntegratedWienerTransition(
+            num_derivatives=self.num_derivatives,
+            wiener_process_dimension=ivp.dimension,
+        )
         self.A, self.Ql = self.iwp.preconditioned_discretize_1d
 
         extended_dy0, cov_sqrtm = self.init(
