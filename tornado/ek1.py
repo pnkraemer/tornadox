@@ -11,11 +11,8 @@ from tornado import init, iwp, linops, odesolver, rv, sqrt
 class ReferenceEK1(odesolver.ODEFilter):
     """Naive, reference EK1 implementation. Use this to test against."""
 
-    def __init__(self, steprule, num_derivatives):
-        super().__init__(
-            steprule=steprule,
-            num_derivatives=num_derivatives,
-        )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.P0 = None
         self.P1 = None
 
@@ -133,11 +130,8 @@ class ReferenceEK1(odesolver.ODEFilter):
 class BatchedEK1(odesolver.ODEFilter):
     """Common functionality for EK1 variations that act on batched multivariate normals."""
 
-    def __init__(self, num_derivatives, steprule):
-        super().__init__(
-            steprule=steprule,
-            num_derivatives=num_derivatives,
-        )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.phi_1d = None
         self.sq_1d = None
         self.batched_sq = None
@@ -435,11 +429,8 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
     (This also means that for the covariance update, we use the inverse of the diagonal of S, not the diagonal of the inverse of S.)
     """
 
-    def __init__(self, num_derivatives, steprule):
-        super().__init__(
-            steprule=steprule,
-            num_derivatives=num_derivatives,
-        )
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.P0_1d = None
         self.P1_1d = None
         self.P0 = None

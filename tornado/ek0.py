@@ -7,6 +7,12 @@ from tornado import init, ivp, iwp, odesolver, rv, sqrt, step
 
 
 class ReferenceEK0(odesolver.ODEFilter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.P0 = None
+        self.E0 = None
+        self.E1 = None
+
     def initialize(self, ivp):
 
         self.iwp = tornado.iwp.IntegratedWienerTransition(
@@ -72,6 +78,14 @@ class ReferenceEK0(odesolver.ODEFilter):
 
 
 class KroneckerEK0(odesolver.ODEFilter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.P0 = None
+        self.A = None
+        self.Ql = None
+        self.e0 = None
+        self.e1 = None
+
     def initialize(self, ivp):
         self.iwp = tornado.iwp.IntegratedWienerTransition(
             num_derivatives=self.num_derivatives,
