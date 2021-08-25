@@ -29,7 +29,7 @@ def num_derivatives():
 
 @pytest.fixture
 def ek0_solution(ek0_version, num_derivatives, ivp, steps):
-    ek0 = ek0_version(num_derivatives=num_derivatives, ode_dimension=2, steprule=steps)
+    ek0 = ek0_version(num_derivatives=num_derivatives, steprule=steps)
     sol_gen = ek0.solution_generator(ivp=ivp)
     for state in sol_gen:
         if state.t > ivp.t0:
@@ -78,10 +78,10 @@ def test_full_solve_compare_scipy(ek0_solution, scipy_solution):
 @pytest.fixture
 def solver_tuple(steps, num_derivatives, d):
     reference_ek0 = tornado.ek0.ReferenceEK0(
-        num_derivatives=num_derivatives, ode_dimension=d, steprule=steps
+        num_derivatives=num_derivatives, steprule=steps
     )
     kronecker_ek0 = tornado.ek0.KroneckerEK0(
-        num_derivatives=num_derivatives, ode_dimension=d, steprule=steps
+        num_derivatives=num_derivatives, steprule=steps
     )
 
     return kronecker_ek0, reference_ek0

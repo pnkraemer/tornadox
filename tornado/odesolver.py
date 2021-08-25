@@ -23,17 +23,14 @@ class ODEFilterState:
 class ODEFilter(ABC):
     """Interface for filtering-based ODE solvers in ProbNum."""
 
-    def __init__(self, ode_dimension, steprule, num_derivatives, initialization=None):
+    def __init__(self, steprule, num_derivatives, initialization=None):
         self.steprule = steprule
-        self.num_derivatives = (
-            num_derivatives  # e.g.: RK45 has order=5, IBM(q) has order=q
-        )
+
+        self.num_derivatives = num_derivatives
         self.num_steps = 0
 
-        # Prior integrated Wiener process
-        self.iwp = iwp.IntegratedWienerTransition(
-            num_derivatives=num_derivatives, wiener_process_dimension=ode_dimension
-        )
+        # IWP(nu) prior -- will be assembled in initialize()
+        self.iwp = None
 
         # Initialization strategy
         self.init = initialization or init.TaylorMode()
