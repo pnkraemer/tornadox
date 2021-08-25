@@ -112,3 +112,142 @@ def test_taylor_expected_values(
     assert jnp.allclose(
         nordsieck_y0, threebody_nordsieck_initval[: (num_derivatives + 1)]
     )
+
+
+# Tests for RK init
+
+
+@pytest.fixture
+def ivp2():
+    return tornado.ivp.vanderpol(stiffness_constant=10, t0=0.0, tmax=30.0)
+
+
+@pytest.fixture
+def t0(ivp2):
+    return ivp2.t0
+
+
+@pytest.fixture
+def y0(ivp2):
+    return ivp2.y0
+
+
+@pytest.fixture
+def f(ivp2):
+    return ivp2.f
+
+
+@pytest.fixture
+def df(ivp2):
+    return ivp2.df
+
+
+@pytest.fixture
+def d(ivp2):
+    return ivp2.dimension
+
+
+@pytest.fixture
+def dt():
+    return 0.01
+
+
+@pytest.fixture
+def num_derivatives():
+    return 4
+
+
+@pytest.fixture
+def num_steps(num_derivatives):
+    return 2 * num_derivatives + 1
+
+
+@pytest.fixture
+def n(num_derivatives):
+    return num_derivatives + 1
+
+
+all_rk_methods = pytest.mark.parametrize("method", ["DOP853"])
+
+
+@pytest.fixture
+def rk_data(f, y0, t0, dt, num_steps, method):
+    return tornado.init.rk_data(
+        f=f, t0=t0, dt=dt, num_steps=num_steps, y0=y0, method=method
+    )
+
+
+@all_rk_methods
+def test_rk_init_generate_data_types(rk_data):
+    ts, ys = rk_data
+    assert isinstance(ts, jnp.ndarray)
+    assert isinstance(ys, jnp.ndarray)
+
+
+@all_rk_methods
+def test_rk_init_generate_data_shapes(rk_data, num_steps, d):
+    ts, ys = rk_data
+    assert ts.shape == (num_steps,)
+    assert ys.shape == (num_steps, d)
+
+
+@pytest.fixture
+def init_stack(f, df, y0, t0, num_derivatives):
+    return tornado.init.stack_initial_state_jac(
+        f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+    )
+
+
+@pytest.fixture
+def rk_init_improved(init_stack, t0, rk_data):
+    m, sc = init_stack
+    ts, ys = rk_data
+    return tornado.init.rk_init_improve(
+        m=m,
+        sc=sc,
+        t0=t0,
+        ts=ts,
+        ys=ys,
+    )
+
+
+@all_rk_methods
+def test_rk_init_types(rk_init_improved):
+    m, sc = rk_init_improved
+    assert isinstance(m, jnp.ndarray)
+    assert isinstance(sc, jnp.ndarray)
+
+
+@all_rk_methods
+def test_rk_init_shapes(rk_init_improved, n, d):
+    m, sc = rk_init_improved
+
+    assert m.shape == (n, d)
+    assert sc.shape == (n, n)
+
+    assert isinstance(m, jnp.ndarray)
+    assert isinstance(sc, jnp.ndarray)
+
+
+@pytest.fixture
+def ref_init(f, y0, t0, num_derivatives):
+    return tornado.init.taylor_mode(
+        fun=f, y0=y0, t0=t0, num_derivatives=num_derivatives
+    )
+
+
+@all_rk_methods
+def test_rk_init_values(rk_init_improved, ref_init):
+
+    # Relaxed tolerance, because initialisation is only for ballpark estimates
+    # The current values are rather sharp
+    assert jnp.allclose(rk_init_improved[0], ref_init, rtol=1e-1, atol=1e-10)
+
+
+def test_stack_initial_state_jac(f, df, y0, t0, num_derivatives):
+    m0, sc0 = tornado.init.stack_initial_state_jac(
+        f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+    )
+
+    assert m0.shape == (num_derivatives + 1, y0.shape[0])
+    assert sc0.shape == (num_derivatives + 1, num_derivatives + 1)
