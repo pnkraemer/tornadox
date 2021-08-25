@@ -80,7 +80,11 @@ def ivp():
     return tornado.ivp.threebody()
 
 
-ALL_ROUTINES = [tornado.init.RungeKutta(), tornado.init.TaylorMode()]
+ALL_ROUTINES = [
+    tornado.init.RungeKutta(),
+    tornado.init.TaylorMode(),
+    tornado.init.Stack(),
+]
 
 
 @pytest.mark.parametrize("routine", ALL_ROUTINES)
