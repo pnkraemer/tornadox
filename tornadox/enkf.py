@@ -87,19 +87,22 @@ class EnK0(odesolver.ODEFilter):
         t_new = ensemble.t + dt
 
         # [Setup]
-        A, Ql = self.iwp.non_preconditioned_discretize(dt)
+        PA, PQl = self.iwp.preconditioned_discretize
+        P, Pinv = self.iwp.nordsieck_preconditioner(dt)
 
         # [Predict]
         w = jax.random.multivariate_normal(
             self.rng,
             mean=jnp.zeros((ensemble.dim,)),
-            cov=Ql @ Ql.T,
+            cov=PQl @ PQl.T,
             shape=(ensemble.ensemble_size,),
         ).T
 
         _, self.rng = jax.random.split(self.rng)
 
-        pred_samples = A @ ensemble.samples + w
+        preconditioned_samples = Pinv @ ensemble.samples
+
+        pred_samples = PA @ preconditioned_samples + w
         sample_mean = jnp.mean(pred_samples, axis=1)
         sample_cov = jnp.cov(pred_samples)
 
@@ -107,12 +110,13 @@ class EnK0(odesolver.ODEFilter):
             t_new,
             ensemble.ivp.f,
             ensemble.ivp.df,
+            P,
             sample_mean,
             self.E0,
             self.E1,
         )
 
-        error_estimate, sigma = self.estimate_error(H=H, sq=Ql, z=z_mean)
+        error_estimate, sigma = self.estimate_error(H=H, sq=PQl, z=z_mean)
 
         z_samples = H @ pred_samples + b[:, None]
 
@@ -120,10 +124,12 @@ class EnK0(odesolver.ODEFilter):
         # via Eq. (11) in https://www.math.umd.edu/~slud/RITF17/enkf-tutorial.pdf
         CHT = sample_cov @ H.T
         to_invert = H @ CHT
-        gain_times_z = CHT @ jnp.linalg.solve(to_invert, z_samples)
+        solved = jnp.linalg.solve(to_invert, z_samples)
+        gain_times_z = CHT @ solved
 
         # Update
         updated_samples = pred_samples - gain_times_z
+        updated_samples = P @ updated_samples
 
         reference_state = self.E0 @ jnp.abs(jnp.mean(updated_samples, 1))
 
@@ -136,15 +142,21 @@ class EnK0(odesolver.ODEFilter):
         )
 
     @staticmethod
-    @partial(jax.jit, static_argnums=(1, 2))
-    def evaluate_ode(t, f, df, m_pred, e0, e1):
-        P0 = e0
-        P1 = e1
+    # @partial(jax.jit, static_argnums=(1, 2))
+    def evaluate_ode(t, f, df, p, m_pred, e0, e1):
+        P0 = e0 @ p
+        P1 = e1 @ p
         m_at = P0 @ m_pred
-        f = f(t, m_at)
+        fx = f(t, m_at)
         Jx = df(t, m_at)
+        # if t > 9.13:
+        #     assert False
+        print("t", t)
+        # print("Jx", Jx)
+        # print("fx", fx)
+
         H = P1 - Jx @ P0
-        b = Jx @ m_at - f
+        b = Jx @ m_at - fx
         z = H @ m_pred + b
         return H, z, b
 
@@ -157,4 +169,6 @@ class EnK0(odesolver.ODEFilter):
         sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
         sigma = jnp.sqrt(sigma_squared)
         error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
+        # print(sigma)
+        # print("")
         return error_estimate, sigma
