@@ -21,11 +21,11 @@ solver7 = ek1.EarlyTruncationEK1(steprule=step.AdaptiveSteps(abstol=1e-4, reltol
 
 # Solve an IVP
 ivp = ivp.vanderpol(t0=0., tmax=1.)
+
 for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7]:
-    print()
-    print(solver)
-    print()
+    
     # Full solve
+    print(solver)
     solver.solve(ivp)
     solver.solve(ivp, stop_at=jnp.array([1.2, 1.3]))
     
