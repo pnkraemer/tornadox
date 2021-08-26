@@ -3,6 +3,7 @@ Lightweight, probabilistic ODE solvers. Fast like the wind. 🌪️
 
 
 ## Usage
+Use `tornado` as follows.
 
 ```python
 import jax.numpy as jnp
