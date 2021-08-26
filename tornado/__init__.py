@@ -11,7 +11,7 @@ from . import (
     iwp,
     kalman,
     linops,
-    odesolver,
+    odefilter,
     rv,
     sqrt,
     step,

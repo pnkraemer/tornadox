@@ -4,10 +4,10 @@ from typing import Dict, Iterable, Optional, Union
 
 import jax.numpy as jnp
 
-from tornado import ek0, ek1, ivp, odesolver, rv, step
+from tornado import ek0, ek1, ivp, odefilter, rv, step
 
 # Will be extended in the dev process
-_SOLVER_REGISTRY: Dict[str, odesolver.ODEFilter] = {
+_SOLVER_REGISTRY: Dict[str, odefilter.ODEFilter] = {
     "ek1_reference": ek1.ReferenceEK1,
     "ek1_diagonal": ek1.DiagonalEK1,
     "ek1_truncation": ek1.TruncationEK1,
