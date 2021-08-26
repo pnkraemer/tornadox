@@ -68,6 +68,16 @@ def test_solve(ivp, solver):
     sol = solver.solve(ivp)
     assert isinstance(sol, tornado.odefilter.ODESolution)
 
+
+@pytest.fixture
+def locations():
+    return jnp.array([1.234])
+
+
+def test_solve_stop_at(ivp, solver, locations):
+    sol = solver.solve(ivp, stop_at=locations)
+    assert jnp.isin(locations[0], jnp.array(sol.t))
+
     #
     # gen_sol = solver.solution_generator(ivp)
     # for idx, _ in enumerate(gen_sol):
