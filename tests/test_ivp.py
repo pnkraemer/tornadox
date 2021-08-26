@@ -5,7 +5,7 @@ import pytest
 
 import tornado
 
-IVPs = [tornado.ivp.vanderpol(), tornado.ivp.brusselator()]
+IVPs = [tornado.ivp.vanderpol(), tornado.ivp.brusselator(), tornado.ivp.lorenz96()]
 
 
 @pytest.mark.parametrize("ivp", IVPs)
