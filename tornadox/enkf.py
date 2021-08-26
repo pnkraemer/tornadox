@@ -98,7 +98,7 @@ class StateEnsemble:
     @property
     def sample_cov(self):
         centered = self.samples - self.mean
-        return centered @ centered.T
+        return centered @ centered.T / (self.ensemble_size - 1)
 
     @property
     def cov_sqrtm(self):
@@ -112,6 +112,8 @@ class EnK0(odesolver.ODEFilter):
         self.E0 = None
         self.E1 = None
         self.ensemble_size = kwargs["ensemble_size"]
+
+        self.rng = jax.random.PRNGKey(1)
 
     def initialize(self, ivp):
         self.iwp = iwp.IntegratedWienerTransition(
@@ -148,11 +150,14 @@ class EnK0(odesolver.ODEFilter):
 
         # [Predict]
         w = jax.random.multivariate_normal(
-            jax.random.PRNGKey(1),
+            self.rng,
             mean=jnp.zeros((ensemble.dim,)),
             cov=Ql @ Ql.T,
             shape=(ensemble.ensemble_size,),
         ).T
+
+        _, self.rng = jax.random.split(self.rng)
+
         pred_samples = A @ ensemble + w
 
         z = self.E1 @ pred_samples - ensemble.ivp.f(
@@ -164,7 +169,7 @@ class EnK0(odesolver.ODEFilter):
         # via Eq. (11) in https://www.math.umd.edu/~slud/RITF17/enkf-tutorial.pdf
         sample_cov = pred_samples.sample_cov
         CHT = sample_cov @ H.T
-        to_invert = H @ CHT  # + _R
+        to_invert = H @ CHT
         gain_times_z = CHT @ jnp.linalg.solve(to_invert, z.samples)
 
         # Update
