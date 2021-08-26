@@ -77,13 +77,3 @@ def locations():
 def test_solve_stop_at(ivp, solver, locations):
     sol = solver.solve(ivp, stop_at=locations)
     assert jnp.isin(locations[0], jnp.array(sol.t))
-
-    #
-    # gen_sol = solver.solution_generator(ivp)
-    # for idx, _ in enumerate(gen_sol):
-    #     pass
-    # assert idx > 0
-    #
-    # gen_sol = solver.solution_generator(ivp, stop_at=jnp.array([1.234]))
-    # ts = jnp.array([state.t for state in gen_sol])
-    # assert jnp.isin(1.234, ts)
