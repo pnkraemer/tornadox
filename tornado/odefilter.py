@@ -7,7 +7,7 @@ from typing import Iterable, Union
 import jax.numpy as jnp
 import numpy as np
 
-from tornado import init, ivp, iwp, rv
+from tornado import ek0, init, ivp, iwp, rv
 
 
 @dataclasses.dataclass
@@ -18,6 +18,14 @@ class ODEFilterState:
     y: Union[rv.MultivariateNormal, rv.MatrixNormal, rv.BatchedMultivariateNormal]
     error_estimate: jnp.ndarray
     reference_state: jnp.ndarray
+
+
+@dataclasses.dataclass(frozen=False)
+class ODESolution:
+    t: Iterable[float]
+    mean: Iterable[jnp.ndarray]
+    cov_sqrtm: Iterable[jnp.ndarray]
+    cov: Iterable[jnp.ndarray]
 
 
 class ODEFilter(ABC):
@@ -34,6 +42,24 @@ class ODEFilter(ABC):
 
         # Initialization strategy
         self.init = initialization or init.TaylorMode()
+
+    def solve(self, *args, **kwargs):
+        solution_generator = self.solution_generator(*args, **kwargs)
+        means = []
+        covs = []
+        cov_sqrtms = []
+        times = []
+        for state in solution_generator:
+            times.append(state.t)
+            means.append(state.y.mean)
+            if isinstance(self, ek0.KroneckerEK0):
+                cov_sqrtms.append(state.y.dense_cov_sqrtm())
+                covs.append(state.y.dense_cov())
+            else:
+                cov_sqrtms.append(state.y.cov_sqrtm)
+                covs.append(state.y.cov)
+
+        return ODESolution(t=times, mean=means, cov_sqrtm=cov_sqrtms, cov=covs)
 
     def simulate_final_state(self, *args, **kwargs):
         solution_generator = self.solution_generator(*args, **kwargs)

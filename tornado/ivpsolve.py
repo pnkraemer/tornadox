@@ -17,14 +17,6 @@ _SOLVER_REGISTRY: Dict[str, odefilter.ODEFilter] = {
 }
 
 
-@dataclasses.dataclass(frozen=False)
-class ODESolution:
-    t: Iterable[float]
-    mean: Iterable[jnp.ndarray]
-    cov_sqrtm: Iterable[jnp.ndarray]
-    cov: Iterable[jnp.ndarray]
-
-
 def solve(
     ivp: ivp.InitialValueProblem,
     method: str = "ek1_ref",
