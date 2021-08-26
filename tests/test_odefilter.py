@@ -4,6 +4,7 @@
 import dataclasses
 
 import jax.numpy as jnp
+import pytest
 
 import tornado
 
@@ -31,21 +32,37 @@ class EulerAsODEFilter(tornado.odefilter.ODEFilter):
         )
 
 
-def test_odefilter():
+@pytest.fixture
+def ivp():
     ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
-    constant_steps = tornado.step.ConstantSteps(dt=0.1)
-    solver_order = 2
+    return ivp
+
+
+@pytest.fixture
+def steps():
+    return tornado.step.ConstantSteps(dt=0.1)
+
+
+@pytest.fixture
+def solver(steps):
+    solver_order = 1
     solver = EulerAsODEFilter(
-        steprule=constant_steps,
+        steprule=steps,
         num_derivatives=solver_order,
     )
-    assert isinstance(solver, tornado.odefilter.ODEFilter)
+    return solver
 
-    gen_sol = solver.solution_generator(ivp)
-    for idx, _ in enumerate(gen_sol):
-        pass
-    assert idx > 0
 
-    gen_sol = solver.solution_generator(ivp, stop_at=jnp.array([1.234]))
-    ts = jnp.array([state.t for state in gen_sol])
-    assert jnp.isin(1.234, ts)
+def test_simulate_final_point(ivp, solver):
+    sol = solver.simulate_final_state(ivp)
+    assert isinstance(sol, EulerState)
+
+    #
+    # gen_sol = solver.solution_generator(ivp)
+    # for idx, _ in enumerate(gen_sol):
+    #     pass
+    # assert idx > 0
+    #
+    # gen_sol = solver.solution_generator(ivp, stop_at=jnp.array([1.234]))
+    # ts = jnp.array([state.t for state in gen_sol])
+    # assert jnp.isin(1.234, ts)

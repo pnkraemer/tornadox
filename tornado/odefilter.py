@@ -35,6 +35,12 @@ class ODEFilter(ABC):
         # Initialization strategy
         self.init = initialization or init.TaylorMode()
 
+    def simulate_final_state(self, *args, **kwargs):
+        solution_generator = self.solution_generator(*args, **kwargs)
+        for state in solution_generator:
+            pass
+        return state
+
     def solution_generator(self, ivp, stop_at=None):
         """Generate ODE solver steps."""
 
