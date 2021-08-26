@@ -14,7 +14,11 @@ from tornado import init, ivp, iwp, linops, odesolver, rv, sqrt
 class StateEnsemble:
     ivp: ivp.InitialValueProblem
     t: float
+
     samples: jnp.ndarray  # shape = [d * (nu + 1), N]
+
+    error_estimate: jnp.ndarray
+    reference_state: jnp.ndarray
 
     @cached_property
     def ensemble_size(self):
@@ -70,7 +74,13 @@ class EnK0(odesolver.ODEFilter):
         )
         assert jnp.allclose(init_states[:, 0], mean.squeeze())
         assert jnp.allclose(init_states[:, -1], mean.squeeze())
-        return StateEnsemble(ivp=ivp, t=ivp.t0, samples=init_states)
+        return StateEnsemble(
+            ivp=ivp,
+            t=ivp.t0,
+            samples=init_states,
+            error_estimate=None,
+            reference_state=None,
+        )
 
     def attempt_step(self, ensemble, dt, verbose=False):
 
@@ -93,7 +103,7 @@ class EnK0(odesolver.ODEFilter):
         sample_mean = jnp.mean(pred_samples, axis=1)
         sample_cov = jnp.cov(pred_samples)
 
-        H, _, b = self.evaluate_ode(
+        H, z_mean, b = self.evaluate_ode(
             t_new,
             ensemble.ivp.f,
             ensemble.ivp.df,
@@ -101,6 +111,8 @@ class EnK0(odesolver.ODEFilter):
             self.E0,
             self.E1,
         )
+
+        error_estimate, sigma = self.estimate_error(H=H, sq=Ql, z=z_mean)
 
         z_samples = H @ pred_samples + b[:, None]
 
@@ -113,7 +125,15 @@ class EnK0(odesolver.ODEFilter):
         # Update
         updated_samples = pred_samples - gain_times_z
 
-        return StateEnsemble(ivp=ensemble.ivp, t=t_new, samples=updated_samples)
+        reference_state = self.E0 @ jnp.abs(jnp.mean(updated_samples, 1))
+
+        return StateEnsemble(
+            ivp=ensemble.ivp,
+            t=t_new,
+            samples=updated_samples,
+            error_estimate=error_estimate,
+            reference_state=reference_state,
+        )
 
     @staticmethod
     @partial(jax.jit, static_argnums=(1, 2))
@@ -129,8 +149,8 @@ class EnK0(odesolver.ODEFilter):
         return H, z, b
 
     @staticmethod
-    def estimate_error(h, sq, z):
-        s_sqrtm = h @ sq
+    def estimate_error(H, sq, z):
+        s_sqrtm = H @ sq
         s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
 
         whitened_res = jax.scipy.linalg.solve_triangular(s_chol.T, z, lower=False)
