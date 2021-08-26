@@ -5,10 +5,10 @@ from functools import partial
 import jax.numpy as jnp
 import jax.scipy.linalg
 
-from tornado import init, iwp, linops, odesolver, rv, sqrt
+from tornado import init, iwp, linops, odefilter, rv, sqrt
 
 
-class ReferenceEK1(odesolver.ODEFilter):
+class ReferenceEK1(odefilter.ODEFilter):
     """Naive, reference EK1 implementation. Use this to test against."""
 
     def __init__(self, *args, **kwargs):
@@ -34,7 +34,7 @@ class ReferenceEK1(odesolver.ODEFilter):
         )
         mean = extended_dy0.reshape((-1,), order="F")
         y = rv.MultivariateNormal(mean, jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm))
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             y=y,
@@ -65,7 +65,7 @@ class ReferenceEK1(odesolver.ODEFilter):
         reference_state = jnp.maximum(y1, y2)
 
         # Return new state
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
@@ -127,7 +127,7 @@ class ReferenceEK1(odesolver.ODEFilter):
         return error_estimate, sigma
 
 
-class BatchedEK1(odesolver.ODEFilter):
+class BatchedEK1(odefilter.ODEFilter):
     """Common functionality for EK1 variations that act on batched multivariate normals."""
 
     def __init__(self, *args, **kwargs):
@@ -159,7 +159,7 @@ class BatchedEK1(odesolver.ODEFilter):
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
         cov_sqrtm = jnp.stack([cov_sqrtm] * d)
         new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             y=new_rv,
@@ -186,7 +186,7 @@ class BatchedEK1(odesolver.ODEFilter):
         reference_state = jnp.maximum(y1, y2)
 
         new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
@@ -420,7 +420,7 @@ class TruncationEK1(BatchedEK1):
         return new_sc
 
 
-class EarlyTruncationEK1(odesolver.ODEFilter):
+class EarlyTruncationEK1(odefilter.ODEFilter):
     """Use full Jacobians for mean-updates, but truncate cleverly to enforce a block-diagonal posterior covariance.
 
     "Cleverly" means:
@@ -458,7 +458,7 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
         cov_sqrtm = jnp.stack([cov_sqrtm] * d)
         new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             y=new_rv,
@@ -616,7 +616,7 @@ class EarlyTruncationEK1(odesolver.ODEFilter):
 
         # Return new state
         new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,

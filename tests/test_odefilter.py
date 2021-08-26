@@ -17,7 +17,7 @@ class EulerState:
     reference_state: jnp.array
 
 
-class EulerAsODEFilter(tornado.odesolver.ODEFilter):
+class EulerAsODEFilter(tornado.odefilter.ODEFilter):
     def initialize(self, ivp):
         return EulerState(
             ivp=ivp, y=ivp.y0, t=ivp.t0, error_estimate=None, reference_state=ivp.y0
@@ -31,7 +31,7 @@ class EulerAsODEFilter(tornado.odesolver.ODEFilter):
         )
 
 
-def test_odesolver():
+def test_odefilter():
     ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
     constant_steps = tornado.step.ConstantSteps(dt=0.1)
     solver_order = 2
@@ -39,7 +39,7 @@ def test_odesolver():
         steprule=constant_steps,
         num_derivatives=solver_order,
     )
-    assert isinstance(solver, tornado.odesolver.ODEFilter)
+    assert isinstance(solver, tornado.odefilter.ODEFilter)
 
     gen_sol = solver.solution_generator(ivp)
     for idx, _ in enumerate(gen_sol):

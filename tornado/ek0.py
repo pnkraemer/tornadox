@@ -3,10 +3,10 @@ import dataclasses
 import jax.numpy as jnp
 
 import tornado.iwp
-from tornado import init, ivp, iwp, odesolver, rv, sqrt, step
+from tornado import init, ivp, iwp, odefilter, rv, sqrt, step
 
 
-class ReferenceEK0(odesolver.ODEFilter):
+class ReferenceEK0(odefilter.ODEFilter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.P0 = None
@@ -34,7 +34,7 @@ class ReferenceEK0(odesolver.ODEFilter):
         y = rv.MultivariateNormal(
             mean=mean, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
         )
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             y=y,
@@ -68,7 +68,7 @@ class ReferenceEK0(odesolver.ODEFilter):
 
         y_new = jnp.abs(self.E0 @ m_new)
 
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=state.ivp,
             t=state.t + dt,
             error_estimate=error,
@@ -77,7 +77,7 @@ class ReferenceEK0(odesolver.ODEFilter):
         )
 
 
-class KroneckerEK0(odesolver.ODEFilter):
+class KroneckerEK0(odefilter.ODEFilter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.P0 = None
@@ -109,7 +109,7 @@ class KroneckerEK0(odesolver.ODEFilter):
 
         y = rv.MatrixNormal(mean=mean, cov_sqrtm_1=jnp.eye(d), cov_sqrtm_2=cov_sqrtm)
 
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=ivp,
             t=ivp.t0,
             error_estimate=None,
@@ -162,7 +162,7 @@ class KroneckerEK0(odesolver.ODEFilter):
         d = z.shape[0]
         error_estimate = jnp.stack([jnp.sqrt(sigma_squared * HQH)] * d)
 
-        return odesolver.ODEFilterState(
+        return odefilter.ODEFilterState(
             ivp=state.ivp,
             t=t_new,
             error_estimate=error_estimate,
