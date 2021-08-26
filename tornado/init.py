@@ -24,6 +24,9 @@ class TaylorMode(InitializationRoutine):
         )
         return m0, jnp.zeros((num_derivatives + 1, num_derivatives + 1))
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}()"
+
     @staticmethod
     def taylor_mode(fun, y0, t0, num_derivatives):
         """Initialize a probabilistic ODE solver with Taylor-mode automatic differentiation."""
@@ -104,6 +107,9 @@ class RungeKutta(InitializationRoutine):
         self.dt = dt
         self.method = method
         self.stack_initvals = Stack(use_df=use_df)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(dt={self.dt}, method={self.method})"
 
     def __call__(self, f, df, y0, t0, num_derivatives):
         num_steps = num_derivatives + 1

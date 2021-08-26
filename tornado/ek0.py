@@ -58,7 +58,6 @@ class ReferenceEK0(odefilter.ODEFilter):
         sigma_squared = z @ jnp.linalg.solve(S, z) / z.shape[0]
         sigma = jnp.sqrt(sigma_squared)
         error = jnp.sqrt(jnp.diag(S)) * sigma
-        print("ref", sigma_squared)
 
         Clp = sqrt.propagate_cholesky_factor(A @ Cl, sigma * Ql)
 
