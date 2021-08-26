@@ -7,10 +7,10 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
 
-from tornado import init, ivp, iwp, linops, odesolver, rv
+from tornado import init, ivp, iwp, linops, odesolver, rv, sqrt
 
 
-@dataclasses.dataclass(frozen=False)
+@dataclasses.dataclass
 class StateEnsemble:
     ivp: ivp.InitialValueProblem
     t: float
@@ -24,85 +24,13 @@ class StateEnsemble:
     def dim(self):
         return self.samples.shape[0]
 
-    def __getitem__(self, key):
-        return self.samples.__getitem__(key)
-
-    def __matmul__(self, other):
-        if isinstance(other, jnp.ndarray):
-            return StateEnsemble(ivp=self.ivp, t=self.t, samples=self.samples @ other)
-        elif isinstance(other, StateEnsemble):
-            return StateEnsemble(
-                ivp=self.ivp, t=self.t, samples=self.samples @ other.samples
-            )
-        else:
-            raise TypeError(f"Got type {type(other)}.")
-
-    def __add__(self, other):
-        if isinstance(other, jnp.ndarray):
-            return StateEnsemble(ivp=self.ivp, t=self.t, samples=self.samples + other)
-        elif isinstance(other, StateEnsemble):
-            return StateEnsemble(
-                ivp=self.ivp, t=self.t, samples=self.samples + other.samples
-            )
-        else:
-            raise TypeError(f"Got type {type(other)}.")
-
-    def __sub__(self, other):
-        if isinstance(other, jnp.ndarray):
-            return StateEnsemble(ivp=self.ivp, t=self.t, samples=self.samples - other)
-        elif isinstance(other, StateEnsemble):
-            return StateEnsemble(
-                ivp=self.ivp, t=self.t, samples=self.samples - other.samples
-            )
-        else:
-            raise TypeError(f"Got type {type(other)}.")
-
-    def __rmatmul__(self, other):
-        if isinstance(other, jnp.ndarray):
-            return StateEnsemble(ivp=self.ivp, t=self.t, samples=other @ self.samples)
-        elif isinstance(other, StateEnsemble):
-            return StateEnsemble(
-                ivp=self.ivp, t=self.t, samples=other.samples @ self.samples
-            )
-        else:
-            raise TypeError(f"Got type {type(other)}.")
-
-    def __radd__(self, other):
-        if isinstance(other, jnp.ndarray):
-            return StateEnsemble(ivp=self.ivp, t=self.t, samples=other + self.samples)
-        elif isinstance(other, StateEnsemble):
-            return StateEnsemble(
-                ivp=self.ivp, t=self.t, samples=other.samples + self.samples
-            )
-        else:
-            raise TypeError(f"Got type {type(other)}.")
-
-    def __rsub__(self, other):
-        if isinstance(other, jnp.ndarray):
-            return StateEnsemble(ivp=self.ivp, t=self.t, samples=other - self.samples)
-        elif isinstance(other, StateEnsemble):
-            return StateEnsemble(
-                ivp=self.ivp, t=self.t, samples=other.samples - self.samples
-            )
-        else:
-            raise TypeError(f"Got type {type(other)}.")
-
     @property
     def mean(self):
-        return (
-            jnp.mean(self.samples, 1, keepdims=True)
-            if self.samples is not None
-            else None
-        )
+        return jnp.mean(self.samples, 1)
 
     @property
     def sample_cov(self):
-        centered = self.samples - self.mean
-        return centered @ centered.T / (self.ensemble_size - 1)
-
-    @property
-    def cov_sqrtm(self):
-        return jnp.linalg.cholesky(self.sample_cov)
+        return jnp.cov(self.samples)
 
 
 class EnK0(odesolver.ODEFilter):
@@ -145,6 +73,9 @@ class EnK0(odesolver.ODEFilter):
         return StateEnsemble(ivp=ivp, t=ivp.t0, samples=init_states)
 
     def attempt_step(self, ensemble, dt, verbose=False):
+
+        t_new = ensemble.t + dt
+
         # [Setup]
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
 
@@ -158,22 +89,52 @@ class EnK0(odesolver.ODEFilter):
 
         _, self.rng = jax.random.split(self.rng)
 
-        pred_samples = A @ ensemble + w
+        pred_samples = A @ ensemble.samples + w
+        sample_mean = jnp.mean(pred_samples, axis=1)
+        sample_cov = jnp.cov(pred_samples)
 
-        z = self.E1 @ pred_samples - ensemble.ivp.f(
-            ensemble.t + dt, self.E0 @ pred_samples
+        H, _, b = self.evaluate_ode(
+            t_new,
+            ensemble.ivp.f,
+            ensemble.ivp.df,
+            sample_mean,
+            self.E0,
+            self.E1,
         )
-        H = self.E1
+
+        z_samples = H @ pred_samples + b[:, None]
 
         # Estimate Kalman gain
         # via Eq. (11) in https://www.math.umd.edu/~slud/RITF17/enkf-tutorial.pdf
-        sample_cov = pred_samples.sample_cov
         CHT = sample_cov @ H.T
         to_invert = H @ CHT
-        gain_times_z = CHT @ jnp.linalg.solve(to_invert, z.samples)
+        gain_times_z = CHT @ jnp.linalg.solve(to_invert, z_samples)
 
         # Update
         updated_samples = pred_samples - gain_times_z
-        updated_samples.t = updated_samples.t + dt
 
-        return updated_samples
+        return StateEnsemble(ivp=ensemble.ivp, t=t_new, samples=updated_samples)
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1, 2))
+    def evaluate_ode(t, f, df, m_pred, e0, e1):
+        P0 = e0
+        P1 = e1
+        m_at = P0 @ m_pred
+        f = f(t, m_at)
+        Jx = df(t, m_at)
+        H = P1 - Jx @ P0
+        b = Jx @ m_at - f
+        z = H @ m_pred + b
+        return H, z, b
+
+    @staticmethod
+    def estimate_error(h, sq, z):
+        s_sqrtm = h @ sq
+        s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
+
+        whitened_res = jax.scipy.linalg.solve_triangular(s_chol.T, z, lower=False)
+        sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
+        sigma = jnp.sqrt(sigma_squared)
+        error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
+        return error_estimate, sigma
