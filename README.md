@@ -1,9 +1,9 @@
-# tornado
-Lightweight, probabilistic ODE solvers. Fast like the wind. 🌪️
+# tornadox
+Lightweight, probabilistic ODE solvers. Fast like the wind. 🌪️ Powered by JAX.
 
 
 ## Usage
-Use `tornado` as follows.
+Use `tornadox` as follows.
 
 ```python
 import jax.numpy as jnp
