@@ -2,7 +2,7 @@
 
 import jax.numpy as jnp
 
-import tornado
+import tornadox
 
 
 def solve(ivp, solver):
@@ -19,21 +19,21 @@ def error(m1, m2):
 
 # Set up the brusselator test problem
 N = 20  # ode dimension will be d=2*N
-bruss = tornado.ivp.brusselator(N=N)
+bruss = tornadox.ivp.brusselator(N=N)
 
 # Adaptive steps with medium/high accuracy
 tolerance = 1e-5
-first_dt = tornado.step.propose_first_dt(ivp=bruss)
-steps = tornado.step.AdaptiveSteps(
+first_dt = tornadox.step.propose_first_dt(ivp=bruss)
+steps = tornadox.step.AdaptiveSteps(
     first_dt=first_dt, abstol=tolerance, reltol=tolerance
 )
 
 # Assemble both solvers
 nu = 4
-truncated_solver = tornado.ek1.TruncationEK1(
+truncated_solver = tornadox.ek1.TruncationEK1(
     num_derivatives=nu, ode_dimension=bruss.dimension, steprule=steps
 )
-reference_solver = tornado.ek1.ReferenceEK1(
+reference_solver = tornadox.ek1.ReferenceEK1(
     num_derivatives=nu, ode_dimension=bruss.dimension, steprule=steps
 )
 
