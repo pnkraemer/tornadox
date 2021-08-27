@@ -7,7 +7,7 @@ from typing import Iterable, Union
 import jax.numpy as jnp
 import numpy as np
 
-from tornadox import ek0, init, ivp, iwp, rv, step
+from tornadox import ek0, init, ivp, rv, step
 
 
 @dataclasses.dataclass
@@ -31,7 +31,9 @@ class ODESolution:
 class ODEFilter(ABC):
     """Interface for filtering-based ODE solvers in ProbNum."""
 
-    def __init__(self, *, steprule=None, num_derivatives=4, initialization=None):
+    def __init__(
+        self, *, steprule=None, num_derivatives=4, initialization=None, **kwargs
+    ):
 
         # Step-size selection
         self.steprule = steprule or step.AdaptiveSteps()

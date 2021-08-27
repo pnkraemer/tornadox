@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
 
-from tornado import init, ivp, iwp, linops, odesolver, rv, sqrt
+from tornadox import ivp, iwp, odefilter, sqrt
 
 
 @dataclasses.dataclass
@@ -37,7 +37,7 @@ class StateEnsemble:
         return jnp.cov(self.samples)
 
 
-class EnK0(odesolver.ODEFilter):
+class EnK1(odefilter.ODEFilter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.P0 = None
