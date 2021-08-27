@@ -91,40 +91,43 @@ class EnK0(odesolver.ODEFilter):
         P, Pinv = self.iwp.nordsieck_preconditioner(dt)
 
         # [Predict]
-        w = jax.random.multivariate_normal(
-            self.rng,
-            mean=jnp.zeros((ensemble.dim,)),
-            cov=PQl @ PQl.T,
-            shape=(ensemble.ensemble_size,),
-        ).T
+        # ToDo: transform standard normal samples
+        predicted_mean = PA @ Pinv @ ensemble.mean
 
-        _, self.rng = jax.random.split(self.rng)
-
-        preconditioned_samples = Pinv @ ensemble.samples
-
-        pred_samples = PA @ preconditioned_samples + w
-        sample_mean = jnp.mean(pred_samples, axis=1)
-        sample_cov = jnp.cov(pred_samples)
-
+        # [Calibration]
         H, z_mean, b = self.evaluate_ode(
             t_new,
             ensemble.ivp.f,
             ensemble.ivp.df,
             P,
-            sample_mean,
+            predicted_mean,
             self.E0,
             self.E1,
         )
 
         error_estimate, sigma = self.estimate_error(H=H, sq=PQl, z=z_mean)
 
+        std_nrml_w = jax.random.normal(
+            self.rng, shape=(ensemble.dim, ensemble.ensemble_size)
+        )
+        w = PQl @ std_nrml_w
+
+        _, self.rng = jax.random.split(self.rng)
+
+        preconditioned_samples = Pinv @ ensemble.samples
+
+        pred_samples = PA @ preconditioned_samples + sigma * w
+        sample_mean = jnp.mean(pred_samples, axis=1)
+        centered = pred_samples - sample_mean[:, None]
+        sample_cov = (centered @ centered.T) / (ensemble.ensemble_size - 1)
+
         z_samples = H @ pred_samples + b[:, None]
 
         # Estimate Kalman gain
         # via Eq. (11) in https://www.math.umd.edu/~slud/RITF17/enkf-tutorial.pdf
         CHT = sample_cov @ H.T
-        to_invert = H @ CHT
-        solved = jnp.linalg.solve(to_invert, z_samples)
+        S = H @ CHT
+        solved = jnp.linalg.solve(S, z_samples)
         gain_times_z = CHT @ solved
 
         # Update
@@ -142,19 +145,13 @@ class EnK0(odesolver.ODEFilter):
         )
 
     @staticmethod
-    # @partial(jax.jit, static_argnums=(1, 2))
+    @partial(jax.jit, static_argnums=(1, 2))
     def evaluate_ode(t, f, df, p, m_pred, e0, e1):
         P0 = e0 @ p
         P1 = e1 @ p
         m_at = P0 @ m_pred
         fx = f(t, m_at)
         Jx = df(t, m_at)
-        # if t > 9.13:
-        #     assert False
-        print("t", t)
-        # print("Jx", Jx)
-        # print("fx", fx)
-
         H = P1 - Jx @ P0
         b = Jx @ m_at - fx
         z = H @ m_pred + b
@@ -169,6 +166,4 @@ class EnK0(odesolver.ODEFilter):
         sigma_squared = whitened_res.T @ whitened_res / whitened_res.shape[0]
         sigma = jnp.sqrt(sigma_squared)
         error_estimate = sigma * jnp.sqrt(jnp.diag(s_chol @ s_chol.T))
-        # print(sigma)
-        # print("")
         return error_estimate, sigma
