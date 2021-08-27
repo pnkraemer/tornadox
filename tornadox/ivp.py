@@ -132,7 +132,7 @@ def lorenz96(t0=0.0, tmax=30.0, y0=None, num_variables=10, forcing=8.0):
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=df)
 
 
-def lorenz96_jax_loop(t0=0.0, tmax=30.0, y0=None, num_variables=10, forcing=8.0):
+def lorenz96_loop(t0=0.0, tmax=30.0, y0=None, num_variables=10, forcing=8.0):
     """Lorenz 96 system in JAX implementation, where the RHS is implemented in a loop."""
 
     if y0 is None:

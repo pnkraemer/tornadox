@@ -6,10 +6,10 @@ import pytest
 import tornadox
 
 IVPs = [
-    tornado.ivp.vanderpol(),
-    tornado.ivp.brusselator(),
-    tornado.ivp.lorenz96(),
-    tornado.ivp.lorenz96_loop(),
+    tornadox.ivp.vanderpol(),
+    tornadox.ivp.brusselator(),
+    tornadox.ivp.lorenz96(),
+    tornadox.ivp.lorenz96_loop(),
 ]
 
 
