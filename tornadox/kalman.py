@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
 
-from tornado import sqrt
+from tornadox import sqrt
 
 
 # Most popular for testing the smoother (and debugging other filters)

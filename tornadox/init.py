@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import scipy.integrate
 from jax.experimental.jet import jet
 
-import tornado.iwp
+import tornadox.iwp
 
 
 class InitializationRoutine(abc.ABC):
@@ -149,7 +149,7 @@ class RungeKutta(InitializationRoutine):
         num_derivatives = m.shape[0] - 1
 
         # Prior
-        iwp = tornado.iwp.IntegratedWienerTransition(
+        iwp = tornadox.iwp.IntegratedWienerTransition(
             num_derivatives=num_derivatives, wiener_process_dimension=d // 2
         )
         phi_1d, sq_1d = iwp.preconditioned_discretize_1d
@@ -194,7 +194,7 @@ class RungeKutta(InitializationRoutine):
             )
 
             # Make smoothing step
-            m_fut__, sc_fut__ = tornado.kalman.smoother_step_sqrt(
+            m_fut__, sc_fut__ = tornadox.kalman.smoother_step_sqrt(
                 m=m,
                 sc=sc,
                 m_fut=m_fut_,
@@ -228,7 +228,7 @@ class RungeKutta(InitializationRoutine):
         # Predict from t_loc to t
         m_pred = phi_1d @ m
         x = phi_1d @ sc
-        sc_pred = tornado.sqrt.propagate_cholesky_factor(x, sq_1d)
+        sc_pred = tornadox.sqrt.propagate_cholesky_factor(x, sq_1d)
 
         # Compute the gainzz
         cross = (x @ sc.T).T

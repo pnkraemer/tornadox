@@ -3,20 +3,20 @@
 import jax.numpy as jnp
 import pytest
 
-import tornado
+import tornadox
 
 
 def test_propose_first_dt():
 
-    ivp = tornado.ivp.vanderpol()
+    ivp = tornadox.ivp.vanderpol()
 
-    dt = tornado.step.propose_first_dt(ivp)
+    dt = tornadox.step.propose_first_dt(ivp)
     assert dt > 0
 
 
 @pytest.fixture
 def ivp():
-    return tornado.ivp.vanderpol()
+    return tornadox.ivp.vanderpol()
 
 
 class TestConstantSteps:
@@ -28,7 +28,7 @@ class TestConstantSteps:
     @staticmethod
     @pytest.fixture
     def steprule(dt):
-        steprule = tornado.step.ConstantSteps(dt)
+        steprule = tornadox.step.ConstantSteps(dt)
         return steprule
 
     @staticmethod
@@ -66,12 +66,12 @@ class TestAdaptiveSteps:
     @staticmethod
     @pytest.fixture
     def steprule(abstol, reltol):
-        steprule = tornado.step.AdaptiveSteps(abstol=abstol, reltol=reltol)
+        steprule = tornadox.step.AdaptiveSteps(abstol=abstol, reltol=reltol)
         return steprule
 
     @staticmethod
     def test_type(steprule):
-        assert isinstance(steprule, tornado.step.AdaptiveSteps)
+        assert isinstance(steprule, tornadox.step.AdaptiveSteps)
 
     @staticmethod
     def test_accept_less_than_1(steprule):

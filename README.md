@@ -8,7 +8,7 @@ Use `tornado` as follows.
 ```python
 import jax.numpy as jnp
 
-from tornado import ek0, ek1, init, step, ivp
+from tornadoximport ek0, ek1, init, step, ivp
 
 # Create a solver. Any of the following work. 
 # The signatures of all solvers coincide.

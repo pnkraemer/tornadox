@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import scipy.linalg
 import scipy.special
 
-from tornado import linops
+from tornadox import linops
 
 
 @dataclasses.dataclass

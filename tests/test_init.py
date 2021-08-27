@@ -2,29 +2,29 @@
 import jax.numpy as jnp
 import pytest
 
-import tornado
+import tornadox
 
 
 @pytest.fixture
 def ivp():
-    return tornado.ivp.threebody()
+    return tornadox.ivp.threebody()
 
 
 class TestInitializationInterface:
 
     ALL_ROUTINES = [
-        tornado.init.RungeKutta(),
-        tornado.init.RungeKutta(use_df=False),
-        tornado.init.TaylorMode(),
-        tornado.init.Stack(),
-        tornado.init.Stack(use_df=False),
+        tornadox.init.RungeKutta(),
+        tornadox.init.RungeKutta(use_df=False),
+        tornadox.init.TaylorMode(),
+        tornadox.init.Stack(),
+        tornadox.init.Stack(use_df=False),
     ]
     all_init_routines = pytest.mark.parametrize("routine", ALL_ROUTINES)
 
     @staticmethod
     @all_init_routines
     def test_init_routine_type(routine):
-        assert isinstance(routine, tornado.init.InitializationRoutine)
+        assert isinstance(routine, tornadox.init.InitializationRoutine)
 
     @staticmethod
     @all_init_routines
@@ -113,7 +113,7 @@ class TestTaylorMode:
     @staticmethod
     @pytest.fixture
     def nordsieck_y0(ivp, num_derivatives):
-        return tornado.init.TaylorMode.taylor_mode(
+        return tornadox.init.TaylorMode.taylor_mode(
             fun=ivp.f, y0=ivp.y0, t0=ivp.t0, num_derivatives=num_derivatives
         )
 
@@ -149,7 +149,7 @@ class TestTaylorMode:
 
 @pytest.fixture
 def ivp2():
-    return tornado.ivp.vanderpol(stiffness_constant=10, t0=0.0, tmax=30.0)
+    return tornadox.ivp.vanderpol(stiffness_constant=10, t0=0.0, tmax=30.0)
 
 
 @pytest.fixture
@@ -203,7 +203,7 @@ class TestRungeKutta:
     @staticmethod
     @pytest.fixture
     def rk_data(f, y0, t0, dt, num_steps, method):
-        return tornado.init.RungeKutta.rk_data(
+        return tornadox.init.RungeKutta.rk_data(
             f=f, t0=t0, dt=dt, num_steps=num_steps, y0=y0, method=method
         )
 
@@ -224,7 +224,7 @@ class TestRungeKutta:
     @staticmethod
     @pytest.fixture
     def init_stack(f, df, y0, t0, num_derivatives):
-        return tornado.init.Stack.initial_state_jac(
+        return tornadox.init.Stack.initial_state_jac(
             f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
 
@@ -233,7 +233,7 @@ class TestRungeKutta:
     def rk_init_improved(init_stack, t0, rk_data):
         m, sc = init_stack
         ts, ys = rk_data
-        return tornado.init.RungeKutta.rk_init_improve(
+        return tornadox.init.RungeKutta.rk_init_improve(
             m=m,
             sc=sc,
             t0=t0,
@@ -262,7 +262,7 @@ class TestRungeKutta:
     @staticmethod
     @pytest.fixture
     def ref_init(f, y0, t0, num_derivatives):
-        return tornado.init.TaylorMode.taylor_mode(
+        return tornadox.init.TaylorMode.taylor_mode(
             fun=f, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
 
@@ -278,7 +278,7 @@ class TestRungeKutta:
 class TestStack:
     @staticmethod
     def test_initial_state_jac(f, df, y0, t0, num_derivatives):
-        m0, sc0 = tornado.init.Stack.initial_state_jac(
+        m0, sc0 = tornadox.init.Stack.initial_state_jac(
             f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
 
@@ -287,7 +287,7 @@ class TestStack:
 
     @staticmethod
     def test_initial_state_no_jac(f, df, y0, t0, num_derivatives):
-        m0, sc0 = tornado.init.Stack.initial_state_no_jac(
+        m0, sc0 = tornadox.init.Stack.initial_state_no_jac(
             f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
 

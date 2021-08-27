@@ -1,4 +1,4 @@
-"""Collect all modules into the tornado.* namespace"""
+"""Collect all modules into the tornadox.* namespace"""
 
 from jax.config import config
 
