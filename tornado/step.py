@@ -29,6 +29,9 @@ class ConstantSteps(StepRule):
     def __init__(self, dt):
         self.dt = dt
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}(dt={self.dt})"
+
     def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         return self.dt
 
@@ -46,8 +49,8 @@ class ConstantSteps(StepRule):
 class AdaptiveSteps(StepRule):
     def __init__(
         self,
-        abstol,
-        reltol,
+        abstol=1e-4,
+        reltol=1e-2,
         max_changes=(0.2, 10.0),
         safety_scale=0.95,
         min_step=1e-15,
@@ -59,6 +62,9 @@ class AdaptiveSteps(StepRule):
         self.safety_scale = safety_scale
         self.min_step = min_step
         self.max_step = max_step
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(abstol={self.abstol}, reltol={self.reltol})"
 
     def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         if local_convergence_rate is None:
