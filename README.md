@@ -1,14 +1,14 @@
-# tornado
-Lightweight, probabilistic ODE solvers. Fast like the wind. 🌪️
+# tornadox
+Lightweight, probabilistic ODE solvers. Fast like the wind. 🌪️ Powered by JAX.
 
 
 ## Usage
-Use `tornado` as follows.
+Use `tornadox` as follows.
 
 ```python
 import jax.numpy as jnp
 
-from tornado import ek0, ek1, init, step, ivp
+from tornadox import ek0, ek1, init, step, ivp
 
 # Create a solver. Any of the following work. 
 # The signatures of all solvers coincide.
@@ -21,7 +21,7 @@ solver6 = ek1.ReferenceEK1(num_derivatives=5, steprule=step.AdaptiveSteps())
 solver7 = ek1.EarlyTruncationEK1(steprule=step.AdaptiveSteps(abstol=1e-4, reltol=1e-2))
 
 # Solve an IVP
-ivp = ivp.vanderpol(t0=0., tmax=1.)
+ivp = ivp.vanderpol(t0=0., tmax=1., stiffness_constant=1.0)
 
 for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7]:
     

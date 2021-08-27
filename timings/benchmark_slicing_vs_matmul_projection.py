@@ -21,7 +21,7 @@ are actually faster than the naive approaches (projmatmul).
 import jax
 import jax.numpy as jnp
 
-import tornado
+import tornadox
 
 print()
 
@@ -33,7 +33,7 @@ for d in [10, 100, 1_000]:
     fake_mean = jnp.arange(1, 1 + d * n)
 
     # Projection styles
-    iwp = tornado.iwp.IntegratedWienerTransition(
+    iwp = tornadox.iwp.IntegratedWienerTransition(
         wiener_process_dimension=d, num_derivatives=n - 1
     )
     E0 = iwp.projection_matrix(0)
@@ -43,7 +43,7 @@ for d in [10, 100, 1_000]:
         return E0 @ arr
 
     def vec_trick_matrix(arr):
-        return tornado.ek0.vec_trick_mul_right(e0_matrix, fake_mean)
+        return tornadox.ek0.vec_trick_mul_right(e0_matrix, fake_mean)
 
     assert jnp.allclose(full_matrix(fake_mean), vec_trick_matrix(fake_mean))
 
@@ -61,7 +61,7 @@ for d in [10, 100, 1_000]:
     fake_mean = jnp.arange(1, 1 + d * n)
 
     # Projection styles
-    iwp = tornado.iwp.IntegratedWienerTransition(
+    iwp = tornadox.iwp.IntegratedWienerTransition(
         wiener_process_dimension=d, num_derivatives=n - 1
     )
     E0 = iwp.projection_matrix(0)
@@ -73,7 +73,7 @@ for d in [10, 100, 1_000]:
 
     @jax.jit
     def vec_trick_matrix(arr):
-        return tornado.ek0.vec_trick_mul_right(e0_matrix, fake_mean)
+        return tornadox.ek0.vec_trick_mul_right(e0_matrix, fake_mean)
 
     assert jnp.allclose(full_matrix(fake_mean), vec_trick_matrix(fake_mean))
 
@@ -92,7 +92,7 @@ for d in [10, 100, 1_000, 10_000]:
     fake_mean_as_matrix = jnp.arange(1, 1 + d * n).reshape((n, d))
 
     # Projection styles
-    iwp = tornado.iwp.IntegratedWienerTransition(
+    iwp = tornadox.iwp.IntegratedWienerTransition(
         wiener_process_dimension=d, num_derivatives=n - 1
     )
     e0_matrix = iwp.projection_matrix_1d(0)
@@ -126,7 +126,7 @@ for d in [10, 100, 1_000, 10_000]:
     fake_mean_as_matrix = jnp.arange(1, 1 + d * n).reshape((n, d))
 
     # Projection styles
-    iwp = tornado.iwp.IntegratedWienerTransition(
+    iwp = tornadox.iwp.IntegratedWienerTransition(
         wiener_process_dimension=d, num_derivatives=n - 1
     )
     e0_matrix = iwp.projection_matrix_1d(0)

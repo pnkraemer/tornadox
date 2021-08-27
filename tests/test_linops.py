@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import jax.scipy.linalg
 import pytest
 
-import tornado
+import tornadox
 
 # Tests for blockdiagonals
 
@@ -25,7 +25,7 @@ def sparse_dense_blockdiag(A, B):
     dense = jax.scipy.linalg.block_diag(A, B)
 
     # todense() works correctly
-    sparse = tornado.linops.BlockDiagonal.from_arrays(A, B)
+    sparse = tornadox.linops.BlockDiagonal.from_arrays(A, B)
     return sparse, dense
 
 
@@ -38,7 +38,7 @@ def test_matmul_blockdiag_blockdiag(sparse_dense_blockdiag, A, B):
     sparse, dense = sparse_dense_blockdiag
     expected = jax.scipy.linalg.block_diag(A @ A, B @ B)
     new = sparse @ sparse
-    assert isinstance(new, tornado.linops.BlockDiagonal)
+    assert isinstance(new, tornadox.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
 
 
@@ -53,28 +53,28 @@ def test_matvec_blodiag_array(sparse_dense_blockdiag):
 
 
 def test_sum_block_diagonals(A, B):
-    B1 = tornado.linops.BlockDiagonal.from_arrays(A, B)
-    B2 = tornado.linops.BlockDiagonal.from_arrays(B, A)
+    B1 = tornadox.linops.BlockDiagonal.from_arrays(A, B)
+    B2 = tornadox.linops.BlockDiagonal.from_arrays(B, A)
     new = B1 + B2
     expected = B1.todense() + B2.todense()
-    assert isinstance(new, tornado.linops.BlockDiagonal)
+    assert isinstance(new, tornadox.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
 
 
 def test_diff_block_diagonals(A, B):
-    B1 = tornado.linops.BlockDiagonal.from_arrays(A, B)
-    B2 = tornado.linops.BlockDiagonal.from_arrays(B, A)
+    B1 = tornadox.linops.BlockDiagonal.from_arrays(A, B)
+    B2 = tornadox.linops.BlockDiagonal.from_arrays(B, A)
     new = B1 - B2
     expected = B1.todense() - B2.todense()
-    assert isinstance(new, tornado.linops.BlockDiagonal)
+    assert isinstance(new, tornadox.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
 
 
 def test_transpose_block_diagonals(A, B):
-    BD = tornado.linops.BlockDiagonal.from_arrays(A, B)
+    BD = tornadox.linops.BlockDiagonal.from_arrays(A, B)
     new = BD.T
     expected = BD.todense().T
-    assert isinstance(new, tornado.linops.BlockDiagonal)
+    assert isinstance(new, tornadox.linops.BlockDiagonal)
     assert jnp.allclose(new.todense(), expected)
 
 
@@ -83,11 +83,11 @@ def test_transpose_block_diagonals(A, B):
 
 @pytest.fixture
 def P0():
-    return tornado.linops.DerivativeSelection(derivative=0)
+    return tornadox.linops.DerivativeSelection(derivative=0)
 
 
 def test_is_operator(P0):
-    assert isinstance(P0, tornado.linops.DerivativeSelection)
+    assert isinstance(P0, tornadox.linops.DerivativeSelection)
 
 
 def test_array(P0):
@@ -136,12 +136,12 @@ def test_batched_matrix(P0):
 @pytest.mark.parametrize("d,n1,n2", [(5, 3, 2), (2, 3, 1)])
 def test_truncate_block_diagonal_array(d, n1, n2):
     array_stack = jnp.arange(d * n1 * n2).reshape((d, n1, n2))
-    dense_matrix = tornado.linops.BlockDiagonal(array_stack).todense()
-    dense_as_array_stack = tornado.linops.truncate_block_diagonal(
+    dense_matrix = tornadox.linops.BlockDiagonal(array_stack).todense()
+    dense_as_array_stack = tornadox.linops.truncate_block_diagonal(
         dense_matrix, num_blocks=d, block_shape=(n1, n2)
     )
     assert dense_as_array_stack.shape == (d, n1, n2)
     assert jnp.allclose(
-        tornado.linops.BlockDiagonal(dense_as_array_stack).todense(), dense_matrix
+        tornadox.linops.BlockDiagonal(dense_as_array_stack).todense(), dense_matrix
     )
     assert jnp.allclose(dense_as_array_stack, array_stack)

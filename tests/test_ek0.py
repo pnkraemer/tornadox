@@ -3,12 +3,12 @@ import numpy as np
 import pytest
 from scipy.integrate import solve_ivp
 
-import tornado
+import tornadox
 
 
 @pytest.fixture
 def ivp():
-    return tornado.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
+    return tornadox.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def d(ivp):
 
 @pytest.fixture
 def steps():
-    return tornado.step.AdaptiveSteps(abstol=1e-3, reltol=1e-3)
+    return tornadox.step.AdaptiveSteps(abstol=1e-3, reltol=1e-3)
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ def ek0_solution(ek0_version, num_derivatives, ivp, steps):
             pass
 
     final_t_ek0 = state.t
-    if isinstance(ek0, tornado.ek0.ReferenceEK0):
+    if isinstance(ek0, tornadox.ek0.ReferenceEK0):
         final_y_ek0 = ek0.P0 @ state.y.mean
     else:
         final_y_ek0 = state.y.mean[0]
@@ -55,8 +55,8 @@ def scipy_solution(ivp):
 
 # Handy abbreviation for the long parametrize decorator
 EK0_VERSIONS = [
-    tornado.ek0.ReferenceEK0,
-    tornado.ek0.KroneckerEK0,
+    tornadox.ek0.ReferenceEK0,
+    tornadox.ek0.KroneckerEK0,
 ]
 all_ek0_versions = pytest.mark.parametrize("ek0_version", EK0_VERSIONS)
 
@@ -76,10 +76,10 @@ def test_full_solve_compare_scipy(ek0_solution, scipy_solution):
 
 @pytest.fixture
 def solver_tuple(steps, num_derivatives, d):
-    reference_ek0 = tornado.ek0.ReferenceEK0(
+    reference_ek0 = tornadox.ek0.ReferenceEK0(
         num_derivatives=num_derivatives, steprule=steps
     )
-    kronecker_ek0 = tornado.ek0.KroneckerEK0(
+    kronecker_ek0 = tornadox.ek0.KroneckerEK0(
         num_derivatives=num_derivatives, steprule=steps
     )
 
@@ -113,7 +113,7 @@ def stepped_both(solver_tuple, ivp, initialized_both):
 
 def test_init_type(initialized_both):
     kronecker_init, _ = initialized_both
-    assert isinstance(kronecker_init.y, tornado.rv.MatrixNormal)
+    assert isinstance(kronecker_init.y, tornadox.rv.MatrixNormal)
 
 
 def test_init_values(initialized_both, d):
@@ -177,7 +177,7 @@ def stepped_reference(stepped_both):
 
 
 def test_attempt_step_y_type(stepped_kronecker):
-    assert isinstance(stepped_kronecker.y, tornado.rv.MatrixNormal)
+    assert isinstance(stepped_kronecker.y, tornadox.rv.MatrixNormal)
 
 
 def test_attempt_step_y_shapes_kronecker(stepped_kronecker, d, num_derivatives):
