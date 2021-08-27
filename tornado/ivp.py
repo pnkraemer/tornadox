@@ -108,25 +108,3 @@ def brusselator(N=20, t0=0.0, tmax=10.0):
     y0 = jnp.concatenate([u0, v0])
 
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=jac)
-
-
-def lorenz96(t0=0.0, tmax=30.0, y0=None, num_variables=10, forcing=8.0):
-    """Lorenz 96 system in JAX implementation."""
-
-    if y0 is None:
-        y0_equilibrium = jnp.ones(num_variables) * forcing
-
-        # Slightly perturb the equilibrium initval to create chaotic behaviour
-        y0 = y0_equilibrium.at[0].set(y0_equilibrium[0] + 0.01)
-
-    def lorenz_rhs(t, y, c=forcing):
-        A = jnp.roll(y, shift=-1)
-        B = jnp.roll(y, shift=2)
-        C = jnp.roll(y, shift=1)
-        D = y
-        return (A - B) * C - D + c
-
-    rhs = lorenz_rhs
-    df = jax.jacfwd(rhs, argnums=1)
-
-    return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=df)
