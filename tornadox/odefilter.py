@@ -31,9 +31,7 @@ class ODESolution:
 class ODEFilter(ABC):
     """Interface for filtering-based ODE solvers in ProbNum."""
 
-    def __init__(
-        self, *, steprule=None, num_derivatives=4, initialization=None, **kwargs
-    ):
+    def __init__(self, *, steprule=None, num_derivatives=4, initialization=None):
 
         # Step-size selection
         self.steprule = steprule or step.AdaptiveSteps()

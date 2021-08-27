@@ -28,22 +28,20 @@ class StateEnsemble:
     def dim(self):
         return self.samples.shape[0]
 
-    @property
     def mean(self):
         return jnp.mean(self.samples, 1)
 
-    @property
     def sample_cov(self):
         return jnp.cov(self.samples)
 
 
 class EnK1(odefilter.ODEFilter):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ensemble_size, **kwargs):
         super().__init__(*args, **kwargs)
         self.P0 = None
         self.E0 = None
         self.E1 = None
-        self.ensemble_size = kwargs["ensemble_size"]
+        self.ensemble_size = ensemble_size
 
         self.rng = jax.random.PRNGKey(1)
 
@@ -91,7 +89,7 @@ class EnK1(odefilter.ODEFilter):
         P, Pinv = self.iwp.nordsieck_preconditioner(dt)
 
         # [Predict]
-        predicted_mean = PA @ Pinv @ ensemble.mean
+        predicted_mean = PA @ Pinv @ ensemble.mean()
 
         # [Calibration]
         H, z_mean, b = self.evaluate_ode(

@@ -33,8 +33,8 @@ def ensemble_size():
 
 
 @pytest.fixture
-def ek1_solution(ek1_version, num_derivatives, ivp, steps, ensemble_size):
-    ek1 = ek1_version(
+def ek1_solution(num_derivatives, ivp, steps, ensemble_size):
+    ek1 = tornadox.enkf.EnK1(
         num_derivatives=num_derivatives, steprule=steps, ensemble_size=ensemble_size
     )
     sol_gen = ek1.solution_generator(ivp=ivp)
@@ -43,10 +43,8 @@ def ek1_solution(ek1_version, num_derivatives, ivp, steps, ensemble_size):
             pass
 
     final_t_ek1 = state.t
-    if isinstance(ek1, tornadox.ek1.ReferenceEK1):
-        final_y_ek1 = ek1.P0 @ state.y.mean
-    else:
-        final_y_ek1 = ek1.P0 @ state.mean.reshape(-1)
+
+    final_y_ek1 = ek1.P0 @ state.mean()
     return final_t_ek1, final_y_ek1
 
 
@@ -61,15 +59,6 @@ def scipy_solution(ivp):
 # Tests for full solves.
 
 
-# Handy abbreviation for the long parametrize decorator
-EK1_VERSIONS = [
-    tornadox.ek1.ReferenceEK1,
-    tornadox.enkf.EnK1,
-]
-all_ek1_versions = pytest.mark.parametrize("ek1_version", EK1_VERSIONS)
-
-
-@all_ek1_versions
 def test_full_solve_compare_scipy(ek1_solution, scipy_solution):
     """Assert the ODEFilter solves an ODE appropriately."""
     final_t_scipy, final_y_scipy = scipy_solution
