@@ -3,14 +3,14 @@
 import jax.numpy
 import pytest
 
-import tornado
+import tornadox
 
-IVPs = [tornado.ivp.vanderpol(), tornado.ivp.brusselator()]
+IVPs = [tornadox.ivp.vanderpol(), tornadox.ivp.brusselator()]
 
 
 @pytest.mark.parametrize("ivp", IVPs)
 def test_ivp(ivp):
-    assert isinstance(ivp, tornado.ivp.InitialValueProblem)
+    assert isinstance(ivp, tornadox.ivp.InitialValueProblem)
 
 
 @pytest.mark.parametrize("ivp", IVPs)

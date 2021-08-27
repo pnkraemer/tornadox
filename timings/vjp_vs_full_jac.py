@@ -4,11 +4,11 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-import tornado
+import tornadox
 
 # Set up problem
 for N in [5, 500, 5_000, 50_000]:
-    bruss = tornado.ivp.brusselator(N=N)
+    bruss = tornadox.ivp.brusselator(N=N)
     t0, y0 = bruss.t0, bruss.y0
 
     f = lambda x: bruss.f(t0, x)

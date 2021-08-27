@@ -4,7 +4,7 @@
 import jax.numpy as jnp
 import pytest
 
-import tornado
+import tornadox
 
 # Common fixtures
 
@@ -34,11 +34,11 @@ def cov_sqrtm(dimension):
 
 @pytest.fixture
 def multivariate_normal(mean, cov_sqrtm):
-    return tornado.rv.MultivariateNormal(mean=mean, cov_sqrtm=cov_sqrtm)
+    return tornadox.rv.MultivariateNormal(mean=mean, cov_sqrtm=cov_sqrtm)
 
 
 def test_multivariate_normal_type(multivariate_normal):
-    assert isinstance(multivariate_normal, tornado.rv.MultivariateNormal)
+    assert isinstance(multivariate_normal, tornadox.rv.MultivariateNormal)
 
 
 def test_multivariate_normal_cov(multivariate_normal):
@@ -62,13 +62,15 @@ def batched_cov_sqrtm(cov_sqrtm, batch_size):
 
 @pytest.fixture
 def batched_multivariate_normal(batched_mean, batched_cov_sqrtm):
-    return tornado.rv.BatchedMultivariateNormal(
+    return tornadox.rv.BatchedMultivariateNormal(
         mean=batched_mean, cov_sqrtm=batched_cov_sqrtm
     )
 
 
 def test_batched_multivariate_normal_type(batched_multivariate_normal):
-    assert isinstance(batched_multivariate_normal, tornado.rv.BatchedMultivariateNormal)
+    assert isinstance(
+        batched_multivariate_normal, tornadox.rv.BatchedMultivariateNormal
+    )
 
 
 def test_batched_multivariate_shapes_mean(
@@ -104,13 +106,13 @@ def test_batched_multivariate_normal_cov(batched_multivariate_normal):
 
 @pytest.fixture
 def matrix_normal(mean, cov_sqrtm):
-    return tornado.rv.MatrixNormal(
+    return tornadox.rv.MatrixNormal(
         mean=mean, cov_sqrtm_1=cov_sqrtm, cov_sqrtm_2=cov_sqrtm
     )
 
 
 def test_matrix_normal_type(matrix_normal):
-    assert isinstance(matrix_normal, tornado.rv.MatrixNormal)
+    assert isinstance(matrix_normal, tornadox.rv.MatrixNormal)
 
 
 def test_matrix_normal_cov_1(matrix_normal):

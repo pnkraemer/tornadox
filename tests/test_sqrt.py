@@ -3,13 +3,13 @@
 import jax.numpy as jnp
 import pytest
 
-import tornado
+import tornadox
 
 
 @pytest.fixture
 def iwp():
     """Steal system matrices from an IWP transition."""
-    return tornado.iwp.IntegratedWienerTransition(
+    return tornadox.iwp.IntegratedWienerTransition(
         wiener_process_dimension=1, num_derivatives=1
     )
 
@@ -42,7 +42,7 @@ def test_propagate_cholesky_factor(H_and_SQ, SC, measurement_style):
     H, SQ = H_and_SQ
 
     # First test: Non-optional S2
-    chol = tornado.sqrt.propagate_cholesky_factor(S1=(H @ SC), S2=SQ)
+    chol = tornadox.sqrt.propagate_cholesky_factor(S1=(H @ SC), S2=SQ)
     cov = H @ SC @ SC.T @ H.T + SQ @ SQ.T
     assert jnp.allclose(chol @ chol.T, cov)
     assert jnp.allclose(jnp.tril(chol), chol)
@@ -55,15 +55,17 @@ def test_batched_propagate_cholesky_factors(
     """Batched propagation coincides with non-batched propagation."""
 
     H, SQ = H_and_SQ
-    H = tornado.linops.BlockDiagonal(jnp.stack([H] * batch_size))
-    SQ = tornado.linops.BlockDiagonal(jnp.stack([SQ] * batch_size))
-    SC = tornado.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
+    H = tornadox.linops.BlockDiagonal(jnp.stack([H] * batch_size))
+    SQ = tornadox.linops.BlockDiagonal(jnp.stack([SQ] * batch_size))
+    SC = tornadox.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
 
-    chol = tornado.sqrt.batched_propagate_cholesky_factor(
+    chol = tornadox.sqrt.batched_propagate_cholesky_factor(
         (H @ SC).array_stack, SQ.array_stack
     )
-    chol_as_bd = tornado.linops.BlockDiagonal(chol)
-    reference = tornado.sqrt.propagate_cholesky_factor((H @ SC).todense(), SQ.todense())
+    chol_as_bd = tornadox.linops.BlockDiagonal(chol)
+    reference = tornadox.sqrt.propagate_cholesky_factor(
+        (H @ SC).todense(), SQ.todense()
+    )
     assert jnp.allclose(chol_as_bd.todense(), reference)
 
 
@@ -72,13 +74,13 @@ def test_batched_sqrtm_to_cholesky(H_and_SQ, SC, measurement_style, batch_size):
     """Sqrtm-to-cholesky is the same for batched and non-batched."""
     H, SQ = H_and_SQ
     d = H.shape[0]
-    H = tornado.linops.BlockDiagonal(jnp.stack([H] * batch_size))
-    SC = tornado.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
+    H = tornadox.linops.BlockDiagonal(jnp.stack([H] * batch_size))
+    SC = tornadox.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
 
-    chol = tornado.sqrt.batched_sqrtm_to_cholesky((H @ SC).T.array_stack)
-    chol_as_bd = tornado.linops.BlockDiagonal(chol)
+    chol = tornadox.sqrt.batched_sqrtm_to_cholesky((H @ SC).T.array_stack)
+    chol_as_bd = tornadox.linops.BlockDiagonal(chol)
 
-    reference = tornado.sqrt.sqrtm_to_cholesky((H @ SC).T.todense())
+    reference = tornadox.sqrt.sqrtm_to_cholesky((H @ SC).T.todense())
     assert jnp.allclose(chol_as_bd.todense(), reference)
     assert chol_as_bd.array_stack.shape == (batch_size, d, d)
 
@@ -89,7 +91,7 @@ def test_update_sqrt(H_and_SQ, SC, measurement_style):
 
     H, _ = H_and_SQ
 
-    SC_new, kalman_gain, innov_chol = tornado.sqrt.update_sqrt(H, SC)
+    SC_new, kalman_gain, innov_chol = tornadox.sqrt.update_sqrt(H, SC)
     assert isinstance(SC_new, jnp.ndarray)
     assert isinstance(kalman_gain, jnp.ndarray)
     assert isinstance(innov_chol, jnp.ndarray)
@@ -119,10 +121,10 @@ def test_batched_update_sqrt(H_and_SQ, SC, measurement_style, batch_size):
     """Batched updated coincides with non-batched update."""
     H, _ = H_and_SQ
     d_out, d_in = H.shape
-    H = tornado.linops.BlockDiagonal(jnp.stack([H] * batch_size))
-    SC = tornado.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
+    H = tornadox.linops.BlockDiagonal(jnp.stack([H] * batch_size))
+    SC = tornadox.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
 
-    chol, K, S = tornado.sqrt.batched_update_sqrt(
+    chol, K, S = tornadox.sqrt.batched_update_sqrt(
         H.array_stack,
         SC.array_stack,
     )
@@ -133,10 +135,10 @@ def test_batched_update_sqrt(H_and_SQ, SC, measurement_style, batch_size):
     assert chol.shape == (batch_size, d_in, d_in)
     assert S.shape == (batch_size, d_out, d_out)
 
-    ref_chol, ref_K, ref_S = tornado.sqrt.update_sqrt(H.todense(), SC.todense())
-    chol_as_bd = tornado.linops.BlockDiagonal(chol)
-    K_as_bd = tornado.linops.BlockDiagonal(K)
-    S_as_bd = tornado.linops.BlockDiagonal(S)
+    ref_chol, ref_K, ref_S = tornadox.sqrt.update_sqrt(H.todense(), SC.todense())
+    chol_as_bd = tornadox.linops.BlockDiagonal(chol)
+    K_as_bd = tornadox.linops.BlockDiagonal(K)
+    S_as_bd = tornadox.linops.BlockDiagonal(S)
 
     # K can be compared elementwise, S and chol not (see below).
     assert jnp.allclose(K_as_bd.todense(), ref_K)

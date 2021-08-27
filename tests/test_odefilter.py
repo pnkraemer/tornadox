@@ -6,21 +6,21 @@ import dataclasses
 import jax.numpy as jnp
 import pytest
 
-import tornado
+import tornadox
 
 
 @dataclasses.dataclass
 class EulerState:
-    ivp: tornado.ivp.InitialValueProblem
+    ivp: tornadox.ivp.InitialValueProblem
     y: jnp.array
     t: float
     error_estimate: jnp.array
     reference_state: jnp.array
 
 
-class EulerAsODEFilter(tornado.odefilter.ODEFilter):
+class EulerAsODEFilter(tornadox.odefilter.ODEFilter):
     def initialize(self, ivp):
-        y = tornado.rv.MultivariateNormal(
+        y = tornadox.rv.MultivariateNormal(
             ivp.y0, cov_sqrtm=jnp.zeros((ivp.y0.shape[0], ivp.y0.shape[0]))
         )
         return EulerState(
@@ -30,7 +30,7 @@ class EulerAsODEFilter(tornado.odefilter.ODEFilter):
     def attempt_step(self, state, dt):
         y = state.y.mean + dt * state.ivp.f(state.t, state.y.mean)
         t = state.t + dt
-        y = tornado.rv.MultivariateNormal(
+        y = tornadox.rv.MultivariateNormal(
             y, cov_sqrtm=jnp.zeros((y.shape[0], y.shape[0]))
         )
         return EulerState(
@@ -40,13 +40,13 @@ class EulerAsODEFilter(tornado.odefilter.ODEFilter):
 
 @pytest.fixture
 def ivp():
-    ivp = tornado.ivp.vanderpol(t0=0.0, tmax=1.5)
+    ivp = tornadox.ivp.vanderpol(t0=0.0, tmax=1.5)
     return ivp
 
 
 @pytest.fixture
 def steps():
-    return tornado.step.ConstantSteps(dt=0.1)
+    return tornadox.step.ConstantSteps(dt=0.1)
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ def test_simulate_final_point(ivp, solver):
 
 def test_solve(ivp, solver):
     sol = solver.solve(ivp)
-    assert isinstance(sol, tornado.odefilter.ODESolution)
+    assert isinstance(sol, tornadox.odefilter.ODESolution)
 
 
 @pytest.fixture

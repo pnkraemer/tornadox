@@ -1,12 +1,12 @@
 import jax.numpy as jnp
 import pytest
 
-import tornado
+import tornadox
 
 
 @pytest.fixture
 def iwp():
-    return tornado.iwp.IntegratedWienerTransition(
+    return tornadox.iwp.IntegratedWienerTransition(
         wiener_process_dimension=1, num_derivatives=2
     )
 
@@ -123,12 +123,12 @@ def projection_operator(iwp):
 
 
 def test_projection_operator(projection_operator):
-    assert isinstance(projection_operator, tornado.linops.DerivativeSelection)
+    assert isinstance(projection_operator, tornadox.linops.DerivativeSelection)
 
 
 def test_reorder_states():
     # Transition handles reordering
-    iwp = tornado.iwp.IntegratedWienerTransition(
+    iwp = tornadox.iwp.IntegratedWienerTransition(
         num_derivatives=1, wiener_process_dimension=3
     )
 

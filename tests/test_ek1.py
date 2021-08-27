@@ -7,19 +7,19 @@ import jax.numpy as jnp
 import pytest
 from scipy.integrate import solve_ivp
 
-import tornado
+import tornadox
 
 # Commonly reused fixtures
 
 
 @pytest.fixture
 def ivp():
-    return tornado.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
+    return tornadox.ivp.vanderpol(t0=0.0, tmax=0.25, stiffness_constant=1.0)
 
 
 @pytest.fixture
 def steps():
-    return tornado.step.AdaptiveSteps(abstol=1e-3, reltol=1e-3)
+    return tornadox.step.AdaptiveSteps(abstol=1e-3, reltol=1e-3)
 
 
 @pytest.fixture
@@ -40,10 +40,10 @@ def num_derivatives():
 
 # Handy abbreviation for the long parametrize decorator
 EK1_VERSIONS = [
-    tornado.ek1.ReferenceEK1,
-    tornado.ek1.DiagonalEK1,
-    tornado.ek1.EarlyTruncationEK1,
-    tornado.ek1.TruncationEK1,
+    tornadox.ek1.ReferenceEK1,
+    tornadox.ek1.DiagonalEK1,
+    tornadox.ek1.EarlyTruncationEK1,
+    tornadox.ek1.TruncationEK1,
 ]
 all_ek1_versions = pytest.mark.parametrize("ek1_version", EK1_VERSIONS)
 
@@ -62,7 +62,7 @@ def test_full_solve_compare_scipy(
             pass
 
     final_t_ek1 = state.t
-    if isinstance(ek1, tornado.ek1.ReferenceEK1):
+    if isinstance(ek1, tornadox.ek1.ReferenceEK1):
         final_y_ek1 = ek1.P0 @ state.y.mean
     else:
         final_y_ek1 = state.y.mean[0]
@@ -77,16 +77,16 @@ def test_full_solve_compare_scipy(
 all_ek1_approximations = pytest.mark.parametrize(
     "approx_solver",
     [
-        tornado.ek1.DiagonalEK1,
-        tornado.ek1.EarlyTruncationEK1,
-        tornado.ek1.TruncationEK1,
+        tornadox.ek1.DiagonalEK1,
+        tornadox.ek1.EarlyTruncationEK1,
+        tornadox.ek1.TruncationEK1,
     ],
 )
 all_ek1_approximations_except_early_truncation = pytest.mark.parametrize(
-    "approx_solver", [tornado.ek1.DiagonalEK1, tornado.ek1.TruncationEK1]
+    "approx_solver", [tornadox.ek1.DiagonalEK1, tornadox.ek1.TruncationEK1]
 )
 only_ek1_early_truncation = pytest.mark.parametrize(
-    "approx_solver", [tornado.ek1.EarlyTruncationEK1]
+    "approx_solver", [tornadox.ek1.EarlyTruncationEK1]
 )
 
 
@@ -98,10 +98,10 @@ def solver_triple(ivp, steps, num_derivatives, approx_solver):
     """Assemble a combination of a to-be-tested-EK1 and a ReferenceEK1 with matching parameters."""
 
     # Diagonal Jacobian into the IVP to make the reference EK1 acknowledge it too.
-    if approx_solver == tornado.ek1.DiagonalEK1:
+    if approx_solver == tornadox.ek1.DiagonalEK1:
         old_ivp = ivp
         new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
-        ivp = tornado.ivp.InitialValueProblem(
+        ivp = tornadox.ivp.InitialValueProblem(
             f=old_ivp.f,
             df=new_df,
             t0=old_ivp.t0,
@@ -110,7 +110,7 @@ def solver_triple(ivp, steps, num_derivatives, approx_solver):
         )
 
     d, n = ivp.dimension, num_derivatives
-    reference_ek1 = tornado.ek1.ReferenceEK1(num_derivatives=n, steprule=steps)
+    reference_ek1 = tornadox.ek1.ReferenceEK1(num_derivatives=n, steprule=steps)
     ek1_approx = approx_solver(num_derivatives=n, steprule=steps)
 
     return ek1_approx, reference_ek1, ivp
@@ -146,7 +146,7 @@ def approx_stepped(solver_triple, approx_initialized, dt):
 @all_ek1_approximations
 def test_init_type(approx_initialized):
     _, init_approx = approx_initialized
-    assert isinstance(init_approx.y, tornado.rv.BatchedMultivariateNormal)
+    assert isinstance(init_approx.y, tornadox.rv.BatchedMultivariateNormal)
 
 
 @all_ek1_approximations
@@ -176,7 +176,7 @@ def test_approx_ek1_initialize_cov_type(approx_initialized):
 @all_ek1_approximations
 def test_attempt_step_type(approx_stepped):
     _, step_approx = approx_stepped
-    assert isinstance(step_approx.y, tornado.rv.BatchedMultivariateNormal)
+    assert isinstance(step_approx.y, tornadox.rv.BatchedMultivariateNormal)
 
 
 @large_and_small_steps
@@ -273,7 +273,7 @@ def test_truncated_ek1_attempt_step_y_values(approx_stepped):
 
     num_blocks = step_approx.y.cov.shape[0]
     block_shape = step_approx.y.cov.shape[1:3]
-    ref_cov_as_batch = tornado.linops.truncate_block_diagonal(
+    ref_cov_as_batch = tornadox.linops.truncate_block_diagonal(
         step_ref.y.cov,
         num_blocks=num_blocks,
         block_shape=block_shape,
@@ -394,7 +394,7 @@ class TestLowLevelReferenceEK1Functions:
     @staticmethod
     @pytest.fixture
     def evaluated(ivp, m, e0, e1, p, t, f, df):
-        return tornado.ek1.ReferenceEK1.evaluate_ode(
+        return tornadox.ek1.ReferenceEK1.evaluate_ode(
             t=t,
             f=f,
             df=df,
@@ -420,12 +420,12 @@ class TestLowLevelReferenceEK1Functions:
 
     @staticmethod
     def test_predict_mean(m, phi, n, d):
-        mp = tornado.ek1.ReferenceEK1.predict_mean(m, phi)
+        mp = tornadox.ek1.ReferenceEK1.predict_mean(m, phi)
         assert mp.shape == (n * d,)
 
     @staticmethod
     def test_predict_cov_sqrtm(sc, phi, sq, n, d):
-        scp = tornado.ek1.ReferenceEK1.predict_cov_sqrtm(sc, phi, sq)
+        scp = tornadox.ek1.ReferenceEK1.predict_cov_sqrtm(sc, phi, sq)
         assert scp.shape == (n * d, n * d)
 
     @staticmethod
@@ -443,7 +443,7 @@ class TestLowLevelReferenceEK1Functions:
     @staticmethod
     @pytest.fixture
     def reference_ek1_error_estimated(h, sq, z):
-        return tornado.ek1.ReferenceEK1.estimate_error(h, sq, z)
+        return tornadox.ek1.ReferenceEK1.estimate_error(h, sq, z)
 
     @staticmethod
     def test_calibrate(reference_ek1_error_estimated):
@@ -474,12 +474,12 @@ def sq_as_bd(sq_1d, d):
 class TestLowLevelBatchedEK1Functions:
     @staticmethod
     def test_predict_mean(m_as_matrix, phi_1d, n, d):
-        mp = tornado.ek1.BatchedEK1.predict_mean(m_as_matrix, phi_1d)
+        mp = tornadox.ek1.BatchedEK1.predict_mean(m_as_matrix, phi_1d)
         assert mp.shape == (n, d)
 
     @staticmethod
     def test_predict_cov_sqrtm(sc_as_bd, phi_1d, sq_as_bd, n, d):
-        scp = tornado.ek1.BatchedEK1.predict_cov_sqrtm(
+        scp = tornadox.ek1.BatchedEK1.predict_cov_sqrtm(
             sc_bd=sc_as_bd, phi_1d=phi_1d, sq_bd=sq_as_bd
         )
         assert scp.shape == (d, n, n)
@@ -493,7 +493,7 @@ class TestLowLevelDiagonalEK1Functions:
     @staticmethod
     @pytest.fixture
     def evaluated(t, f, df, p_1d_raw, m_as_matrix):
-        return tornado.ek1.DiagonalEK1.evaluate_ode(
+        return tornadox.ek1.DiagonalEK1.evaluate_ode(
             t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_as_matrix
         )
 
@@ -528,7 +528,7 @@ class TestLowLevelDiagonalEK1Functions:
     @staticmethod
     @pytest.fixture
     def diagonal_ek1_error_estimated(p_1d_raw, Jx, sq_as_bd, z):
-        return tornado.ek1.DiagonalEK1.estimate_error(
+        return tornadox.ek1.DiagonalEK1.estimate_error(
             p_1d_raw=p_1d_raw, Jx=Jx, sq_bd=sq_as_bd, z=z
         )
 
@@ -547,7 +547,7 @@ class TestLowLevelDiagonalEK1Functions:
     @staticmethod
     @pytest.fixture
     def observed(Jx, p_1d_raw, sc_as_bd):
-        return tornado.ek1.DiagonalEK1.observe_cov_sqrtm(
+        return tornadox.ek1.DiagonalEK1.observe_cov_sqrtm(
             p_1d_raw=p_1d_raw,
             Jx=Jx,
             sc_bd=sc_as_bd,
@@ -562,7 +562,7 @@ class TestLowLevelDiagonalEK1Functions:
     @staticmethod
     def test_correct_cov_sqrtm(Jx, p_1d_raw, observed, sc_as_bd, d, n):
         _, kgain = observed
-        new_sc = tornado.ek1.DiagonalEK1.correct_cov_sqrtm(
+        new_sc = tornadox.ek1.DiagonalEK1.correct_cov_sqrtm(
             p_1d_raw=p_1d_raw,
             Jx=Jx,
             sc_bd=sc_as_bd,
@@ -573,7 +573,9 @@ class TestLowLevelDiagonalEK1Functions:
     @staticmethod
     def test_correct_mean(m_as_matrix, observed, z, d, n):
         _, kgain = observed
-        new_mean = tornado.ek1.DiagonalEK1.correct_mean(m=m_as_matrix, kgain=kgain, z=z)
+        new_mean = tornadox.ek1.DiagonalEK1.correct_mean(
+            m=m_as_matrix, kgain=kgain, z=z
+        )
         assert new_mean.shape == (n, d)
 
 
@@ -583,7 +585,7 @@ class TestLowLevelTruncationEK1Functions:
     @staticmethod
     @pytest.fixture
     def evaluated(t, f, df, p_1d_raw, m_as_matrix):
-        return tornado.ek1.TruncationEK1.evaluate_ode(
+        return tornadox.ek1.TruncationEK1.evaluate_ode(
             t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_as_matrix
         )
 
@@ -618,7 +620,7 @@ class TestLowLevelTruncationEK1Functions:
     @staticmethod
     @pytest.fixture
     def diagonal_ek1_error_estimated(p_1d_raw, Jx, sq_as_bd, z):
-        return tornado.ek1.TruncationEK1.estimate_error(
+        return tornadox.ek1.TruncationEK1.estimate_error(
             p_1d_raw=p_1d_raw, Jx=Jx, sq_bd=sq_as_bd, z=z
         )
 
@@ -637,7 +639,7 @@ class TestLowLevelTruncationEK1Functions:
     @staticmethod
     @pytest.fixture
     def observed(Jx, p_1d_raw, sc_as_bd):
-        return tornado.ek1.TruncationEK1.observe_cov_sqrtm(
+        return tornadox.ek1.TruncationEK1.observe_cov_sqrtm(
             p_1d_raw=p_1d_raw,
             Jx=Jx,
             sc_bd=sc_as_bd,
@@ -652,7 +654,7 @@ class TestLowLevelTruncationEK1Functions:
     @staticmethod
     def test_correct_mean(m_as_matrix, observed, z, d, n):
         _, kgain = observed
-        new_mean = tornado.ek1.TruncationEK1.correct_mean(
+        new_mean = tornadox.ek1.TruncationEK1.correct_mean(
             m=m_as_matrix, kgain=kgain, z=z
         )
         assert new_mean.shape == (n, d)
@@ -660,7 +662,7 @@ class TestLowLevelTruncationEK1Functions:
     @staticmethod
     def test_correct_cov_sqrtm(Jx, p_1d_raw, observed, sc_as_bd, d, n):
         _, kgain = observed
-        new_sc = tornado.ek1.TruncationEK1.correct_cov_sqrtm(
+        new_sc = tornadox.ek1.TruncationEK1.correct_cov_sqrtm(
             p_1d_raw=p_1d_raw,
             Jx=Jx,
             sc_bd=sc_as_bd,
@@ -675,4 +677,6 @@ class TestLowLevelTruncationEK1Functions:
 def full_cov_as_batched_cov(cov, expected_shape):
     """Auxiliary function to make tests more convenient."""
     n, m, k = expected_shape
-    return tornado.linops.truncate_block_diagonal(cov, num_blocks=n, block_shape=(m, k))
+    return tornadox.linops.truncate_block_diagonal(
+        cov, num_blocks=n, block_shape=(m, k)
+    )

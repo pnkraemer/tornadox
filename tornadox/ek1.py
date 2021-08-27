@@ -5,7 +5,7 @@ from functools import partial
 import jax.numpy as jnp
 import jax.scipy.linalg
 
-from tornado import init, iwp, linops, odefilter, rv, sqrt
+from tornadox import init, iwp, linops, odefilter, rv, sqrt
 
 
 class ReferenceEK1(odefilter.ODEFilter):
