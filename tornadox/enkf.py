@@ -91,7 +91,6 @@ class EnK0(odesolver.ODEFilter):
         P, Pinv = self.iwp.nordsieck_preconditioner(dt)
 
         # [Predict]
-        # ToDo: transform standard normal samples
         predicted_mean = PA @ Pinv @ ensemble.mean
 
         # [Calibration]
@@ -134,7 +133,9 @@ class EnK0(odesolver.ODEFilter):
         updated_samples = pred_samples - gain_times_z
         updated_samples = P @ updated_samples
 
-        reference_state = self.E0 @ jnp.abs(jnp.mean(updated_samples, 1))
+        y1 = jnp.abs(self.E0 @ jnp.mean(ensemble.samples, 1))
+        y2 = jnp.abs(self.E0 @ jnp.mean(updated_samples, 1))
+        reference_state = jnp.maximum(y1, y2)
 
         return StateEnsemble(
             ivp=ensemble.ivp,
@@ -158,6 +159,7 @@ class EnK0(odesolver.ODEFilter):
         return H, z, b
 
     @staticmethod
+    @jax.jit
     def estimate_error(H, sq, z):
         s_sqrtm = H @ sq
         s_chol = sqrt.sqrtm_to_cholesky(s_sqrtm.T)
