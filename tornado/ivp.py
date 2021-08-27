@@ -130,3 +130,33 @@ def lorenz96(t0=0.0, tmax=30.0, y0=None, num_variables=10, forcing=8.0):
     df = jax.jacfwd(rhs, argnums=1)
 
     return InitialValueProblem(f=rhs, t0=t0, tmax=tmax, y0=y0, df=df)
+
+
+def lorenz96_jax_loop(t0=0.0, tmax=30.0, y0=None, num_variables=10, forcing=8.0):
+    """Lorenz 96 system in JAX implementation, where the RHS is implemented in a loop."""
+
+    if y0 is None:
+        y0_equilibrium = jnp.ones(num_variables) * forcing
+
+        # Slightly perturb the equilibrium initval to create chaotic behaviour
+        y0 = y0_equilibrium.at[0].set(y0_equilibrium[0] + 0.01)
+
+    @jax.jit
+    def L96(t, x, c=forcing):
+        """Lorenz 96 model with constant forcing"""
+        # Setting up vector
+        N = num_variables
+        d = jnp.zeros(N)
+
+        # Loops over indices (with operations and Python underflow indexing handling edge cases)
+        for i in range(N):
+            A = x[(i + 1) % N] - x[i - 2]
+            B = x[i - 1]
+            C = x[i]
+            val = A * B - C + c
+            d = d.at[i].set(val)
+        return d
+
+    lorenz96_df_jax = jax.jacfwd(L96, argnums=1)
+
+    return InitialValueProblem(f=L96, t0=t0, tmax=tmax, y0=y0, df=lorenz96_df_jax)
