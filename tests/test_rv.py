@@ -160,3 +160,13 @@ class TestRVJittable:
         fun_jitted = jax.jit(fun)
         out = fun_jitted(multivariate_normal)
         assert type(out) == type(multivariate_normal)
+
+    @staticmethod
+    def test_batched_multivariate_normal(batched_multivariate_normal):
+        def fun(rv):
+            m, sc = rv
+            return tornadox.rv.BatchedMultivariateNormal(2 * m, 2 * sc)
+
+        fun_jitted = jax.jit(fun)
+        out = fun_jitted(batched_multivariate_normal)
+        assert type(out) == type(batched_multivariate_normal)
