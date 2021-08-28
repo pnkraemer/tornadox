@@ -140,11 +140,23 @@ def test_matrix_normal_dense_cov(matrix_normal):
     assert jnp.allclose(c, jnp.kron(c1, c2))
 
 
-def test_rv_jittable(matrix_normal):
-    def fun(rv):
-        m, sc1, sc2 = rv
-        return tornadox.rv.MatrixNormal(2 * m, 2 * sc1, 2 * sc2)
+class TestRVJittable:
+    @staticmethod
+    def test_matrix_normal(matrix_normal):
+        def fun(rv):
+            m, sc1, sc2 = rv
+            return tornadox.rv.MatrixNormal(2 * m, 2 * sc1, 2 * sc2)
 
-    fun_jitted = jax.jit(fun)
-    fun_jitted(matrix_normal)
-    assert True
+        fun_jitted = jax.jit(fun)
+        out = fun_jitted(matrix_normal)
+        assert type(out) == type(matrix_normal)
+
+    @staticmethod
+    def test_multivariate_normal(multivariate_normal):
+        def fun(rv):
+            m, sc = rv
+            return tornadox.rv.MultivariateNormal(2 * m, 2 * sc)
+
+        fun_jitted = jax.jit(fun)
+        out = fun_jitted(multivariate_normal)
+        assert type(out) == type(multivariate_normal)

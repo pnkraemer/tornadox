@@ -7,12 +7,8 @@ from collections import namedtuple
 import jax.numpy as jnp
 
 
-@dataclasses.dataclass
-class MultivariateNormal:
+class MultivariateNormal(namedtuple("MatrixNormal", "mean cov_sqrtm")):
     """Multivariate normal distributions."""
-
-    mean: jnp.ndarray
-    cov_sqrtm: jnp.ndarray
 
     @property
     def cov(self):
