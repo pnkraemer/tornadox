@@ -7,7 +7,7 @@ from typing import Iterable, Union
 import jax.numpy as jnp
 import numpy as np
 
-from tornadox import ek0, init, ivp, iwp, rv, step
+from tornadox import ek0, init, ivp, rv, step
 
 
 @dataclasses.dataclass
