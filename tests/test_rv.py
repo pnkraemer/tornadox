@@ -1,6 +1,7 @@
 """Tests for random variables."""
 
 
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -137,3 +138,13 @@ def test_matrix_normal_dense_cov(matrix_normal):
     c = matrix_normal.dense_cov()
     c1, c2 = matrix_normal.cov_1, matrix_normal.cov_2
     assert jnp.allclose(c, jnp.kron(c1, c2))
+
+
+def test_rv_jittable(matrix_normal):
+    def fun(rv):
+        m, sc1, sc2 = rv
+        return tornadox.rv.MatrixNormal(2 * m, 2 * sc1, 2 * sc2)
+
+    fun_jitted = jax.jit(fun)
+    fun_jitted(matrix_normal)
+    assert True
