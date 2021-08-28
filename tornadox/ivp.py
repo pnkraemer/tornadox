@@ -1,7 +1,6 @@
 """Initial value problems and examples."""
 
 
-import dataclasses
 from collections import namedtuple
 from typing import Callable, Optional, Union
 
