@@ -76,34 +76,28 @@ class TestBatchedMultivariateNormal:
         )
 
     @staticmethod
-    def test_batched_multivariate_normal_type(batched_multivariate_normal):
+    def test_type(batched_multivariate_normal):
         assert isinstance(
             batched_multivariate_normal, tornadox.rv.BatchedMultivariateNormal
         )
 
     @staticmethod
-    def test_batched_multivariate_shapes_mean(
-        batched_multivariate_normal, batch_size, dimension
-    ):
+    def test_shapes_mean(batched_multivariate_normal, batch_size, dimension):
         mean = batched_multivariate_normal.mean
         assert mean.shape == (dimension, batch_size)
 
     @staticmethod
-    def test_batched_multivariate_shapes_cov_sqrtm(
-        batched_multivariate_normal, batch_size, dimension
-    ):
+    def test_shapes_cov_sqrtm(batched_multivariate_normal, batch_size, dimension):
         cov_sqrtm = batched_multivariate_normal.cov_sqrtm
         assert cov_sqrtm.shape == (batch_size, dimension, dimension)
 
     @staticmethod
-    def test_batched_multivariate_shapes_cov(
-        batched_multivariate_normal, batch_size, dimension
-    ):
+    def test_shapes_cov(batched_multivariate_normal, batch_size, dimension):
         cov = batched_multivariate_normal.cov
         assert cov.shape == (batch_size, dimension, dimension)
 
     @staticmethod
-    def test_batched_multivariate_normal_cov(batched_multivariate_normal):
+    def test_cov_values(batched_multivariate_normal):
         batched_SC = batched_multivariate_normal.cov_sqrtm
         batched_SC_T = jnp.transpose(batched_SC, axes=(0, 2, 1))
         batched_C = batched_multivariate_normal.cov
@@ -129,29 +123,29 @@ class TestMatrixNormal:
         )
 
     @staticmethod
-    def test_matrix_normal_type(matrix_normal):
+    def test_type(matrix_normal):
         assert isinstance(matrix_normal, tornadox.rv.MatrixNormal)
 
     @staticmethod
-    def test_matrix_normal_cov_1(matrix_normal):
+    def test_cov_1_values(matrix_normal):
         SC = matrix_normal.cov_sqrtm_1
         C = matrix_normal.cov_1
         assert jnp.allclose(C, SC @ SC.T)
 
     @staticmethod
-    def test_matrix_normal_cov_2(matrix_normal):
+    def test_cov_2_values(matrix_normal):
         SC = matrix_normal.cov_sqrtm_2
         C = matrix_normal.cov_2
         assert jnp.allclose(C, SC @ SC.T)
 
     @staticmethod
-    def test_matrix_normal_dense_cov_sqrtm(matrix_normal):
+    def test_dense_cov_sqrtm_values(matrix_normal):
         sc = matrix_normal.dense_cov_sqrtm()
         sc1, sc2 = matrix_normal.cov_sqrtm_1, matrix_normal.cov_sqrtm_2
         assert jnp.allclose(sc, jnp.kron(sc1, sc2))
 
     @staticmethod
-    def test_matrix_normal_dense_cov(matrix_normal):
+    def test_dense_cov_values(matrix_normal):
         c = matrix_normal.dense_cov()
         c1, c2 = matrix_normal.cov_1, matrix_normal.cov_2
         assert jnp.allclose(c, jnp.kron(c1, c2))
