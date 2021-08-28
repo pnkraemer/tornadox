@@ -30,9 +30,8 @@ class ReferenceEK0(odefilter.ODEFilter):
             t0=ivp.t0,
             num_derivatives=self.iwp.num_derivatives,
         )
-        mean = extended_dy0  # .reshape((-1,), order="F")
         y = rv.MultivariateNormal(
-            mean=mean, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
+            mean=extended_dy0, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
         )
         return odefilter.ODEFilterState(
             ivp=ivp,

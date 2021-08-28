@@ -116,7 +116,7 @@ def test_init_type(initialized_both):
 def test_init_values(initialized_both, d):
     kronecker_init, reference_init = initialized_both
 
-    kron_mean = kronecker_init.y.mean  # .reshape((-1,), order="F")
+    kron_mean = kronecker_init.y.mean
     kron_cov_sqrtm = kronecker_init.y.dense_cov_sqrtm()
     kron_cov = kronecker_init.y.dense_cov()
     assert jnp.allclose(kronecker_init.t, reference_init.t)
