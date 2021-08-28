@@ -62,10 +62,7 @@ def test_full_solve_compare_scipy(
             pass
 
     final_t_ek1 = state.t
-    if isinstance(ek1, tornadox.ek1.ReferenceEK1):
-        final_y_ek1 = ek1.P0 @ state.y.mean
-    else:
-        final_y_ek1 = state.y.mean[0]
+    final_y_ek1 = state.y.mean[0]
     assert jnp.allclose(final_t_scipy, final_t_ek1)
     assert jnp.allclose(final_y_scipy, final_y_ek1, rtol=1e-3, atol=1e-3)
 
@@ -156,7 +153,7 @@ def test_approx_ek1_initialize_values(approx_initialized, d, n):
         init_ref.y.cov, expected_shape=init_approx.y.cov.shape
     )
     assert jnp.allclose(init_approx.t, init_ref.t)
-    assert jnp.allclose(init_approx.y.mean, init_ref.y.mean.reshape((n, d), order="F"))
+    assert jnp.allclose(init_approx.y.mean, init_ref.y.mean)
     assert jnp.allclose(init_approx.y.cov_sqrtm, full_cov_as_batch)
     assert jnp.allclose(init_approx.y.cov, full_cov_as_batch)
 
@@ -262,7 +259,7 @@ def test_ek1_attempt_step_y_values(approx_stepped):
     ref_cov_as_batch = full_cov_as_batched_cov(
         step_ref.y.cov, expected_shape=step_approx.y.cov.shape
     )
-    assert jnp.allclose(step_approx.y.mean.reshape((-1,), order="F"), step_ref.y.mean)
+    assert jnp.allclose(step_approx.y.mean, step_ref.y.mean)
     assert jnp.allclose(step_approx.y.cov, ref_cov_as_batch)
 
 
@@ -279,7 +276,7 @@ def test_truncated_ek1_attempt_step_y_values(approx_stepped):
         block_shape=block_shape,
     )
 
-    assert jnp.allclose(step_approx.y.mean.reshape((-1,), order="F"), step_ref.y.mean)
+    assert jnp.allclose(step_approx.y.mean, step_ref.y.mean)
     # The cov approximation is not particularly good, and also step-size dependent.
     # Therefore we do not check values here.
 
