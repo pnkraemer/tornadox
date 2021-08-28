@@ -2,27 +2,27 @@
 
 
 import dataclasses
+from collections import namedtuple
 from typing import Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
 
 
-@dataclasses.dataclass
-class InitialValueProblem:
+class InitialValueProblem(
+    namedtuple("_InitialValueProblem", "f t0 tmax y0 df", defaults=(None,))
+):
     """Initial value problems."""
-
-    f: Callable[[float, jnp.ndarray], jnp.ndarray]
-    t0: float
-    tmax: float
-    y0: Union[float, jnp.ndarray]
-    df: Optional[Callable[[float, jnp.ndarray], jnp.ndarray]] = None
 
     @property
     def dimension(self):
         if jnp.isscalar(self.y0):
             return 1
         return self.y0.shape[0]
+
+    @property
+    def t_span(self):
+        return self.t0, self.tmax
 
 
 def vanderpol(t0=0.0, tmax=30, y0=None, stiffness_constant=1e1):

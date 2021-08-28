@@ -1,5 +1,6 @@
 """Tests for initial value problems and examples thereof."""
 
+import jax
 import jax.numpy as jnp
 import pytest
 
@@ -31,6 +32,17 @@ def test_df(ivp):
         df = ivp.df(ivp.t0, ivp.y0)
         assert isinstance(df, jnp.ndarray)
         assert df.shape == (ivp.y0.shape[0], ivp.y0.shape[0])
+
+
+@pytest.mark.parametrize("ivp", IVPs)
+def test_ivp_jittable(ivp):
+    def fun(*problem):
+        f, t0, tmax, y0, df = problem
+        return t0, tmax, y0
+
+    fun_jitted = jax.jit(fun, static_argnums=(0, 4))
+    out = tornadox.ivp.InitialValueProblem(ivp.f, *fun_jitted(*ivp), ivp.df)
+    assert type(out) == type(ivp)
 
 
 @pytest.fixture

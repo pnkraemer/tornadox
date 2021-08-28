@@ -141,6 +141,11 @@ def test_matrix_normal_dense_cov(matrix_normal):
 
 
 class TestRVJittable:
+    """Assert that functions with RVs as inputs and outputs are jittable.
+
+    In other words, check that RVs are valid JAX types.
+    """
+
     @staticmethod
     def test_matrix_normal(matrix_normal):
         def fun(rv):
