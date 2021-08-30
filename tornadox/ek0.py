@@ -30,9 +30,8 @@ class ReferenceEK0(odefilter.ODEFilter):
             t0=ivp.t0,
             num_derivatives=self.iwp.num_derivatives,
         )
-        mean = extended_dy0.reshape((-1,), order="F")
         y = rv.MultivariateNormal(
-            mean=mean, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
+            mean=extended_dy0, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
         )
         return odefilter.ODEFilterState(
             ivp=ivp,
@@ -44,8 +43,9 @@ class ReferenceEK0(odefilter.ODEFilter):
 
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
-        m, Cl = state.y.mean, state.y.cov_sqrtm
+        m, Cl = state.y.mean.reshape((-1,), order="F"), state.y.cov_sqrtm
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
+        n, d = self.num_derivatives + 1, state.ivp.dimension
 
         # [Predict]
         mp = A @ m
@@ -65,7 +65,8 @@ class ReferenceEK0(odefilter.ODEFilter):
         Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
         m_new = mp - K @ z
 
-        y_new = jnp.abs(self.E0 @ m_new)
+        m_new = m_new.reshape((n, d), order="F")
+        y_new = jnp.abs(m_new[0])
 
         return odefilter.ODEFilterState(
             ivp=state.ivp,

@@ -32,7 +32,7 @@ class ReferenceEK1(odefilter.ODEFilter):
             t0=ivp.t0,
             num_derivatives=self.iwp.num_derivatives,
         )
-        mean = extended_dy0.reshape((-1,), order="F")
+        mean = extended_dy0  # .reshape((-1,), order="F")
         y = rv.MultivariateNormal(mean, jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm))
         return odefilter.ODEFilterState(
             ivp=ivp,
@@ -47,9 +47,10 @@ class ReferenceEK1(odefilter.ODEFilter):
         P, Pinv = self.iwp.nordsieck_preconditioner(dt=dt)
         A, SQ = self.iwp.preconditioned_discretize
         t = state.t + dt
+        n, d = self.num_derivatives + 1, state.ivp.dimension
 
         # Pull states into preconditioned state
-        m, SC = Pinv @ state.y.mean, Pinv @ state.y.cov_sqrtm
+        m, SC = Pinv @ state.y.mean.reshape((-1,), order="F"), Pinv @ state.y.cov_sqrtm
 
         cov_cholesky, error_estimate, new_mean = self.attempt_unit_step(
             A, P, SC, SQ, m, state, t
@@ -58,10 +59,11 @@ class ReferenceEK1(odefilter.ODEFilter):
         # Push back to non-preconditioned state
         cov_cholesky = P @ cov_cholesky
         new_mean = P @ new_mean
+        new_mean = new_mean.reshape((n, d), order="F")
         new_rv = rv.MultivariateNormal(new_mean, cov_cholesky)
 
-        y1 = jnp.abs(self.P0 @ state.y.mean)
-        y2 = jnp.abs(self.P0 @ new_mean)
+        y1 = jnp.abs(state.y.mean[0])
+        y2 = jnp.abs(new_mean[0])
         reference_state = jnp.maximum(y1, y2)
 
         # Return new state

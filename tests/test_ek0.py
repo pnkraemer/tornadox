@@ -35,10 +35,7 @@ def ek0_solution(ek0_version, num_derivatives, ivp, steps):
             pass
 
     final_t_ek0 = state.t
-    if isinstance(ek0, tornadox.ek0.ReferenceEK0):
-        final_y_ek0 = ek0.P0 @ state.y.mean
-    else:
-        final_y_ek0 = state.y.mean[0]
+    final_y_ek0 = state.y.mean[0]
     return final_t_ek0, final_y_ek0
 
 
@@ -119,7 +116,7 @@ def test_init_type(initialized_both):
 def test_init_values(initialized_both, d):
     kronecker_init, reference_init = initialized_both
 
-    kron_mean = kronecker_init.y.mean.reshape((-1,), order="F")
+    kron_mean = kronecker_init.y.mean
     kron_cov_sqrtm = kronecker_init.y.dense_cov_sqrtm()
     kron_cov = kronecker_init.y.dense_cov()
     assert jnp.allclose(kronecker_init.t, reference_init.t)
@@ -153,7 +150,7 @@ def test_init_shape_reference(initialized_both, d, num_derivatives):
     y = reference_init.y
     m, sc, c = y.mean, y.cov_sqrtm, y.cov
 
-    assert m.shape == (d * n,)
+    assert m.shape == (n, d)
     assert sc.shape == (d * n, d * n)
     assert c.shape == (d * n, d * n)
 
@@ -196,7 +193,7 @@ def test_attempt_step_y_shapes_kronecker(stepped_kronecker, d, num_derivatives):
 
 def test_attempt_step_y_shapes_reference(stepped_reference, d, num_derivatives):
     n = num_derivatives + 1
-    assert stepped_reference.y.mean.shape == (n * d,)
+    assert stepped_reference.y.mean.shape == (n, d)
     assert stepped_reference.y.cov_sqrtm.shape == (d * n, d * n)
     assert stepped_reference.y.cov.shape == (d * n, d * n)
 
@@ -234,7 +231,7 @@ def test_attempt_step_reference_state_reference(stepped_reference, d):
 
 def test_attempt_step_values_y_mean(stepped_kronecker, stepped_reference):
     m1, m2 = stepped_reference.y.mean, stepped_kronecker.y.mean
-    assert jnp.allclose(m1, m2.reshape((-1,), order="F"))
+    assert jnp.allclose(m1, m2)
 
 
 def test_attempt_step_values_y_cov(stepped_kronecker, stepped_reference, d):
