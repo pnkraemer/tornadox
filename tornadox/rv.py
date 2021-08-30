@@ -1,42 +1,31 @@
 """Random variables."""
 
 
-import dataclasses
+from collections import namedtuple
 
 import jax.numpy as jnp
 
 
-@dataclasses.dataclass
-class MultivariateNormal:
+class MultivariateNormal(namedtuple("_MultivariateNormal", "mean cov_sqrtm")):
     """Multivariate normal distributions."""
-
-    mean: jnp.ndarray
-    cov_sqrtm: jnp.ndarray
 
     @property
     def cov(self):
         return self.cov_sqrtm @ self.cov_sqrtm.T
 
 
-@dataclasses.dataclass
-class BatchedMultivariateNormal:
+class BatchedMultivariateNormal(
+    namedtuple("_BatchedMultivariateNormal", "mean cov_sqrtm")
+):
     """Batched multivariate normal distributions."""
-
-    mean: jnp.ndarray
-    cov_sqrtm: jnp.ndarray
 
     @property
     def cov(self):
         return self.cov_sqrtm @ jnp.transpose(self.cov_sqrtm, axes=(0, 2, 1))
 
 
-@dataclasses.dataclass
-class MatrixNormal:
+class MatrixNormal(namedtuple("_MatrixNormal", "mean cov_sqrtm_1 cov_sqrtm_2")):
     """Matrixvariate normal distributions."""
-
-    mean: jnp.ndarray
-    cov_sqrtm_1: jnp.ndarray
-    cov_sqrtm_2: jnp.ndarray
 
     @property
     def cov_1(self):
