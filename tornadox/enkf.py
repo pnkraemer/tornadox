@@ -36,14 +36,14 @@ class StateEnsemble:
 
 
 class EnK1(odefilter.ODEFilter):
-    def __init__(self, *args, ensemble_size, **kwargs):
+    def __init__(self, *args, ensemble_size, prng_key, **kwargs):
         super().__init__(*args, **kwargs)
         self.P0 = None
         self.E0 = None
         self.E1 = None
         self.ensemble_size = ensemble_size
 
-        self.rng = jax.random.PRNGKey(1)
+        self.prng_key = prng_key
 
     def initialize(self, ivp):
         self.iwp = iwp.IntegratedWienerTransition(
@@ -105,11 +105,11 @@ class EnK1(odefilter.ODEFilter):
         error_estimate, sigma = self.estimate_error(H=H, sq=PQl, z=z_mean)
 
         std_nrml_w = jax.random.normal(
-            self.rng, shape=(ensemble.dim, ensemble.ensemble_size)
+            self.prng_key, shape=(ensemble.dim, ensemble.ensemble_size)
         )
         w = PQl @ std_nrml_w
 
-        _, self.rng = jax.random.split(self.rng)
+        _, self.prng_key = jax.random.split(self.prng_key)
 
         preconditioned_samples = Pinv @ ensemble.samples
 
