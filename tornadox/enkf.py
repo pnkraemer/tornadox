@@ -7,7 +7,7 @@ import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
 
-from tornadox import ivp, iwp, odefilter, sqrt
+from tornadox import ivp, iwp, odefilter, rv, sqrt
 
 
 @dataclasses.dataclass
@@ -34,16 +34,29 @@ class StateEnsemble:
     def sample_cov(self):
         return jnp.cov(self.samples)
 
+    # Fulfill the same interface as the other ODEFilter states
+    @property
+    def y(self):
+        return rv.MultivariateNormal(
+            mean=self.mean(), cov_sqrtm=jnp.linalg.cholesky(self.sample_cov())
+        )
+
 
 class EnK1(odefilter.ODEFilter):
-    def __init__(self, *args, ensemble_size, **kwargs):
+    def __init__(self, *args, ensemble_size, prng_key, **kwargs):
         super().__init__(*args, **kwargs)
         self.P0 = None
         self.E0 = None
         self.E1 = None
         self.ensemble_size = ensemble_size
 
-        self.rng = jax.random.PRNGKey(1)
+        self.prng_key = prng_key
+
+    def __repr__(self):
+        name = f"{self.__class__.__name__}"
+        odefilter_signature = f"num_derivatives={self.num_derivatives}, steprule={self.steprule}, initialization={self.init}"
+        enkf_signature = f"ensemble_size={self.ensemble_size}, prng_key={self.prng_key}"
+        return f"{name}({odefilter_signature}, {enkf_signature})"
 
     def initialize(self, ivp):
         self.iwp = iwp.IntegratedWienerTransition(
@@ -105,11 +118,11 @@ class EnK1(odefilter.ODEFilter):
         error_estimate, sigma = self.estimate_error(H=H, sq=PQl, z=z_mean)
 
         std_nrml_w = jax.random.normal(
-            self.rng, shape=(ensemble.dim, ensemble.ensemble_size)
+            self.prng_key, shape=(ensemble.dim, ensemble.ensemble_size)
         )
         w = PQl @ std_nrml_w
 
-        _, self.rng = jax.random.split(self.rng)
+        _, self.prng_key = jax.random.split(self.prng_key)
 
         preconditioned_samples = Pinv @ ensemble.samples
 
