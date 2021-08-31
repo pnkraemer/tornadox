@@ -29,21 +29,48 @@ class TestIVPCommonBehaviour:
 
     @staticmethod
     @pytest.mark.parametrize("ivp", IVPs)
+    def test_df_not_none(ivp):
+        """Default IVPs should have all fields filled out."""
+        assert ivp.df is not None
+
+    @staticmethod
+    @pytest.mark.parametrize("ivp", IVPs)
+    def test_df_diagonal_not_none(ivp):
+        """Default IVPs should have all fields filled out."""
+        assert ivp.df_diagonal is not None
+
+    @staticmethod
+    @pytest.mark.parametrize("ivp", IVPs)
     def test_df(ivp):
-        if ivp.df is not None:
-            df = ivp.df(ivp.t0, ivp.y0)
-            assert isinstance(df, jnp.ndarray)
-            assert df.shape == (ivp.y0.shape[0], ivp.y0.shape[0])
+        df = ivp.df(ivp.t0, ivp.y0)
+        assert isinstance(df, jnp.ndarray)
+        assert df.shape == (ivp.y0.shape[0], ivp.y0.shape[0])
+
+    @staticmethod
+    @pytest.mark.parametrize("ivp", IVPs)
+    def test_df_diagonal_shape(ivp):
+        df_diagonal = ivp.df_diagonal(ivp.t0, ivp.y0)
+        assert isinstance(df_diagonal, jnp.ndarray)
+        assert df_diagonal.shape == (ivp.y0.shape[0],)
+
+    @staticmethod
+    @pytest.mark.parametrize("ivp", IVPs)
+    def test_df_diagonal_values(ivp):
+        df_diagonal = ivp.df_diagonal(ivp.t0, ivp.y0)
+        df = ivp.df(ivp.t0, ivp.y0)
+        print(df_diagonal, jnp.diag(df))
+        assert jnp.allclose(df_diagonal, jnp.diag(df))
 
     @staticmethod
     @pytest.mark.parametrize("ivp", IVPs)
     def test_jittable(ivp):
-        def fun(*problem):
-            f, t0, tmax, y0, df = problem
+        def fun(f, t0, tmax, y0, df, df_diagonal):
             return t0, tmax, y0
 
-        fun_jitted = jax.jit(fun, static_argnums=(0, 4))
-        out = tornadox.ivp.InitialValueProblem(ivp.f, *fun_jitted(*ivp), ivp.df)
+        fun_jitted = jax.jit(fun, static_argnums=(0, 4, 5))
+        out = tornadox.ivp.InitialValueProblem(
+            ivp.f, *fun_jitted(*ivp), ivp.df, ivp.df_diagonal
+        )
         assert type(out) == type(ivp)
 
 

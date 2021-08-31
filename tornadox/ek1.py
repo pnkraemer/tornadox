@@ -177,7 +177,13 @@ class BatchedEK1(odefilter.ODEFilter):
 
         t = state.t + dt
         new_mean, cov_sqrtm, error = self.attempt_unit_step(
-            f=state.ivp.f, df=state.ivp.df, p_1d_raw=p_1d_raw, m=m, sc=sc, t=t
+            f=state.ivp.f,
+            df=state.ivp.df,
+            df_diagonal=state.ivp.df_diagonal,
+            p_1d_raw=p_1d_raw,
+            m=m,
+            sc=sc,
+            t=t,
         )
 
         new_mean = p_1d_raw[:, None] * new_mean
@@ -208,22 +214,26 @@ class BatchedEK1(odefilter.ODEFilter):
 
 
 class DiagonalEK1(BatchedEK1):
-    @partial(jax.jit, static_argnums=(0, 1, 2))
-    def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
+    @partial(jax.jit, static_argnums=(0, 1, 2, 3))
+    def attempt_unit_step(self, f, df, df_diagonal, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
-        f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
+        f, Jx_diagonal, z = self.evaluate_ode(
+            t=t, f=f, df_diagonal=df_diagonal, p_1d_raw=p_1d_raw, m_pred=m_pred
+        )
         error, sigma = self.estimate_error(
             p_1d_raw=p_1d_raw,
-            Jx=Jx,
+            Jx_diagonal=Jx_diagonal,
             sq_bd=self.batched_sq,
             z=z,
         )
         sc_pred = self.predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
         )
-        ss, kgain = self.observe_cov_sqrtm(Jx=Jx, p_1d_raw=p_1d_raw, sc_bd=sc_pred)
+        ss, kgain = self.observe_cov_sqrtm(
+            Jx_diagonal=Jx_diagonal, p_1d_raw=p_1d_raw, sc_bd=sc_pred
+        )
         cov_sqrtm = self.correct_cov_sqrtm(
-            Jx=Jx,
+            Jx_diagonal=Jx_diagonal,
             p_1d_raw=p_1d_raw,
             sc_bd=sc_pred,
             kgain=kgain,
@@ -234,25 +244,26 @@ class DiagonalEK1(BatchedEK1):
 
     @staticmethod
     @partial(jax.jit, static_argnums=(1, 2))
-    def evaluate_ode(t, f, df, p_1d_raw, m_pred):
+    def evaluate_ode(t, f, df_diagonal, p_1d_raw, m_pred):
         m_pred_no_precon = p_1d_raw[:, None] * m_pred
         m_at = m_pred_no_precon[0]
         fx = f(t, m_at)
         z = m_pred_no_precon[1] - fx
 
-        # Todo: replace with vmap(grad(f)) which would never assemble the full jacobian?
-        Jx = jnp.diag(df(t, m_at))
+        Jx_diagonal = df_diagonal(t, m_at)
 
-        return fx, Jx, z
+        return fx, Jx_diagonal, z
 
     @staticmethod
     @jax.jit
-    def estimate_error(p_1d_raw, Jx, sq_bd, z):
+    def estimate_error(p_1d_raw, Jx_diagonal, sq_bd, z):
 
         sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
         sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
         sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
-        h_sq_bd = sq_bd_no_precon_1 - Jx[:, None] * sq_bd_no_precon_0  # shape (d,n)
+        h_sq_bd = (
+            sq_bd_no_precon_1 - Jx_diagonal[:, None] * sq_bd_no_precon_0
+        )  # shape (d,n)
 
         s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
 
@@ -265,12 +276,14 @@ class DiagonalEK1(BatchedEK1):
 
     @staticmethod
     @jax.jit
-    def observe_cov_sqrtm(p_1d_raw, Jx, sc_bd):
+    def observe_cov_sqrtm(p_1d_raw, Jx_diagonal, sc_bd):
 
         sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
         sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
         sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
-        h_sc_bd = sc_bd_no_precon_1 - Jx[:, None] * sc_bd_no_precon_0  # shape (d,n)
+        h_sc_bd = (
+            sc_bd_no_precon_1 - Jx_diagonal[:, None] * sc_bd_no_precon_0
+        )  # shape (d,n)
 
         s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
         cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
@@ -280,11 +293,13 @@ class DiagonalEK1(BatchedEK1):
 
     @staticmethod
     @jax.jit
-    def correct_cov_sqrtm(p_1d_raw, Jx, sc_bd, kgain):
+    def correct_cov_sqrtm(p_1d_raw, Jx_diagonal, sc_bd, kgain):
         sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
         sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
         sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
-        h_sc_bd = sc_bd_no_precon_1 - Jx[:, None] * sc_bd_no_precon_0  # shape (d,n)
+        h_sc_bd = (
+            sc_bd_no_precon_1 - Jx_diagonal[:, None] * sc_bd_no_precon_0
+        )  # shape (d,n)
         kh_sc_bd = kgain @ h_sc_bd[:, None, :]  # shape (d,n,n)
         new_sc = sc_bd - kh_sc_bd  # shape (d,n,n)
         return new_sc
@@ -298,7 +313,7 @@ class DiagonalEK1(BatchedEK1):
 
 
 class TruncationEK1(BatchedEK1):
-    def attempt_unit_step(self, f, df, p_1d_raw, m, sc, t):
+    def attempt_unit_step(self, f, df, df_diagonal, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
         f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
         error, sigma = self.estimate_error(

@@ -95,12 +95,16 @@ def solver_triple(ivp, steps, num_derivatives, approx_solver):
     """Assemble a combination of a to-be-tested-EK1 and a ReferenceEK1 with matching parameters."""
 
     # Diagonal Jacobian into the IVP to make the reference EK1 acknowledge it too.
+    # This is important, because it allows checking that the outputs of DiagonalEK1 and ReferenceEK1
+    # coincide exactly, which confirms correct implementation of the DiagonalEK1.
+    # The key step here is to make the Jacobian of the IVP diagonal.
     if approx_solver == tornadox.ek1.DiagonalEK1:
         old_ivp = ivp
-        new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
+        new_df = lambda t, y: jnp.diag(old_ivp.df_diagonal(t, y))
         ivp = tornadox.ivp.InitialValueProblem(
             f=old_ivp.f,
             df=new_df,
+            df_diagonal=old_ivp.df_diagonal,
             t0=old_ivp.t0,
             tmax=old_ivp.tmax,
             y0=old_ivp.y0,
@@ -348,6 +352,11 @@ def df(ivp):
     return ivp.df
 
 
+@pytest.fixture
+def df_diagonal(ivp):
+    return ivp.df_diagonal
+
+
 class TestLowLevelReferenceEK1Functions:
     """Test suite for the low-level EK1 functions"""
 
@@ -489,16 +498,16 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def evaluated(t, f, df, p_1d_raw, m_as_matrix):
+    def evaluated(t, f, df_diagonal, p_1d_raw, m_as_matrix):
         return tornadox.ek1.DiagonalEK1.evaluate_ode(
-            t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_as_matrix
+            t=t, f=f, df_diagonal=df_diagonal, p_1d_raw=p_1d_raw, m_pred=m_as_matrix
         )
 
     @staticmethod
     @pytest.fixture
-    def Jx(evaluated):
-        _, Jx, _ = evaluated
-        return Jx
+    def Jx_diagonal(evaluated):
+        _, Jx_diagonal, _ = evaluated
+        return Jx_diagonal
 
     @staticmethod
     @pytest.fixture
@@ -510,23 +519,23 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     def test_evaluate_ode_type(evaluated):
-        fx, Jx, z = evaluated
+        fx, Jx_diagonal, z = evaluated
         assert isinstance(fx, jnp.ndarray)
-        assert isinstance(Jx, jnp.ndarray)
+        assert isinstance(Jx_diagonal, jnp.ndarray)
         assert isinstance(z, jnp.ndarray)
 
     @staticmethod
     def test_evaluate_ode_shape(evaluated, d):
-        fx, Jx, z = evaluated
+        fx, Jx_diagonal, z = evaluated
         assert fx.shape == (d,)
-        assert Jx.shape == (d,)
+        assert Jx_diagonal.shape == (d,)
         assert z.shape == (d,)
 
     @staticmethod
     @pytest.fixture
-    def diagonal_ek1_error_estimated(p_1d_raw, Jx, sq_as_bd, z):
+    def diagonal_ek1_error_estimated(p_1d_raw, Jx_diagonal, sq_as_bd, z):
         return tornadox.ek1.DiagonalEK1.estimate_error(
-            p_1d_raw=p_1d_raw, Jx=Jx, sq_bd=sq_as_bd, z=z
+            p_1d_raw=p_1d_raw, Jx_diagonal=Jx_diagonal, sq_bd=sq_as_bd, z=z
         )
 
     @staticmethod
@@ -543,10 +552,10 @@ class TestLowLevelDiagonalEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def observed(Jx, p_1d_raw, sc_as_bd):
+    def observed(Jx_diagonal, p_1d_raw, sc_as_bd):
         return tornadox.ek1.DiagonalEK1.observe_cov_sqrtm(
             p_1d_raw=p_1d_raw,
-            Jx=Jx,
+            Jx_diagonal=Jx_diagonal,
             sc_bd=sc_as_bd,
         )
 
@@ -557,11 +566,11 @@ class TestLowLevelDiagonalEK1Functions:
         assert kgain.shape == (d, n, 1)
 
     @staticmethod
-    def test_correct_cov_sqrtm(Jx, p_1d_raw, observed, sc_as_bd, d, n):
+    def test_correct_cov_sqrtm(Jx_diagonal, p_1d_raw, observed, sc_as_bd, d, n):
         _, kgain = observed
         new_sc = tornadox.ek1.DiagonalEK1.correct_cov_sqrtm(
             p_1d_raw=p_1d_raw,
-            Jx=Jx,
+            Jx_diagonal=Jx_diagonal,
             sc_bd=sc_as_bd,
             kgain=kgain,
         )

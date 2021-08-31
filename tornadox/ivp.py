@@ -9,7 +9,9 @@ import jax.numpy as jnp
 
 
 class InitialValueProblem(
-    namedtuple("_InitialValueProblem", "f t0 tmax y0 df", defaults=(None,))
+    namedtuple(
+        "_InitialValueProblem", "f t0 tmax y0 df df_diagonal", defaults=(None, None)
+    )
 ):
     """Initial value problems."""
 
@@ -34,7 +36,18 @@ def vanderpol(t0=0.0, tmax=30, y0=None, stiffness_constant=1e1):
 
     df_vanderpol = jax.jit(jax.jacfwd(f_vanderpol, argnums=1))
 
-    return InitialValueProblem(f=f_vanderpol, t0=t0, tmax=tmax, y0=y0, df=df_vanderpol)
+    @jax.jit
+    def df_diagonal_vanderpol(_, Y, mu=stiffness_constant):
+        return jnp.array([0.0, mu * (1.0 - Y[0] ** 2)])
+
+    return InitialValueProblem(
+        f=f_vanderpol,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_vanderpol,
+        df_diagonal=df_diagonal_vanderpol,
+    )
 
 
 def threebody(tmax=17.0652165601579625588917206249):
@@ -52,9 +65,20 @@ def threebody(tmax=17.0652165601579625588917206249):
 
     df_threebody = jax.jit(jax.jacfwd(f_threebody, argnums=1))
 
+    @jax.jit
+    def df_diagonal_threebody(*args, **kwargs):
+        return jnp.array([0.0, 0.0, 0.0, 0.0])
+
     y0 = jnp.array([0.994, 0, 0, -2.00158510637908252240537862224])
     t0 = 0.0
-    return InitialValueProblem(f=f_threebody, t0=t0, tmax=tmax, y0=y0, df=df_threebody)
+    return InitialValueProblem(
+        f=f_threebody,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_threebody,
+        df_diagonal=df_diagonal_threebody,
+    )
 
 
 def brusselator(N=20, t0=0.0, tmax=10.0):
@@ -84,12 +108,25 @@ def brusselator(N=20, t0=0.0, tmax=10.0):
 
     df_brusselator = jax.jit(jax.jacfwd(f_brusselator, argnums=1))
 
+    @jax.jit
+    def df_diagonal_brusselator(_, y, n=N, c=const):
+        u, v = y[:n], y[n:]
+        u_new = 2 * u * v - 4 - 2 * c
+        v_new = -(u ** 2) - 2 * c
+        concat = jnp.concatenate([u_new, v_new])
+        return concat
+
     u0 = jnp.arange(1, N + 1) / N + 1
     v0 = 3.0 * jnp.ones(N)
     y0 = jnp.concatenate([u0, v0])
 
     return InitialValueProblem(
-        f=f_brusselator, t0=t0, tmax=tmax, y0=y0, df=df_brusselator
+        f=f_brusselator,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_brusselator,
+        df_diagonal=df_diagonal_brusselator,
     )
 
 
@@ -108,7 +145,18 @@ def lorenz96(t0=0.0, tmax=30.0, y0=None, num_variables=10, forcing=8.0):
 
     df_lorenz96 = jax.jit(jax.jacfwd(f_lorenz96, argnums=1))
 
-    return InitialValueProblem(f=f_lorenz96, t0=t0, tmax=tmax, y0=y0, df=df_lorenz96)
+    @jax.jit
+    def df_diagonal_lorenz96(_, y, c=forcing):
+        return -1.0 * jnp.ones(y.shape[0])
+
+    return InitialValueProblem(
+        f=f_lorenz96,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_lorenz96,
+        df_diagonal=df_diagonal_lorenz96,
+    )
 
 
 # The loop version is useful, because Taylor mode cannot handle jnp.roll...
@@ -135,8 +183,17 @@ def lorenz96_loop(t0=0.0, tmax=30.0, y0=None, num_variables=10, forcing=8.0):
 
     df_lorenz96_loop = jax.jit(jax.jacfwd(f_lorenz96_loop, argnums=1))
 
+    @jax.jit
+    def df_diagonal_lorenz96_loop(_, y, c=forcing):
+        return -1.0 * jnp.ones(y.shape[0])
+
     return InitialValueProblem(
-        f=f_lorenz96_loop, t0=t0, tmax=tmax, y0=y0, df=df_lorenz96_loop
+        f=f_lorenz96_loop,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_lorenz96_loop,
+        df_diagonal=df_diagonal_lorenz96_loop,
     )
 
 
