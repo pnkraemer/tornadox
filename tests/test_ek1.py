@@ -97,7 +97,7 @@ def solver_triple(ivp, steps, num_derivatives, approx_solver):
     # Diagonal Jacobian into the IVP to make the reference EK1 acknowledge it too.
     if approx_solver == tornadox.ek1.DiagonalEK1:
         old_ivp = ivp
-        new_df = lambda t, y: jnp.diag(jnp.diag(old_ivp.df(t, y)))
+        new_df = lambda t, y: jnp.diag(old_ivp.df_diagonal(t, y))
         ivp = tornadox.ivp.InitialValueProblem(
             f=old_ivp.f,
             df=new_df,
