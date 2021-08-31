@@ -68,13 +68,15 @@ class ReferenceEK0(odefilter.ODEFilter):
         m_new = m_new.reshape((n, d), order="F")
         y_new = jnp.abs(m_new[0])
 
-        return odefilter.ODEFilterState(
+        new_state = odefilter.ODEFilterState(
             ivp=state.ivp,
             t=state.t + dt,
             error_estimate=error,
             reference_state=y_new,
             y=rv.MultivariateNormal(m_new, Cl_new),
         )
+        info_dict = dict(num_f_evaluations=1)
+        return new_state, info_dict
 
 
 class KroneckerEK0(odefilter.ODEFilter):
@@ -162,10 +164,12 @@ class KroneckerEK0(odefilter.ODEFilter):
         d = z.shape[0]
         error_estimate = jnp.stack([jnp.sqrt(sigma_squared * HQH)] * d)
 
-        return odefilter.ODEFilterState(
+        new_state = odefilter.ODEFilterState(
             ivp=state.ivp,
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,
             y=rv.MatrixNormal(_m_new, state.y.cov_sqrtm_1, _Cl_new),
         )
+        info_dict = dict(num_f_evaluations=1)
+        return new_state, info_dict

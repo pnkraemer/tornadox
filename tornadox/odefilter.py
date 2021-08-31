@@ -2,7 +2,7 @@
 
 import dataclasses
 from abc import ABC, abstractmethod
-from typing import Iterable, Union
+from typing import Dict, Iterable, Union
 
 import jax.numpy as jnp
 import numpy as np
@@ -26,6 +26,7 @@ class ODESolution:
     mean: Iterable[jnp.ndarray]
     cov_sqrtm: Iterable[jnp.ndarray]
     cov: Iterable[jnp.ndarray]
+    info: Dict
 
 
 class ODEFilter(ABC):
@@ -54,7 +55,8 @@ class ODEFilter(ABC):
         covs = []
         cov_sqrtms = []
         times = []
-        for state in solution_generator:
+        info = dict()
+        for state, info in solution_generator:
             times.append(state.t)
             means.append(state.y.mean)
             if isinstance(self, ek0.KroneckerEK0):
@@ -64,13 +66,16 @@ class ODEFilter(ABC):
                 cov_sqrtms.append(state.y.cov_sqrtm)
                 covs.append(state.y.cov)
 
-        return ODESolution(t=times, mean=means, cov_sqrtm=cov_sqrtms, cov=covs)
+        return ODESolution(
+            t=times, mean=means, cov_sqrtm=cov_sqrtms, cov=covs, info=info
+        )
 
     def simulate_final_state(self, *args, **kwargs):
         solution_generator = self.solution_generator(*args, **kwargs)
-        for state in solution_generator:
+        state, info = None, None
+        for state, info in solution_generator:
             pass
-        return state
+        return state, info
 
     def solution_generator(self, ivp, stop_at=None):
         """Generate ODE solver steps."""
@@ -132,6 +137,7 @@ class ODEFilter(ABC):
         while not step_is_sufficiently_small:
             proposed_state, attempt_step_info = self.attempt_step(state, dt)
 
+            # Gather some stats
             step_info["num_attempted_steps"] += 1
             step_info["num_f_evaluations"] += (
                 attempt_step_info["num_f_evaluations"]

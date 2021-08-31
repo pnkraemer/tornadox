@@ -72,6 +72,8 @@ def test_info_dict(ek1_version, ivp, num_derivatives):
     ek1 = ek1_version(num_derivatives=num_derivatives, steprule=steprule)
     _, info = ek1.simulate_final_state(ivp=ivp)
     assert info["num_f_evaluations"] == num_steps
+    assert info["num_steps"] == num_steps
+    assert info["num_attempted_steps"] == num_steps
     if isinstance(ek1, tornadox.ek1.DiagonalEK1):
         assert info["num_df_diagonal_evaluations"] == num_steps
     else:
