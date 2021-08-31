@@ -316,6 +316,7 @@ class DiagonalEK1(BatchedEK1):
 
 
 class TruncationEK1(BatchedEK1):
+    @partial(jax.jit, static_argnums=(0, 1, 2, 3))
     def attempt_unit_step(self, f, df, df_diagonal, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
         f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
