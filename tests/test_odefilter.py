@@ -60,7 +60,7 @@ def solver(steps):
 
 
 def test_simulate_final_point(ivp, solver):
-    sol = solver.simulate_final_state(ivp)
+    sol, _ = solver.simulate_final_state(ivp)
     assert isinstance(sol, EulerState)
 
 

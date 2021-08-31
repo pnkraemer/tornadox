@@ -148,8 +148,8 @@ def approx_stepped(solver_triple, approx_initialized, dt):
     ek1_approx, reference_ek1, _ = solver_triple
     init_ref, init_approx = approx_initialized
 
-    step_ref = reference_ek1.attempt_step(state=init_ref, dt=dt)
-    step_approx = ek1_approx.attempt_step(state=init_approx, dt=dt)
+    step_ref, _ = reference_ek1.attempt_step(state=init_ref, dt=dt)
+    step_approx, _ = ek1_approx.attempt_step(state=init_approx, dt=dt)
 
     return step_ref, step_approx
 

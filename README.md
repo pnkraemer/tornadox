@@ -37,8 +37,9 @@ for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7, so
     solver.simulate_final_state(ivp)
     
     # Go straight to the generator
-    for state in solver.solution_generator(ivp):
-        print(state.t, state.y.mean)
-
+    for state, info in solver.solution_generator(ivp):
+        print(state.t, state.y.mean)  
+    print(info)
+    
     print()
 ```
