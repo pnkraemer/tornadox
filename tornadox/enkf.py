@@ -93,22 +93,22 @@ class EnK1(odefilter.ODEFilter):
             reference_state=None,
         )
 
-    def attempt_step(self, ensemble, dt, verbose=False):
+    def attempt_step(self, state, dt, verbose=False):
 
-        t_new = ensemble.t + dt
+        t_new = state.t + dt
 
         # [Setup]
         PA, PQl = self.iwp.preconditioned_discretize
         P, Pinv = self.iwp.nordsieck_preconditioner(dt)
 
         # [Predict]
-        predicted_mean = PA @ Pinv @ ensemble.mean()
+        predicted_mean = PA @ Pinv @ state.mean()
 
         # [Calibration]
         H, z_mean, b = self.evaluate_ode(
             t_new,
-            ensemble.ivp.f,
-            ensemble.ivp.df,
+            state.ivp.f,
+            state.ivp.df,
             P,
             predicted_mean,
             self.E0,
@@ -118,18 +118,18 @@ class EnK1(odefilter.ODEFilter):
         error_estimate, sigma = self.estimate_error(H=H, sq=PQl, z=z_mean)
 
         std_nrml_w = jax.random.normal(
-            self.prng_key, shape=(ensemble.dim, ensemble.ensemble_size)
+            self.prng_key, shape=(state.dim, state.ensemble_size)
         )
         w = PQl @ std_nrml_w
 
         _, self.prng_key = jax.random.split(self.prng_key)
 
-        preconditioned_samples = Pinv @ ensemble.samples
+        preconditioned_samples = Pinv @ state.samples
 
         pred_samples = PA @ preconditioned_samples + sigma * w
         sample_mean = jnp.mean(pred_samples, axis=1)
         centered = pred_samples - sample_mean[:, None]
-        sample_cov = (centered @ centered.T) / (ensemble.ensemble_size - 1)
+        sample_cov = (centered @ centered.T) / (state.ensemble_size - 1)
 
         z_samples = H @ pred_samples + b[:, None]
 
@@ -144,12 +144,12 @@ class EnK1(odefilter.ODEFilter):
         updated_samples = pred_samples - gain_times_z
         updated_samples = P @ updated_samples
 
-        y1 = jnp.abs(self.E0 @ jnp.mean(ensemble.samples, 1))
+        y1 = jnp.abs(self.E0 @ jnp.mean(state.samples, 1))
         y2 = jnp.abs(self.E0 @ jnp.mean(updated_samples, 1))
         reference_state = jnp.maximum(y1, y2)
 
         return StateEnsemble(
-            ivp=ensemble.ivp,
+            ivp=state.ivp,
             t=t_new,
             samples=updated_samples,
             error_estimate=error_estimate,
