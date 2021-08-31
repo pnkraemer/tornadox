@@ -22,10 +22,10 @@ class ODEFilterState:
 
 @dataclasses.dataclass(frozen=False)
 class ODESolution:
-    t: Iterable[float]
-    mean: Iterable[jnp.ndarray]
-    cov_sqrtm: Iterable[jnp.ndarray]
-    cov: Iterable[jnp.ndarray]
+    t: jnp.ndarray
+    mean: jnp.ndarray
+    cov_sqrtm: jnp.ndarray
+    cov: jnp.ndarray
     info: Dict
 
 
@@ -67,7 +67,11 @@ class ODEFilter(ABC):
                 covs.append(state.y.cov)
 
         return ODESolution(
-            t=times, mean=means, cov_sqrtm=cov_sqrtms, cov=covs, info=info
+            t=jnp.stack(times),
+            mean=jnp.stack(means),
+            cov_sqrtm=jnp.stack(cov_sqrtms),
+            cov=jnp.stack(covs),
+            info=info,
         )
 
     def simulate_final_state(self, *args, **kwargs):
