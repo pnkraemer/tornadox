@@ -139,21 +139,15 @@ class ODEFilter(ABC):
 
             # Gather some stats
             step_info["num_attempted_steps"] += 1
-            step_info["num_f_evaluations"] += (
-                attempt_step_info["num_f_evaluations"]
-                if "num_f_evaluations" in attempt_step_info
-                else 0
-            )
-            step_info["num_df_evaluations"] += (
-                attempt_step_info["num_df_evaluations"]
-                if "num_df_evaluations" in attempt_step_info
-                else 0
-            )
-            step_info["num_df_diagonal_evaluations"] += (
-                attempt_step_info["num_df_diagonal_evaluations"]
-                if "num_df_diagonal_evaluations" in attempt_step_info
-                else 0
-            )
+            if "num_f_evaluations" in attempt_step_info:
+                nfevals = attempt_step_info["num_f_evaluations"]
+                step_info["num_f_evaluations"] += nfevals
+            if "num_df_evaluations" in attempt_step_info:
+                ndfevals = attempt_step_info["num_df_evaluations"]
+                step_info["num_df_evaluations"] += ndfevals
+            if "num_df_diagonal_evaluations" in attempt_step_info:
+                ndfevals_diag = attempt_step_info["num_df_diagonal_evaluations"]
+                step_info["num_df_diagonal_evaluations"] += ndfevals_diag
 
             # Acceptance/Rejection due to the step-rule
             internal_norm = self.steprule.scale_error_estimate(

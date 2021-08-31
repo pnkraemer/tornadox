@@ -33,9 +33,10 @@ class EulerAsODEFilter(tornadox.odefilter.ODEFilter):
         y = tornadox.rv.MultivariateNormal(
             y, cov_sqrtm=jnp.zeros((y.shape[0], y.shape[0]))
         )
-        return EulerState(
+        new_state = EulerState(
             ivp=state.ivp, y=y, t=t, error_estimate=None, reference_state=y
         )
+        return new_state, {}
 
 
 @pytest.fixture
