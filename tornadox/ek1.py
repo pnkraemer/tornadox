@@ -67,13 +67,15 @@ class ReferenceEK1(odefilter.ODEFilter):
         reference_state = jnp.maximum(y1, y2)
 
         # Return new state
-        return odefilter.ODEFilterState(
+        new_state = odefilter.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
             error_estimate=error_estimate,
             reference_state=reference_state,
         )
+        info_dict = dict(num_f_evaluations=1, num_df_evaluations=1)
+        return new_state, info_dict
 
     def attempt_unit_step(self, A, P, SC, SQ, m, state, t):
         m_pred = self.predict_mean(m=m, phi=A)
@@ -176,7 +178,7 @@ class BatchedEK1(odefilter.ODEFilter):
         sc = p_inv_1d_raw[None, :, None] * state.y.cov_sqrtm
 
         t = state.t + dt
-        new_mean, cov_sqrtm, error = self.attempt_unit_step(
+        new_mean, cov_sqrtm, error, info_dict = self.attempt_unit_step(
             f=state.ivp.f,
             df=state.ivp.df,
             df_diagonal=state.ivp.df_diagonal,
@@ -194,13 +196,14 @@ class BatchedEK1(odefilter.ODEFilter):
         reference_state = jnp.maximum(y1, y2)
 
         new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
-        return odefilter.ODEFilterState(
+        new_state = odefilter.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
             error_estimate=error,
             reference_state=reference_state,
         )
+        return new_state, info_dict
 
     @staticmethod
     @jax.jit
@@ -239,8 +242,8 @@ class DiagonalEK1(BatchedEK1):
             kgain=kgain,
         )
         new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
-
-        return new_mean, cov_sqrtm, error
+        info_dict = dict(num_f_evaluations=1, num_df_diagonal_evaluations=1)
+        return new_mean, cov_sqrtm, error, info_dict
 
     @staticmethod
     @partial(jax.jit, static_argnums=(1, 2))
@@ -333,7 +336,8 @@ class TruncationEK1(BatchedEK1):
             sc_bd=sc_pred,
             kgain=kgain,
         )
-        return new_mean, cov_sqrtm, error
+        info_dict = dict(num_f_evaluations=1, num_df_evaluations=1)
+        return new_mean, cov_sqrtm, error, info_dict
 
     # Low level implementations
 
@@ -633,10 +637,14 @@ class EarlyTruncationEK1(odefilter.ODEFilter):
 
         # Return new state
         new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
-        return odefilter.ODEFilterState(
+
+        info_dict = dict(num_f_evaluations=1, num_df_evaluations=1)
+
+        new_state = odefilter.ODEFilterState(
             ivp=state.ivp,
             t=t,
             y=new_rv,
             error_estimate=error_estimate,
             reference_state=reference_state,
         )
+        return new_state, info_dict
