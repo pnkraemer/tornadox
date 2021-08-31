@@ -95,6 +95,9 @@ def solver_triple(ivp, steps, num_derivatives, approx_solver):
     """Assemble a combination of a to-be-tested-EK1 and a ReferenceEK1 with matching parameters."""
 
     # Diagonal Jacobian into the IVP to make the reference EK1 acknowledge it too.
+    # This is important, because it allows checking that the outputs of DiagonalEK1 and ReferenceEK1
+    # coincide exactly, which confirms correct implementation of the DiagonalEK1.
+    # The key step here is to make the Jacobian of the IVP diagonal.
     if approx_solver == tornadox.ek1.DiagonalEK1:
         old_ivp = ivp
         new_df = lambda t, y: jnp.diag(old_ivp.df_diagonal(t, y))
