@@ -638,20 +638,20 @@ class TestLowLevelTruncationEK1Functions:
 
     @staticmethod
     @pytest.fixture
-    def diagonal_ek1_error_estimated(p_1d_raw, Jx, sq_as_bd, z):
+    def truncation_ek1_error_estimated(p_1d_raw, Jx, sq_as_bd, z):
         return tornadox.ek1.TruncationEK1.estimate_error(
             p_1d_raw=p_1d_raw, Jx=Jx, sq_bd=sq_as_bd, z=z
         )
 
     @staticmethod
-    def test_calibrate(diagonal_ek1_error_estimated):
-        _, sigma = diagonal_ek1_error_estimated
+    def test_calibrate(truncation_ek1_error_estimated):
+        _, sigma = truncation_ek1_error_estimated
         assert sigma.shape == ()
         assert sigma >= 0.0
 
     @staticmethod
-    def test_error_estimate(diagonal_ek1_error_estimated, d):
-        error_estimate, _ = diagonal_ek1_error_estimated
+    def test_error_estimate(truncation_ek1_error_estimated, d):
+        error_estimate, _ = truncation_ek1_error_estimated
         assert error_estimate.shape == (d,)
         assert jnp.all(error_estimate >= 0.0)
 
