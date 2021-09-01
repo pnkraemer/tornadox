@@ -56,15 +56,28 @@ def test_full_solve_compare_scipy(
     final_t_scipy, final_y_scipy = scipy_solution
 
     ek1 = ek1_version(num_derivatives=num_derivatives, steprule=steps)
-    sol_gen = ek1.solution_generator(ivp=ivp)
-    for state in sol_gen:
-        if state.t > ivp.t0:
-            pass
+    state, _ = ek1.simulate_final_state(ivp=ivp)
 
     final_t_ek1 = state.t
     final_y_ek1 = state.y.mean[0]
     assert jnp.allclose(final_t_scipy, final_t_ek1)
     assert jnp.allclose(final_y_scipy, final_y_ek1, rtol=1e-3, atol=1e-3)
+
+
+@all_ek1_versions
+def test_info_dict(ek1_version, ivp, num_derivatives):
+    """Assert the ODEFilter solves an ODE appropriately."""
+    num_steps = 5
+    steprule = tornadox.step.ConstantSteps((ivp.tmax - ivp.t0) / num_steps)
+    ek1 = ek1_version(num_derivatives=num_derivatives, steprule=steprule)
+    _, info = ek1.simulate_final_state(ivp=ivp)
+    assert info["num_f_evaluations"] == num_steps
+    assert info["num_steps"] == num_steps
+    assert info["num_attempted_steps"] == num_steps
+    if isinstance(ek1, tornadox.ek1.DiagonalEK1):
+        assert info["num_df_diagonal_evaluations"] == num_steps
+    else:
+        assert info["num_df_evaluations"] == num_steps
 
 
 # Fixtures for tests for initialize, attempt_step, etc.
@@ -135,8 +148,8 @@ def approx_stepped(solver_triple, approx_initialized, dt):
     ek1_approx, reference_ek1, _ = solver_triple
     init_ref, init_approx = approx_initialized
 
-    step_ref = reference_ek1.attempt_step(state=init_ref, dt=dt)
-    step_approx = ek1_approx.attempt_step(state=init_approx, dt=dt)
+    step_ref, _ = reference_ek1.attempt_step(state=init_ref, dt=dt)
+    step_approx, _ = ek1_approx.attempt_step(state=init_approx, dt=dt)
 
     return step_ref, step_approx
 

@@ -24,21 +24,22 @@ solver9 = enkf.EnK1(prng_key=jax.random.PRNGKey(1), ensemble_size=100, steprule=
 
 
 # Solve an IVP
-ivp = ivp.vanderpol(t0=0., tmax=1., stiffness_constant=1.0)
+vdp = ivp.vanderpol(t0=0., tmax=1., stiffness_constant=1.0)
 
 for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7, solver8, solver9]:
     
     # Full solve
     print(solver)
-    solver.solve(ivp)
-    solver.solve(ivp, stop_at=jnp.array([1.2, 1.3]))
+    solver.solve(vdp)
+    solver.solve(vdp, stop_at=jnp.array([1.2, 1.3]))
     
     # Only solve for the final state
-    solver.simulate_final_state(ivp)
+    solver.simulate_final_state(vdp)
     
     # Go straight to the generator
-    for state in solver.solution_generator(ivp):
-        print(state.t, state.y.mean)
-
+    for state, info in solver.solution_generator(vdp):
+        pass
+    print(info)
+    
     print()
 ```

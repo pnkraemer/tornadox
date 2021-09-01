@@ -29,10 +29,7 @@ def num_derivatives():
 @pytest.fixture
 def ek0_solution(ek0_version, num_derivatives, ivp, steps):
     ek0 = ek0_version(num_derivatives=num_derivatives, steprule=steps)
-    sol_gen = ek0.solution_generator(ivp=ivp)
-    for state in sol_gen:
-        if state.t > ivp.t0:
-            pass
+    state, _ = ek0.simulate_final_state(ivp=ivp)
 
     final_t_ek0 = state.t
     final_y_ek0 = state.y.mean[0]
@@ -68,6 +65,21 @@ def test_full_solve_compare_scipy(ek0_solution, scipy_solution):
     assert jnp.allclose(final_y_scipy, final_y_ek0, rtol=1e-3, atol=1e-3)
 
 
+@all_ek0_versions
+def test_info_dict(ek0_version, ivp, num_derivatives):
+    """Assert the ODEFilter solves an ODE appropriately."""
+    num_steps = 5
+    steprule = tornadox.step.ConstantSteps((ivp.tmax - ivp.t0) / num_steps)
+    ek0 = ek0_version(num_derivatives=num_derivatives, steprule=steprule)
+    _, info = ek0.simulate_final_state(ivp=ivp)
+    assert info["num_f_evaluations"] == num_steps
+    assert info["num_steps"] == num_steps
+    assert info["num_attempted_steps"] == num_steps
+    assert info["num_f_evaluations"] == num_steps
+    assert info["num_df_evaluations"] == 0
+    assert info["num_df_diagonal_evaluations"] == 0
+
+
 # Test fixtures for attempt_step and initialize
 
 
@@ -99,8 +111,8 @@ def stepped_both(solver_tuple, ivp, initialized_both):
     kronecker_ek0, reference_ek0 = solver_tuple
     kronecker_init, reference_init = initialized_both
 
-    kronecker_stepped = kronecker_ek0.attempt_step(state=kronecker_init, dt=0.12345)
-    reference_stepped = reference_ek0.attempt_step(state=reference_init, dt=0.12345)
+    kronecker_stepped, _ = kronecker_ek0.attempt_step(state=kronecker_init, dt=0.12345)
+    reference_stepped, _ = reference_ek0.attempt_step(state=reference_init, dt=0.12345)
 
     return kronecker_stepped, reference_stepped
 

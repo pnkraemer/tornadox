@@ -148,13 +148,15 @@ class EnK1(odefilter.ODEFilter):
         y2 = jnp.abs(self.E0 @ jnp.mean(updated_samples, 1))
         reference_state = jnp.maximum(y1, y2)
 
-        return StateEnsemble(
+        new_state = StateEnsemble(
             ivp=state.ivp,
             t=t_new,
             samples=updated_samples,
             error_estimate=error_estimate,
             reference_state=reference_state,
         )
+        info = dict(num_f_evaluations=1, num_df_evaluations=1)
+        return new_state, info
 
     @staticmethod
     @partial(jax.jit, static_argnums=(1, 2))
