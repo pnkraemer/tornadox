@@ -229,8 +229,9 @@ class DiagonalEK1(BatchedEK1):
             sq_bd=self.batched_sq,
             z=z,
         )
+
         sc_pred = self.predict_cov_sqrtm(
-            sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma * self.batched_sq
+            sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma[:, None, None] * self.batched_sq
         )
         ss, kgain = self.observe_cov_sqrtm(
             Jx_diagonal=Jx_diagonal, p_1d_raw=p_1d_raw, sc_bd=sc_pred
@@ -271,8 +272,8 @@ class DiagonalEK1(BatchedEK1):
         s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
 
         xi = z / jnp.sqrt(s)  # shape (d,)
-        sigma_squared = xi.T @ xi / xi.shape[0]  # shape ()
-        sigma = jnp.sqrt(sigma_squared)  # shape ()
+        # sigma_squared = xi.T @ xi / xi.shape[0]  # shape ()
+        sigma = jnp.abs(xi)  # shape (d,)
         error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
 
         return error_estimate, sigma
