@@ -554,8 +554,8 @@ class TestLowLevelDiagonalEK1Functions:
     @staticmethod
     def test_calibrate(diagonal_ek1_error_estimated):
         _, sigma = diagonal_ek1_error_estimated
-        assert sigma.shape == ()
-        assert sigma >= 0.0
+        assert sigma.shape == (d,)
+        assert jnp.all(sigma >= 0.0)
 
     @staticmethod
     def test_error_estimate(diagonal_ek1_error_estimated, d):
