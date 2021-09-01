@@ -149,7 +149,7 @@ class EnK1(odefilter.ODEFilter):
         reference_state = jnp.maximum(y1, y2)
 
         new_state = StateEnsemble(
-            ivp=ensemble.ivp,
+            ivp=state.ivp,
             t=t_new,
             samples=updated_samples,
             error_estimate=error_estimate,
