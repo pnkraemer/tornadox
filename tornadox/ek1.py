@@ -229,7 +229,6 @@ class DiagonalEK1(BatchedEK1):
             sq_bd=self.batched_sq,
             z=z,
         )
-
         sc_pred = self.predict_cov_sqrtm(
             sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma[:, None, None] * self.batched_sq
         )
