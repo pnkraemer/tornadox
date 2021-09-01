@@ -92,8 +92,8 @@ all_ek1_approximations = pytest.mark.parametrize(
         tornadox.ek1.TruncationEK1,
     ],
 )
-all_ek1_approximations_except_early_truncation = pytest.mark.parametrize(
-    "approx_solver", [tornadox.ek1.DiagonalEK1, tornadox.ek1.TruncationEK1]
+only_ek1_truncation = pytest.mark.parametrize(
+    "approx_solver", [tornadox.ek1.TruncationEK1]
 )
 only_ek1_early_truncation = pytest.mark.parametrize(
     "approx_solver", [tornadox.ek1.EarlyTruncationEK1]
@@ -228,7 +228,7 @@ def test_approx_ek1_attempt_step_error_estimate_shapes(approx_stepped, ivp):
 
 
 @large_and_small_steps
-@all_ek1_approximations_except_early_truncation
+@only_ek1_truncation
 def test_approx_ek1_attempt_step_error_estimate_values(approx_stepped, ivp):
     step_ref, step_approx = approx_stepped
 
@@ -270,7 +270,7 @@ def test_approx_ek1_attempt_step_reference_state_value(
 
 
 @large_and_small_steps
-@all_ek1_approximations_except_early_truncation
+@only_ek1_truncation
 def test_ek1_attempt_step_y_values(approx_stepped):
     step_ref, step_approx = approx_stepped
     ref_cov_as_batch = full_cov_as_batched_cov(
