@@ -271,7 +271,6 @@ class DiagonalEK1(BatchedEK1):
         s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
 
         xi = z / jnp.sqrt(s)  # shape (d,)
-        # sigma_squared = xi.T @ xi / xi.shape[0]  # shape ()
         sigma = jnp.abs(xi)  # shape (d,)
         error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
 
