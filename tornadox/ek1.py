@@ -443,7 +443,7 @@ class TruncationEK1(BatchedEK1):
 
 
 class NewEarlyTruncationEK1(BatchedEK1):
-    # @partial(jax.jit, static_argnums=(0, 1, 2, 3))
+    @partial(jax.jit, static_argnums=(0, 1, 2, 3))
     def attempt_unit_step(self, f, df, df_diagonal, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
         f, Jx, z = self.evaluate_ode(t=t, f=f, df=df, p_1d_raw=p_1d_raw, m_pred=m_pred)
@@ -459,7 +459,7 @@ class NewEarlyTruncationEK1(BatchedEK1):
 
         # Compute the mean with the full Jac - This is not working yet!
         new_mean = self.update_mean_with_full_jac(
-            m=m_pred, Jx=Jx, p_1d_raw=p_1d_raw, sc_bd=sc_pred, z=z
+            m=m_pred, Jx=Jx, p_1d_raw=p_1d_raw, sc_pred=sc_pred, z=z
         )
 
         # Compute the kalman gain with the diagonal jacobian
@@ -473,11 +473,11 @@ class NewEarlyTruncationEK1(BatchedEK1):
             sc_bd=sc_pred,
             kgain=kgain,
         )
-        info_dict = dict(num_f_evaluations=1, num_df_diagonal_evaluations=1)
+        info_dict = dict(num_f_evaluations=1, num_df_evaluations=1)
         return new_mean, cov_sqrtm, error, info_dict
 
     @staticmethod
-    # @partial(jax.jit, static_argnums=(1, 2))
+    @partial(jax.jit, static_argnums=(1, 2))
     def evaluate_ode(t, f, df, p_1d_raw, m_pred):
         m_pred_no_precon = p_1d_raw[:, None] * m_pred
         m_at = m_pred_no_precon[0]
@@ -489,7 +489,7 @@ class NewEarlyTruncationEK1(BatchedEK1):
         return fx, Jx, z
 
     @staticmethod
-    # @jax.jit
+    @jax.jit
     def estimate_error(p_1d_raw, Jx, sq_bd, z):
         # TODO Figure out what we want to do here, and implement it
         Jx_diagonal = jnp.diag(Jx)
@@ -498,32 +498,47 @@ class NewEarlyTruncationEK1(BatchedEK1):
         sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
         sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
         h_sq_bd = (
-            sq_bd_no_precon_1 - Jx_diagonal[:, None] * sq_bd_no_precon_0
-        )  # shape (d,n)
+            jax.scipy.linalg.block_diag(*sq_bd_no_precon_1)
+            - Jx @ jax.scipy.linalg.block_diag(*sq_bd_no_precon_0)
+        )  # shape (d,d*n)
 
-        s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
+        # s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
+        hqh = h_sq_bd @ h_sq_bd.T  # shape (d,d)
 
-        xi = z / jnp.sqrt(s)  # shape (d,)
-        sigma_squared = xi.T @ xi / xi.shape[0]  # shape ()
+        # xi = z / jnp.sqrt(s)  # shape (d,)
+        sigma_squared = z.T @ jnp.linalg.solve(hqh, z) / z.shape[0]  # shape ()
         sigma = jnp.sqrt(sigma_squared)  # shape ()
-        error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
+        error_estimate = sigma * jnp.sqrt(jnp.diag(hqh))  # shape (d,)
 
         return error_estimate, sigma
 
-    # @staticmethod
-    # @jax.jit
-    def update_mean_with_full_jac(self, m, Jx, p_1d_raw, sc_pred, z):
-        # TODO do this correctly! In the following we perform the DiagonalEK1 computations
-        ss, kgain = self.observe_cov_sqrtm(
-            Jx_diagonal=jnp.diag(Jx), p_1d_raw=p_1d_raw, sc_bd=sc_pred
-        )
+    @staticmethod
+    @jax.jit
+    def update_mean_with_full_jac(m, Jx, p_1d_raw, sc_pred, z):
+        d = Jx.shape[0]
+        n = p_1d_raw.shape[0]
 
-        correction = kgain @ z[:, None, None]  # shape (d,n,1)
-        new_mean = m - correction[:, :, 0].T  # shape (n,d)
+        sc_pred_no_precon = p_1d_raw[None, :, None] * sc_pred
+        C_pred = sc_pred_no_precon @ jnp.transpose(sc_pred_no_precon, axes=(0, 2, 1))
+        C_pred_2 = sc_pred_no_precon @ jnp.transpose(sc_pred, axes=(0, 2, 1))
+
+        Crosscov = (jax.scipy.linalg.block_diag(*C_pred_2[:, 1, :])
+                    - Jx @ jax.scipy.linalg.block_diag(*C_pred_2[:, 0, :])).T
+        assert Crosscov.shape == (d*n, d)
+
+        S = (Jx @ jnp.diag(C_pred[:, 0, 0]) @ Jx.T
+             - Jx @ jnp.diag(C_pred[:, 0, 1])
+             - jnp.diag(C_pred[:, 1, 0]) @ Jx.T
+             + jnp.diag(C_pred[:, 1, 1]))
+        assert S.shape == (d, d)
+
+        assert m.shape == (n, d)
+        correction = Crosscov @ jnp.linalg.solve(S, z)
+        new_mean = m - correction.reshape((n, d), order="F")
         return new_mean
 
     @staticmethod
-    # @jax.jit
+    @jax.jit
     def observe_cov_sqrtm(p_1d_raw, Jx_diagonal, sc_bd):
 
         sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
@@ -540,7 +555,7 @@ class NewEarlyTruncationEK1(BatchedEK1):
         return jnp.sqrt(s), kgain
 
     @staticmethod
-    # @jax.jit
+    @jax.jit
     def correct_cov_sqrtm(p_1d_raw, Jx_diagonal, sc_bd, kgain):
 
         sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
