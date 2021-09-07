@@ -51,6 +51,7 @@ def scipy_solution(ivp):
 EK0_VERSIONS = [
     tornadox.ek0.ReferenceEK0,
     tornadox.ek0.KroneckerEK0,
+    tornadox.ek0.DiagonalEK0,
 ]
 all_ek0_versions = pytest.mark.parametrize("ek0_version", EK0_VERSIONS)
 

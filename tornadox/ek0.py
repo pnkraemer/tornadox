@@ -1,9 +1,13 @@
 import dataclasses
+from functools import partial
 
+import jax
 import jax.numpy as jnp
+import jax.scipy.linalg
 
 import tornadox.iwp
 from tornadox import init, ivp, iwp, odefilter, rv, sqrt, step
+from tornadox.ek1 import BatchedEK1
 
 
 class ReferenceEK0(odefilter.ODEFilter):
@@ -173,3 +177,89 @@ class KroneckerEK0(odefilter.ODEFilter):
         )
         info_dict = dict(num_f_evaluations=1)
         return new_state, info_dict
+
+
+class DiagonalEK0(BatchedEK1):
+    @partial(jax.jit, static_argnums=(0, 1, 2, 3))
+    def attempt_unit_step(self, f, df, df_diagonal, p_1d_raw, m, sc, t):
+        m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
+        f, z = self.evaluate_ode(
+            t=t, f=f, df_diagonal=df_diagonal, p_1d_raw=p_1d_raw, m_pred=m_pred
+        )
+        error, sigma = self.estimate_error(
+            p_1d_raw=p_1d_raw,
+            sq_bd=self.batched_sq,
+            z=z,
+        )
+        sc_pred = self.predict_cov_sqrtm(
+            sc_bd=sc, phi_1d=self.phi_1d, sq_bd=sigma[:, None, None] * self.batched_sq
+        )
+        ss, kgain = self.observe_cov_sqrtm(p_1d_raw=p_1d_raw, sc_bd=sc_pred)
+        cov_sqrtm = self.correct_cov_sqrtm(
+            p_1d_raw=p_1d_raw,
+            sc_bd=sc_pred,
+            kgain=kgain,
+        )
+        new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
+        info_dict = dict(num_f_evaluations=1)
+        return new_mean, cov_sqrtm, error, info_dict
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1, 2))
+    def evaluate_ode(t, f, df_diagonal, p_1d_raw, m_pred):
+        m_pred_no_precon = p_1d_raw[:, None] * m_pred
+        m_at = m_pred_no_precon[0]
+        fx = f(t, m_at)
+        z = m_pred_no_precon[1] - fx
+
+        return fx, z
+
+    @staticmethod
+    @jax.jit
+    def estimate_error(p_1d_raw, sq_bd, z):
+
+        sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
+        sq_bd_no_precon_0 = sq_bd_no_precon[:, 0, :]  # shape (d,n)
+        sq_bd_no_precon_1 = sq_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sq_bd = sq_bd_no_precon_1  # shape (d,n)
+
+        s = jnp.einsum("dn,dn->d", h_sq_bd, h_sq_bd)  # shape (d,)
+
+        xi = z / jnp.sqrt(s)  # shape (d,)
+        sigma = jnp.abs(xi)  # shape (d,)
+        error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
+
+        return error_estimate, sigma
+
+    @staticmethod
+    @jax.jit
+    def observe_cov_sqrtm(p_1d_raw, sc_bd):
+
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
+        sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
+        sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1  # shape (d,n)
+
+        s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
+        cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
+        kgain = cross / s[..., None, None]  # shape (d,n,1)
+
+        return jnp.sqrt(s), kgain
+
+    @staticmethod
+    @jax.jit
+    def correct_cov_sqrtm(p_1d_raw, sc_bd, kgain):
+        sc_bd_no_precon = p_1d_raw[None, :, None] * sc_bd  # shape (d,n,n)
+        sc_bd_no_precon_0 = sc_bd_no_precon[:, 0, :]  # shape (d,n)
+        sc_bd_no_precon_1 = sc_bd_no_precon[:, 1, :]  # shape (d,n)
+        h_sc_bd = sc_bd_no_precon_1  # shape (d,n)
+        kh_sc_bd = kgain @ h_sc_bd[:, None, :]  # shape (d,n,n)
+        new_sc = sc_bd - kh_sc_bd  # shape (d,n,n)
+        return new_sc
+
+    @staticmethod
+    @jax.jit
+    def correct_mean(m, kgain, z):
+        correction = kgain @ z[:, None, None]  # shape (d,n,1)
+        new_mean = m - correction[:, :, 0].T  # shape (n,d)
+        return new_mean
