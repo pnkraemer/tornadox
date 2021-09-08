@@ -50,6 +50,30 @@ def vanderpol(t0=0.0, tmax=30, y0=None, stiffness_constant=1e1):
     )
 
 
+def vanderpol_julia(t0=0.0, tmax=6.3, y0=None, stiffness_constant=1e1):
+
+    y0 = y0 or jnp.array([2.0, 0.0])
+
+    @jax.jit
+    def f_vanderpol(_, Y, mu=stiffness_constant):
+        return jnp.array([Y[1], mu * ((1.0 - Y[0] ** 2) * Y[1] - Y[0])])
+
+    df_vanderpol = jax.jit(jax.jacfwd(f_vanderpol, argnums=1))
+
+    @jax.jit
+    def df_diagonal_vanderpol(_, Y, mu=stiffness_constant):
+        return jnp.array([0.0, mu * (1.0 - Y[0] ** 2)])
+
+    return InitialValueProblem(
+        f=f_vanderpol,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_vanderpol,
+        df_diagonal=df_diagonal_vanderpol,
+    )
+
+
 def threebody(tmax=17.0652165601579625588917206249):
     @jax.jit
     def f_threebody(_, Y):
