@@ -155,7 +155,9 @@ class ODEFilter(ABC):
 
             # Acceptance/Rejection due to the step-rule
             internal_norm = self.steprule.scale_error_estimate(
-                unscaled_error_estimate=proposed_state.error_estimate,
+                unscaled_error_estimate=dt * proposed_state.error_estimate
+                if proposed_state.error_estimate is not None
+                else None,
                 reference_state=proposed_state.reference_state,
             )
             step_is_sufficiently_small = self.steprule.is_accepted(internal_norm)

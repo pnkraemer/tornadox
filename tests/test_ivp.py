@@ -8,6 +8,7 @@ import tornadox
 
 IVPs = [
     tornadox.ivp.vanderpol(),
+    tornadox.ivp.vanderpol_julia(),
     tornadox.ivp.brusselator(),
     tornadox.ivp.lorenz96(),
     tornadox.ivp.lorenz96_loop(),
