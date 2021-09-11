@@ -74,7 +74,7 @@ def vanderpol_julia(t0=0.0, tmax=6.3, y0=None, stiffness_constant=1e1):
     )
 
 
-def burgers_1d(t0=0.0, tmax=10.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01):
+def burgers_1d(t0=0.0, tmax=10.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.02):
 
     if bbox is None:
         bbox = [0.0, 1.0]
@@ -82,20 +82,19 @@ def burgers_1d(t0=0.0, tmax=10.0, y0=None, bbox=None, dx=0.02, diffusion_param=0
     mesh = jnp.arange(bbox[0], bbox[1] + dx, step=dx)
 
     if y0 is None:
-        y0 = jnp.exp(-70.0 * (mesh - (0.6 * (bbox[1] - bbox[0]))) ** 2)
+        y0 = jnp.exp(-500.0 * (mesh - (0.6 * (bbox[1] - bbox[0]))) ** 2)
 
     @jax.jit
     def f_burgers_1d(_, x):
-        nonlinear_convection = x[1:-1] * (x[2:] - x[:-2]) / (2.0 * dx)
+        nonlinear_convection = x[1:-1] * (x[1:-1] - x[:-2]) / dx
         diffusion = diffusion_param * (x[2:] - 2.0 * x[1:-1] + x[:-2]) / (dx ** 2)
-        interior = jnp.array(x[1:-1] - nonlinear_convection + diffusion).reshape(-1)
+        interior = jnp.array(-nonlinear_convection + diffusion).reshape(-1)
         # Set "cyclic" boundary conditions
-        boundaries = jnp.array(
-            x[0]
-            - x[0] * (x[1] - x[-2]) / (2.0 * dx)
+        boundary = jnp.array(
+            -x[0] * (x[0] - x[-2]) / dx
             + diffusion_param * (x[1] - 2.0 * x[0] + x[-2]) / (dx ** 2)
         ).reshape(-1)
-        return jnp.concatenate((boundaries, interior, boundaries))
+        return jnp.concatenate((boundary, interior, boundary))
 
     df_burgers_1d = jax.jit(jax.jacfwd(f_burgers_1d, argnums=1))
 
