@@ -109,6 +109,39 @@ def burgers_1d(t0=0.0, tmax=10.0, y0=None, bbox=None, dx=0.02, diffusion_param=0
     )
 
 
+def wave_1d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01):
+
+    if bbox is None:
+        bbox = [0.0, 1.0]
+
+    mesh = jnp.arange(bbox[0], bbox[1] + dx, step=dx)
+
+    if y0 is None:
+        y0 = jnp.exp(-70.0 * (mesh - (0.6 * (bbox[1] - bbox[0]))) ** 2)
+        y0_dot = jnp.zeros_like(y0)
+        Y0 = jnp.concatenate((y0, y0_dot))
+
+    @jax.jit
+    def f_wave_1d(_, x):
+        _x, _dx = jnp.split(x, 2)
+        interior = diffusion_param * (_x[2:] - 2.0 * _x[1:-1] + _x[:-2]) / (dx ** 2)
+        boundaries = (jnp.array(_x[0]).reshape(-1), jnp.array(_x[-1]).reshape(-1))
+        _ddx = jnp.concatenate((boundaries[0], interior, boundaries[1]))
+        new_dx = jnp.concatenate((jnp.zeros(1), _dx[1:-1], jnp.zeros(1)))
+        return jnp.concatenate((new_dx, _ddx))
+
+    df_wave_1d = jax.jit(jax.jacfwd(f_wave_1d, argnums=1))
+
+    return InitialValueProblem(
+        f=f_wave_1d,
+        t0=t0,
+        tmax=tmax,
+        y0=Y0,
+        df=df_wave_1d,
+        df_diagonal=lambda t, x: jnp.diag(df_wave_1d(t, x)),
+    )
+
+
 def threebody(tmax=17.0652165601579625588917206249):
     @jax.jit
     def f_threebody(_, Y):
