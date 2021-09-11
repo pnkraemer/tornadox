@@ -85,7 +85,7 @@ def burgers_1d(t0=0.0, tmax=10.0, y0=None, bbox=None, dx=0.02, diffusion_param=0
         y0 = jnp.exp(-70.0 * (mesh - (0.6 * (bbox[1] - bbox[0]))) ** 2)
 
     @jax.jit
-    def f(_, x):
+    def f_burgers_1d(_, x):
         nonlinear_convection = x[1:-1] * (x[2:] - x[:-2]) / (2.0 * dx)
         diffusion = diffusion_param * (x[2:] - 2.0 * x[1:-1] + x[:-2]) / (dx ** 2)
         interior = jnp.array(x[1:-1] - nonlinear_convection + diffusion).reshape(-1)
@@ -97,17 +97,15 @@ def burgers_1d(t0=0.0, tmax=10.0, y0=None, bbox=None, dx=0.02, diffusion_param=0
         ).reshape(-1)
         return jnp.concatenate((boundaries, interior, boundaries))
 
-    @jax.jit
-    def df(_, x):
-        return jax.jacfwd(f, argnums=1)(_, x)
+    df_burgers_1d = jax.jit(jax.jacfwd(f_burgers_1d, argnums=1))
 
     return InitialValueProblem(
-        f=f,
+        f=f_burgers_1d,
         t0=t0,
         tmax=tmax,
         y0=y0,
-        df=df,
-        df_diagonal=lambda t, x: jnp.diag(df(t, x)),
+        df=df_burgers_1d,
+        df_diagonal=lambda t, x: jnp.diag(df_burgers_1d(t, x)),
     )
 
 
