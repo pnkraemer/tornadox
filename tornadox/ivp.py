@@ -1,11 +1,98 @@
 """Initial value problems and examples."""
 
 
+import itertools
 from collections import namedtuple
 from typing import Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
+
+
+def shifted_indices_on_vectorized_2d_grid(nx, ny):
+    """The following generates the following indices for indexing a vectorized 2D grid:
+    * interior (center)
+    * interior shifted one index to the {top, bottom, left, right}
+    (in an admittedly very convoluted way)
+
+    This is needed for finite-difference discretization on vectorized 2d PDEs
+
+    Parameters
+    ----------
+    nx: int
+        Number of grid-points per row in the 2d grid
+    ny: int
+        Number of grid-points per column in the 2d grid
+
+    Returns
+    -------
+    1D indices to index the vectorized 2D grid
+
+    See also
+    --------
+    laplace_2d (below). This probably explains best what this method here is good for.
+    """
+
+    center = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    top = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    bottom = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    left = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    right = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
+            )
+        ),
+        dims=(ny, nx),
+    )
+
+    return center, top, bottom, left, right
+
+
+@jax.jit
+def laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
+    """2D Laplace operator on a vectorized 2d grid."""
+
+    return (
+        flattened_grid[top]
+        + flattened_grid[bottom]
+        + flattened_grid[left]
+        + flattened_grid[right]
+        - 4.0 * flattened_grid[center]
+    ) / dx ** 2
 
 
 class InitialValueProblem(
@@ -71,6 +158,172 @@ def vanderpol_julia(t0=0.0, tmax=6.3, y0=None, stiffness_constant=1e1):
         y0=y0,
         df=df_vanderpol,
         df_diagonal=df_diagonal_vanderpol,
+    )
+
+
+def burgers_1d(t0=0.0, tmax=10.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.02):
+
+    if bbox is None:
+        bbox = [0.0, 1.0]
+
+    mesh = jnp.arange(bbox[0], bbox[1] + dx, step=dx)
+
+    if y0 is None:
+        y0 = jnp.exp(-500.0 * (mesh - (0.6 * (bbox[1] - bbox[0]))) ** 2)
+
+    @jax.jit
+    def f_burgers_1d(_, x):
+        nonlinear_convection = x[1:-1] * (x[1:-1] - x[:-2]) / dx
+        diffusion = diffusion_param * (x[2:] - 2.0 * x[1:-1] + x[:-2]) / (dx ** 2)
+        interior = jnp.array(-nonlinear_convection + diffusion).reshape(-1)
+        # Set "cyclic" boundary conditions
+        boundary = jnp.array(
+            -x[0] * (x[0] - x[-2]) / dx
+            + diffusion_param * (x[1] - 2.0 * x[0] + x[-2]) / (dx ** 2)
+        ).reshape(-1)
+        return jnp.concatenate((boundary, interior, boundary))
+
+    df_burgers_1d = jax.jit(jax.jacfwd(f_burgers_1d, argnums=1))
+
+    return InitialValueProblem(
+        f=f_burgers_1d,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_burgers_1d,
+        df_diagonal=lambda t, x: jnp.diag(df_burgers_1d(t, x)),
+    )
+
+
+def wave_1d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01):
+
+    if bbox is None:
+        bbox = [0.0, 1.0]
+
+    mesh = jnp.arange(bbox[0], bbox[1] + dx, step=dx)
+
+    if y0 is None:
+        y0 = jnp.exp(-70.0 * (mesh - (0.6 * (bbox[1] - bbox[0]))) ** 2)
+        y0_dot = jnp.zeros_like(y0)
+        Y0 = jnp.concatenate((y0, y0_dot))
+
+    @jax.jit
+    def f_wave_1d(_, x):
+        _x, _dx = jnp.split(x, 2)
+        interior = diffusion_param * (_x[2:] - 2.0 * _x[1:-1] + _x[:-2]) / (dx ** 2)
+        boundaries = (jnp.array(_x[0]).reshape(-1), jnp.array(_x[-1]).reshape(-1))
+        _ddx = jnp.concatenate((boundaries[0], interior, boundaries[1]))
+        new_dx = jnp.concatenate((jnp.zeros(1), _dx[1:-1], jnp.zeros(1)))
+        return jnp.concatenate((new_dx, _ddx))
+
+    df_wave_1d = jax.jit(jax.jacfwd(f_wave_1d, argnums=1))
+
+    return InitialValueProblem(
+        f=f_wave_1d,
+        t0=t0,
+        tmax=tmax,
+        y0=Y0,
+        df=df_wave_1d,
+        df_diagonal=lambda t, x: jnp.diag(df_wave_1d(t, x)),
+    )
+
+
+def fhn_2d(
+    t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, a=2.8e-4, b=5e-3, k=-0.005, tau=0.1
+):
+    """Source: https://ipython-books.github.io/124-simulating-a-partial-differential-equation-reaction-diffusion-systems-and-turing-patterns/"""
+
+    if bbox is None:
+        bbox = [[0.0, 0.0], [1.0, 1.0]]
+
+    key = jax.random.PRNGKey(0)
+    ny, nx = int((bbox[1][0] - bbox[0][0]) / dx), int((bbox[1][1] - bbox[0][1]) / dx)
+    if y0 is None:
+        u0 = jax.random.uniform(key, shape=(ny * nx,))
+        _, key = jax.random.split(key)
+        v0 = jax.random.uniform(key, shape=(ny * nx,))
+        y0 = jnp.concatenate((u0, v0))
+
+    center, top, bottom, left, right = shifted_indices_on_vectorized_2d_grid(nx, ny)
+
+    @jax.jit
+    def fhn_2d(_, x):
+        u, v = jnp.split(x, 2)
+
+        u_interior = (
+            a * laplace_2d(u, center, top, bottom, left, right, dx)
+            + u[center]
+            - u[center] ** 3
+            - v[center]
+            + k
+        )
+        v_interior = (
+            b * laplace_2d(v, center, top, bottom, left, right, dx)
+            + u[center]
+            - v[center]
+        ) / tau
+        u_new = jax.ops.index_update(jnp.zeros_like(u), center, u_interior)
+        v_new = jax.ops.index_update(jnp.zeros_like(v), center, v_interior)
+        return jnp.concatenate((u_new, v_new))
+
+    dfhn_2d = jax.jit(jax.jacfwd(fhn_2d, argnums=1))
+
+    return InitialValueProblem(
+        f=fhn_2d,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=dfhn_2d,
+        df_diagonal=lambda t, x: jnp.diag(dfhn_2d(t, x)),
+    )
+
+
+def wave_2d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01):
+
+    if bbox is None:
+        bbox = jnp.array([[0.0, 0.0], [1.0, 1.0]])
+
+    ny, nx = int((bbox[1, 0] - bbox[0, 0]) / dx), int((bbox[1, 1] - bbox[0, 1]) / dx)
+    if y0 is None:
+
+        dy = 0.05
+
+        X = jnp.linspace(bbox[0, 0], bbox[1, 0], endpoint=True, num=nx)
+        Y = jnp.linspace(bbox[0, 1], bbox[1, 1], endpoint=True, num=ny)
+        X, Y = jnp.meshgrid(X, Y, indexing="ij")
+        XY = jnp.dstack((X, Y))
+        Y0 = jnp.exp(
+            -50.0 * jnp.linalg.norm(XY - jnp.array([0.5, 0.5]), axis=-1) ** 2
+        ).reshape(-1)
+        dy0 = jnp.zeros_like(Y0)
+        y0 = jnp.concatenate((Y0, dy0))
+
+    center, top, bottom, left, right = shifted_indices_on_vectorized_2d_grid(nx, ny)
+
+    @jax.jit
+    def f_wave_2d(_, x):
+        _x, _dx = jnp.split(x, 2)
+        interior = diffusion_param * laplace_2d(
+            _x, center, top, bottom, left, right, dx
+        )
+
+        _ddx = jax.ops.index_update(jnp.zeros_like(_x), center, interior)
+        new_dx = jax.ops.index_update(jnp.zeros_like(_dx), center, _dx[center])
+        return jnp.concatenate((new_dx, _ddx))
+
+    df_wave_2d = jax.jit(jax.jacfwd(f_wave_2d, argnums=1))
+
+    return (
+        InitialValueProblem(
+            f=f_wave_2d,
+            t0=t0,
+            tmax=tmax,
+            y0=y0,
+            df=df_wave_2d,
+            df_diagonal=lambda t, x: jnp.diag(df_wave_2d(t, x)),
+        ),
+        X,
+        Y,
     )
 
 
