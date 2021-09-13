@@ -12,6 +12,7 @@ IVPs = [
     tornadox.ivp.brusselator(),
     tornadox.ivp.lorenz96(),
     tornadox.ivp.lorenz96_loop(),
+    tornadox.ivp.pleiades(),
 ]
 
 

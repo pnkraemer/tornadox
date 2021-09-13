@@ -228,3 +228,70 @@ def _lorenz96_chaotic_y0(forcing, num_variables):
     # Slightly perturb the equilibrium initval to create chaotic behaviour
     y0 = y0_equilibrium.at[0].set(y0_equilibrium[0] + 0.01)
     return y0
+
+
+def pleiades(t0=0.0, tmax=3.0):
+    y0 = jnp.array(
+        [
+            3.0,
+            3.0,
+            -1.0,
+            -3.0,
+            2.0,
+            -2.0,
+            2.0,
+            3.0,
+            -3.0,
+            2.0,
+            0,
+            0,
+            -4.0,
+            4.0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1.75,
+            -1.5,
+            0,
+            0,
+            0,
+            -1.25,
+            1,
+            0,
+            0,
+        ]
+    )
+
+    @jax.jit
+    def f(t, u):
+        """Following the PLEI definition in Hairer I"""
+        x = u[0:7]  # x
+        y = u[7:14]  # y
+        dx = u[14:21]  # x′
+        dy = u[21:28]  # y′
+        xi, xj = x[:, None], x[None, :]
+        yi, yj = y[:, None], y[None, :]
+        rij = ((xi - xj) ** 2 + (yi - yj) ** 2) ** (3 / 2)
+        mj = jnp.arange(1, 8)[None, :]
+        ddx = jnp.sum(jnp.nan_to_num(mj * (xj - xi) / rij), axis=1)
+        ddy = jnp.sum(jnp.nan_to_num(mj * (yj - yi) / rij), axis=1)
+        return jnp.concatenate((dx, dy, ddx, ddy))
+
+    df = jax.jit(jax.jacfwd(f, argnums=1))
+
+    @jax.jit
+    def df_diagonal(t, y):
+        return jnp.diagonal(df(t, y))
+
+    return InitialValueProblem(
+        f=f,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df,
+        df_diagonal=df_diagonal,
+    )
+
+    pass
