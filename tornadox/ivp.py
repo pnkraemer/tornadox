@@ -1,6 +1,7 @@
 """Initial value problems and examples."""
 
 
+import itertools
 from collections import namedtuple
 from typing import Callable, Optional, Union
 
@@ -138,6 +139,103 @@ def wave_1d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01
         y0=Y0,
         df=df_wave_1d,
         df_diagonal=lambda t, x: jnp.diag(df_wave_1d(t, x)),
+    )
+
+
+def fhn_2d(
+    t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, a=2.8e-4, b=5e-3, k=-0.005, tau=0.1
+):
+    """Source: https://ipython-books.github.io/124-simulating-a-partial-differential-equation-reaction-diffusion-systems-and-turing-patterns/"""
+
+    if bbox is None:
+        bbox = [[0.0, 0.0], [1.0, 1.0]]
+
+    key = jax.random.PRNGKey(0)
+    ny, nx = int((bbox[1][0] - bbox[0][0]) / dx), int((bbox[1][1] - bbox[0][1]) / dx)
+    if y0 is None:
+        u0 = jax.random.uniform(key, shape=(ny * nx,))
+        _, key = jax.random.split(key)
+        v0 = jax.random.uniform(key, shape=(ny * nx,))
+        y0 = jnp.concatenate((u0, v0))
+
+    # The following lines translate  the indices into a 2d grid into its counterpart
+    # (in an admittedly very convoluted way)
+    center = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    top = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    bottom = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    left = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    right = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
+            )
+        ),
+        dims=(ny, nx),
+    )
+
+    @jax.jit
+    def _lapl_2d(flattened_grid, dx):
+        """2D Laplace operator on a vectorized 2d grid."""
+        return (
+            flattened_grid[top]
+            + flattened_grid[bottom]
+            + flattened_grid[left]
+            + flattened_grid[right]
+            - 4.0 * flattened_grid[center]
+        ) / dx ** 2
+
+    @jax.jit
+    def fhn_2d(_, x):
+        u, v = jnp.split(x, 2)
+
+        u_interior = a * _lapl_2d(u, dx) + u[center] - u[center] ** 3 - v[center] + k
+        v_interior = (b * _lapl_2d(v, dx) + u[center] - v[center]) / tau
+        u_new = jax.ops.index_update(jnp.zeros_like(u), center, u_interior)
+        v_new = jax.ops.index_update(jnp.zeros_like(v), center, v_interior)
+        return jnp.concatenate((u_new, v_new))
+
+    dfhn_2d = jax.jit(jax.jacfwd(fhn_2d, argnums=1))
+
+    return InitialValueProblem(
+        f=fhn_2d,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=dfhn_2d,
+        df_diagonal=lambda t, x: jnp.diag(dfhn_2d(t, x)),
     )
 
 
