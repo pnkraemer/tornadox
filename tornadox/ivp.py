@@ -9,6 +9,92 @@ import jax
 import jax.numpy as jnp
 
 
+def shifted_indices_on_vectorized_2d_grid(nx, ny):
+    """The following generates the following indices for indexing a vectorized 2D grid:
+    * interior (center)
+    * interior shifted one index to the {top, bottom, left, right}
+    (in an admittedly very convoluted way)
+
+    This is needed for finite-difference discretization on vectorized 2d PDEs
+
+    Parameters
+    ----------
+    nx: int
+        Number of grid-points per row in the 2d grid
+    ny: int
+        Number of grid-points per column in the 2d grid
+
+    Returns
+    -------
+    1D indices to index the vectorized 2D grid
+
+    See also
+    --------
+    laplace_2d (below). This probably explains best what this method here is good for.
+    """
+
+    center = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    top = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    bottom = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    left = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    right = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
+            )
+        ),
+        dims=(ny, nx),
+    )
+
+    return center, top, bottom, left, right
+
+
+@jax.jit
+def laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
+    """2D Laplace operator on a vectorized 2d grid."""
+
+    return (
+        flattened_grid[top]
+        + flattened_grid[bottom]
+        + flattened_grid[left]
+        + flattened_grid[right]
+        - 4.0 * flattened_grid[center]
+    ) / dx ** 2
+
+
 class InitialValueProblem(
     namedtuple(
         "_InitialValueProblem", "f t0 tmax y0 df df_diagonal", defaults=(None, None)
@@ -158,71 +244,24 @@ def fhn_2d(
         v0 = jax.random.uniform(key, shape=(ny * nx,))
         y0 = jnp.concatenate((u0, v0))
 
-    # The following lines translate  the indices into a 2d grid into its counterpart
-    # (in an admittedly very convoluted way)
-    center = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    top = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    bottom = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    left = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    right = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
-            )
-        ),
-        dims=(ny, nx),
-    )
-
-    @jax.jit
-    def _lapl_2d(flattened_grid, dx):
-        """2D Laplace operator on a vectorized 2d grid."""
-        return (
-            flattened_grid[top]
-            + flattened_grid[bottom]
-            + flattened_grid[left]
-            + flattened_grid[right]
-            - 4.0 * flattened_grid[center]
-        ) / dx ** 2
+    center, top, bottom, left, right = shifted_indices_on_vectorized_2d_grid(nx, ny)
 
     @jax.jit
     def fhn_2d(_, x):
         u, v = jnp.split(x, 2)
 
-        u_interior = a * _lapl_2d(u, dx) + u[center] - u[center] ** 3 - v[center] + k
-        v_interior = (b * _lapl_2d(v, dx) + u[center] - v[center]) / tau
+        u_interior = (
+            a * laplace_2d(u, center, top, bottom, left, right, dx)
+            + u[center]
+            - u[center] ** 3
+            - v[center]
+            + k
+        )
+        v_interior = (
+            b * laplace_2d(v, center, top, bottom, left, right, dx)
+            + u[center]
+            - v[center]
+        ) / tau
         u_new = jax.ops.index_update(jnp.zeros_like(u), center, u_interior)
         v_new = jax.ops.index_update(jnp.zeros_like(v), center, v_interior)
         return jnp.concatenate((u_new, v_new))
@@ -254,74 +293,19 @@ def wave_2d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01
         X, Y = jnp.meshgrid(X, Y, indexing="ij")
         XY = jnp.dstack((X, Y))
         Y0 = jnp.exp(
-            -20.0 * jnp.linalg.norm(XY - jnp.array([0.5, 0.5]), axis=-1) ** 2
+            -50.0 * jnp.linalg.norm(XY - jnp.array([0.5, 0.5]), axis=-1) ** 2
         ).reshape(-1)
         dy0 = jnp.zeros_like(Y0)
         y0 = jnp.concatenate((Y0, dy0))
 
-    # The following lines translate  the indices into a 2d grid into its counterpart
-    # (in an admittedly very convoluted way)
-    center = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    top = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    bottom = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    left = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    right = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
-            )
-        ),
-        dims=(ny, nx),
-    )
-
-    @jax.jit
-    def _lapl_2d(flattened_grid, dx):
-        """2D Laplace operator on a vectorized 2d grid."""
-        return (
-            flattened_grid[top]
-            + flattened_grid[bottom]
-            + flattened_grid[left]
-            + flattened_grid[right]
-            - 4.0 * flattened_grid[center]
-        ) / dx ** 2
+    center, top, bottom, left, right = shifted_indices_on_vectorized_2d_grid(nx, ny)
 
     @jax.jit
     def f_wave_2d(_, x):
         _x, _dx = jnp.split(x, 2)
-        interior = diffusion_param * _lapl_2d(_x, dx)
+        interior = diffusion_param * laplace_2d(
+            _x, center, top, bottom, left, right, dx
+        )
 
         _ddx = jax.ops.index_update(jnp.zeros_like(_x), center, interior)
         new_dx = jax.ops.index_update(jnp.zeros_like(_dx), center, _dx[center])
