@@ -239,6 +239,110 @@ def fhn_2d(
     )
 
 
+def wave_2d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01):
+
+    if bbox is None:
+        bbox = jnp.array([[0.0, 0.0], [1.0, 1.0]])
+
+    ny, nx = int((bbox[1, 0] - bbox[0, 0]) / dx), int((bbox[1, 1] - bbox[0, 1]) / dx)
+    if y0 is None:
+
+        dy = 0.05
+
+        X = jnp.linspace(bbox[0, 0], bbox[1, 0], endpoint=True, num=nx)
+        Y = jnp.linspace(bbox[0, 1], bbox[1, 1], endpoint=True, num=ny)
+        X, Y = jnp.meshgrid(X, Y, indexing="ij")
+        XY = jnp.dstack((X, Y))
+        Y0 = jnp.exp(
+            -20.0 * jnp.linalg.norm(XY - jnp.array([0.5, 0.5]), axis=-1) ** 2
+        ).reshape(-1)
+        dy0 = jnp.zeros_like(Y0)
+        y0 = jnp.concatenate((Y0, dy0))
+
+    # The following lines translate  the indices into a 2d grid into its counterpart
+    # (in an admittedly very convoluted way)
+    center = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    top = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    bottom = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    left = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
+            )
+        ),
+        dims=(ny, nx),
+    )
+    right = jnp.ravel_multi_index(
+        tuple(
+            jnp.array(idcs)
+            for idcs in zip(
+                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
+            )
+        ),
+        dims=(ny, nx),
+    )
+
+    @jax.jit
+    def _lapl_2d(flattened_grid, dx):
+        """2D Laplace operator on a vectorized 2d grid."""
+        return (
+            flattened_grid[top]
+            + flattened_grid[bottom]
+            + flattened_grid[left]
+            + flattened_grid[right]
+            - 4.0 * flattened_grid[center]
+        ) / dx ** 2
+
+    @jax.jit
+    def f_wave_2d(_, x):
+        _x, _dx = jnp.split(x, 2)
+        interior = diffusion_param * _lapl_2d(_x, dx)
+
+        _ddx = jax.ops.index_update(jnp.zeros_like(_x), center, interior)
+        new_dx = jax.ops.index_update(jnp.zeros_like(_dx), center, _dx[center])
+        return jnp.concatenate((new_dx, _ddx))
+
+    df_wave_2d = jax.jit(jax.jacfwd(f_wave_2d, argnums=1))
+
+    return (
+        InitialValueProblem(
+            f=f_wave_2d,
+            t0=t0,
+            tmax=tmax,
+            y0=y0,
+            df=df_wave_2d,
+            df_diagonal=lambda t, x: jnp.diag(df_wave_2d(t, x)),
+        ),
+        X,
+        Y,
+    )
+
+
 def threebody(tmax=17.0652165601579625588917206249):
     @jax.jit
     def f_threebody(_, Y):
