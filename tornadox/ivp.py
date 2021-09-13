@@ -313,17 +313,13 @@ def wave_2d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01
 
     df_wave_2d = jax.jit(jax.jacfwd(f_wave_2d, argnums=1))
 
-    return (
-        InitialValueProblem(
-            f=f_wave_2d,
-            t0=t0,
-            tmax=tmax,
-            y0=y0,
-            df=df_wave_2d,
-            df_diagonal=lambda t, x: jnp.diag(df_wave_2d(t, x)),
-        ),
-        X,
-        Y,
+    return InitialValueProblem(
+        f=f_wave_2d,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_wave_2d,
+        df_diagonal=lambda t, x: jnp.diag(df_wave_2d(t, x)),
     )
 
 
