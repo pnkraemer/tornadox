@@ -9,7 +9,7 @@ import jax
 import jax.numpy as jnp
 
 
-def shifted_indices_on_vectorized_2d_grid(nx, ny):
+def _shifted_indices_on_vectorized_2d_grid(nx, ny):
     """The following generates the following indices for indexing a vectorized 2D grid:
     * interior (center)
     * interior shifted one index to the {top, bottom, left, right}
@@ -30,7 +30,7 @@ def shifted_indices_on_vectorized_2d_grid(nx, ny):
 
     See also
     --------
-    laplace_2d (below). This probably explains best what this method here is good for.
+    _laplace_2d (below). This probably explains best what this method here is good for.
     """
 
     center = jnp.ravel_multi_index(
@@ -83,7 +83,7 @@ def shifted_indices_on_vectorized_2d_grid(nx, ny):
 
 
 @jax.jit
-def laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
+def _laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
     """2D Laplace operator on a vectorized 2d grid."""
 
     return (
@@ -244,21 +244,21 @@ def fhn_2d(
         v0 = jax.random.uniform(key, shape=(ny * nx,))
         y0 = jnp.concatenate((u0, v0))
 
-    center, top, bottom, left, right = shifted_indices_on_vectorized_2d_grid(nx, ny)
+    center, top, bottom, left, right = _shifted_indices_on_vectorized_2d_grid(nx, ny)
 
     @jax.jit
     def fhn_2d(_, x):
         u, v = jnp.split(x, 2)
 
         u_interior = (
-            a * laplace_2d(u, center, top, bottom, left, right, dx)
+            a * _laplace_2d(u, center, top, bottom, left, right, dx)
             + u[center]
             - u[center] ** 3
             - v[center]
             + k
         )
         v_interior = (
-            b * laplace_2d(v, center, top, bottom, left, right, dx)
+            b * _laplace_2d(v, center, top, bottom, left, right, dx)
             + u[center]
             - v[center]
         ) / tau
@@ -298,12 +298,12 @@ def wave_2d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01
         dy0 = jnp.zeros_like(Y0)
         y0 = jnp.concatenate((Y0, dy0))
 
-    center, top, bottom, left, right = shifted_indices_on_vectorized_2d_grid(nx, ny)
+    center, top, bottom, left, right = _shifted_indices_on_vectorized_2d_grid(nx, ny)
 
     @jax.jit
     def f_wave_2d(_, x):
         _x, _dx = jnp.split(x, 2)
-        interior = diffusion_param * laplace_2d(
+        interior = diffusion_param * _laplace_2d(
             _x, center, top, bottom, left, right, dx
         )
 
@@ -313,17 +313,13 @@ def wave_2d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01
 
     df_wave_2d = jax.jit(jax.jacfwd(f_wave_2d, argnums=1))
 
-    return (
-        InitialValueProblem(
-            f=f_wave_2d,
-            t0=t0,
-            tmax=tmax,
-            y0=y0,
-            df=df_wave_2d,
-            df_diagonal=lambda t, x: jnp.diag(df_wave_2d(t, x)),
-        ),
-        X,
-        Y,
+    return InitialValueProblem(
+        f=f_wave_2d,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=df_wave_2d,
+        df_diagonal=lambda t, x: jnp.diag(df_wave_2d(t, x)),
     )
 
 
