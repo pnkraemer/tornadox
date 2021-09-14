@@ -10,6 +10,9 @@ from tornadox import init, ivp, iwp, odefilter, rv, sqrt, step
 from tornadox.ek1 import BatchedEK1
 
 
+from icecream import ic
+
+
 class ReferenceEK0(odefilter.ODEFilter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -180,7 +183,7 @@ class KroneckerEK0(odefilter.ODEFilter):
 
 
 class DiagonalEK0(BatchedEK1):
-    @partial(jax.jit, static_argnums=(0, 1, 2, 3))
+    # @partial(jax.jit, static_argnums=(0, 1, 2, 3))
     def attempt_unit_step(self, f, df, df_diagonal, p_1d_raw, m, sc, t):
         m_pred = self.predict_mean(m, phi_1d=self.phi_1d)
         f, z = self.evaluate_ode(
@@ -201,21 +204,41 @@ class DiagonalEK0(BatchedEK1):
             kgain=kgain,
         )
         new_mean = self.correct_mean(m=m_pred, kgain=kgain, z=z)
+        if jnp.isnan(new_mean).any() or jnp.isinf(new_mean).any():
+            assert not (jnp.isnan(m_pred).any() or jnp.isinf(m_pred).any())
+            # This means that it's really the correction that goes wrong!
+            assert not (jnp.isnan(z).any() or jnp.isinf(z).any())
+            # z is fine, so it has to be the kalman gain
+            # ic(kgain)
+            assert not (jnp.isnan(sc_pred).any() or jnp.isinf(sc_pred).any())
+            # So the predicted covariance should be fine?
+            # => This leaves the measurement covariance!
+            ic(error)
+            ic(sigma)
+            raise Exception
         info_dict = dict(num_f_evaluations=1)
         return new_mean, cov_sqrtm, error, info_dict
 
     @staticmethod
-    @partial(jax.jit, static_argnums=(1, 2))
+    # @partial(jax.jit, static_argnums=(1, 2))
     def evaluate_ode(t, f, df_diagonal, p_1d_raw, m_pred):
         m_pred_no_precon = p_1d_raw[:, None] * m_pred
         m_at = m_pred_no_precon[0]
+        if jnp.isnan(m_at).any() or jnp.isinf(m_at).any():
+            ic(m_pred)
+            ic(m_at)
         fx = f(t, m_at)
         z = m_pred_no_precon[1] - fx
+        # if jnp.isnan(z).any():
+        # ic(z)
+        # ic(m_pred_no_precon)
+        # ic(m_at)
+        # ic(fx)
 
         return fx, z
 
     @staticmethod
-    @jax.jit
+    # @jax.jit
     def estimate_error(p_1d_raw, sq_bd, z):
 
         sq_bd_no_precon = p_1d_raw[None, :, None] * sq_bd  # shape (d,n,n)
@@ -228,6 +251,11 @@ class DiagonalEK0(BatchedEK1):
         xi = z / jnp.sqrt(s)  # shape (d,)
         sigma = jnp.abs(xi)  # shape (d,)
         error_estimate = sigma * jnp.sqrt(s)  # shape (d,)
+
+        # ic(z)
+        # ic(s)
+        # ic(sigma)
+        # ic(error_estimate)
 
         return error_estimate, sigma
 
