@@ -123,6 +123,33 @@ class KroneckerEK0(odefilter.ODEFilter):
             y=y,
         )
 
+    @staticmethod
+    @jax.jit
+    def compute_sigmasquared_error(P, Ql, z):
+        HQH = (P @ Ql @ Ql.T @ P.T)[1, 1]
+        sigma_squared = z.T @ z / HQH / z.shape[0]
+        error_estimate = jnp.stack([jnp.sqrt(sigma_squared * HQH)] * z.shape[0])
+        return sigma_squared, error_estimate
+
+    @staticmethod
+    @jax.jit
+    def update(mp, Clp, P, H, z):
+        S = (P @ Clp @ Clp.T @ P.T)[1, 1]
+        K = Clp @ (Clp.T @ H.T) / S  # shape (n,1)
+        m_new = mp - K * z[None, :]  # shape (n,d)
+        Cl_new = Clp - K @ H @ Clp
+        return m_new, Cl_new
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1,))
+    def evaluate_ode(t, f, mp, P, e1):
+        _mp = P @ mp  # undo the preconditioning
+        xi = _mp[0]
+
+        z = _mp[1] - f(t, xi)
+        H = e1 @ P
+        return z, H
+
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
         Y = state.y
@@ -140,33 +167,22 @@ class KroneckerEK0(odefilter.ODEFilter):
         mp = A @ m
 
         # [Measure]
-        _mp = P @ mp  # undo the preconditioning
-        xi = _mp[0]
-
-        z = _mp[1] - state.ivp.f(t_new, xi)
-        H = self.e1 @ P
+        z, H = self.evaluate_ode(t_new, state.ivp.f, mp, P, self.e1)
 
         # [Calibration]
-        HQH = (P @ Ql @ Ql.T @ P.T)[1, 1]
-        sigma_squared = z.T @ z / HQH / z.shape[0]
+        sigma_squared, error_estimate = self.compute_sigmasquared_error(P, Ql, z)
 
         # [Predict Covariance]
         Clp = sqrt.propagate_cholesky_factor(A @ Cl, jnp.sqrt(sigma_squared) * Ql)
 
         # [Update]
-        S = (P @ Clp @ Clp.T @ P.T)[1, 1]
-        K = Clp @ (Clp.T @ H.T) / S  # shape (n,1)
-        m_new = mp - K * z[None, :]  # shape (n,d)
-        Cl_new = Clp - K @ H @ Clp
+        m_new, Cl_new = self.update(mp, Clp, P, H, z)
 
         # [Undo preconditioning]
         _m_new = P @ m_new
         _Cl_new = P @ Cl_new
 
         y_new = jnp.abs(_m_new[0])
-
-        d = z.shape[0]
-        error_estimate = jnp.stack([jnp.sqrt(sigma_squared * HQH)] * d)
 
         new_state = odefilter.ODEFilterState(
             ivp=state.ivp,

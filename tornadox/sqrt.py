@@ -5,12 +5,14 @@ import jax.numpy as jnp
 import jax.scipy.linalg
 
 
+@jax.jit
 def propagate_cholesky_factor(S1, S2):
     """Compute Cholesky factor of A @ SC @ SC.T @ A.T + SQ @ SQ.T"""
     stacked_up = jnp.vstack((S1.T, S2.T))
     return sqrtm_to_cholesky(stacked_up)
 
 
+@jax.jit
 def sqrtm_to_cholesky(St):
     """Assume that St=S^\top is a 'right' matrix-square-root.
 
