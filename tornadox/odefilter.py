@@ -104,9 +104,10 @@ class ODEFilter(ABC):
         pbar = tqdm(total=_pbar_steps) if progressbar else None
         while state.t < state.ivp.tmax:
 
-            if progressbar and state.t >= _pbar_update_threshold:
-                pbar.update()
-                _pbar_update_threshold += _pbar_update_dt
+            if progressbar:
+                while state.t >= _pbar_update_threshold:
+                    pbar.update()
+                    _pbar_update_threshold += _pbar_update_dt
 
             if time_stopper is not None:
                 dt = time_stopper.adjust_dt_to_time_stops(state.t, dt)
