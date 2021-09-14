@@ -99,9 +99,9 @@ class ODEFilter(ABC):
         dt = self.steprule.first_dt(ivp)
 
         # Use state.ivp in case a callback modifies the IVP
-        _pbar_update_dt = 0.1
-        _pbar_update_threshold = 0.1
-        pbar = tqdm(total=state.ivp.tmax * 10) if progressbar else None
+        _pbar_steps = 100
+        _pbar_update_threshold = _pbar_update_dt = state.ivp.tmax / _pbar_steps
+        pbar = tqdm(total=_pbar_steps) if progressbar else None
         while state.t < state.ivp.tmax:
 
             if progressbar and state.t >= _pbar_update_threshold:
@@ -121,6 +121,9 @@ class ODEFilter(ABC):
             ]
             info["num_attempted_steps"] += step_info["num_attempted_steps"]
             yield state, info
+        if progressbar:
+            pbar.update()
+            pbar.close()
 
     @staticmethod
     def _process_event_inputs(stop_at_locations):
@@ -149,7 +152,7 @@ class ODEFilter(ABC):
         )
         while not step_is_sufficiently_small:
             if pbar is not None:
-                pbar.set_description(f"t={state.t:.2f}, dt={dt:.2E}")
+                pbar.set_description(f"t={state.t:.4f}, dt={dt:.2E}")
 
             proposed_state, attempt_step_info = self.attempt_step(state, dt)
 
