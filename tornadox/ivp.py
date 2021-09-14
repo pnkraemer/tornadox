@@ -293,5 +293,3 @@ def pleiades(t0=0.0, tmax=3.0):
         df=df,
         df_diagonal=df_diagonal,
     )
-
-    pass
