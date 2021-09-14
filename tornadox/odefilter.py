@@ -105,7 +105,7 @@ class ODEFilter(ABC):
         while state.t < state.ivp.tmax:
 
             if progressbar:
-                while state.t >= _pbar_update_threshold:
+                while state.t + dt >= _pbar_update_threshold:
                     pbar.update()
                     _pbar_update_threshold += _pbar_update_dt
 
