@@ -6,6 +6,7 @@ from typing import Dict, Iterable, Union
 
 import jax.numpy as jnp
 import numpy as np
+from tqdm import tqdm
 
 from tornadox import ek0, init, ivp, rv, step
 
@@ -81,7 +82,7 @@ class ODEFilter(ABC):
             pass
         return state, info
 
-    def solution_generator(self, ivp, stop_at=None):
+    def solution_generator(self, ivp, stop_at=None, progressbar=False):
         """Generate ODE solver steps."""
 
         time_stopper = self._process_event_inputs(stop_at_locations=stop_at)
@@ -98,11 +99,19 @@ class ODEFilter(ABC):
         dt = self.steprule.first_dt(ivp)
 
         # Use state.ivp in case a callback modifies the IVP
+        _pbar_update_dt = 0.1
+        _pbar_update_threshold = 0.1
+        pbar = tqdm(total=state.ivp.tmax * 10) if progressbar else None
         while state.t < state.ivp.tmax:
+
+            if progressbar and state.t >= _pbar_update_threshold:
+                pbar.update()
+                _pbar_update_threshold += _pbar_update_dt
+
             if time_stopper is not None:
                 dt = time_stopper.adjust_dt_to_time_stops(state.t, dt)
 
-            state, dt, step_info = self.perform_full_step(state, dt)
+            state, dt, step_info = self.perform_full_step(state, dt, pbar=pbar)
 
             info["num_steps"] += 1
             info["num_f_evaluations"] += step_info["num_f_evaluations"]
@@ -123,7 +132,7 @@ class ODEFilter(ABC):
             time_stopper = None
         return time_stopper
 
-    def perform_full_step(self, state, initial_dt):
+    def perform_full_step(self, state, initial_dt, pbar=None):
         """Perform a full ODE solver step.
 
         This includes the acceptance/rejection decision as governed by error estimation
@@ -139,6 +148,9 @@ class ODEFilter(ABC):
             num_attempted_steps=0,
         )
         while not step_is_sufficiently_small:
+            if pbar is not None:
+                pbar.set_description(f"t={state.t:.2f}, dt={dt:.2E}")
+
             proposed_state, attempt_step_info = self.attempt_step(state, dt)
 
             # Gather some stats
