@@ -170,6 +170,8 @@ class ODEFilter(ABC):
             else:
                 dt = min(suggested_dt, state.ivp.tmax - state.t)
 
+            assert dt >= 0, f"Invalid step size: dt={dt}"
+
         return proposed_state, dt, step_info
 
     @abstractmethod
