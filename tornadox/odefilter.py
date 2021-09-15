@@ -59,7 +59,7 @@ class ODEFilter(ABC):
             times.append(state.t)
             means.append(state.y.mean)
             if isinstance(self, ek0.KroneckerEK0):
-                cov_sqrtms.append((state.y.cov_sqrtm_1, state.y.cov_sqrtm_2))
+                cov_sqrtms.append(state.y.dense_cov_sqrtm())
             else:
                 cov_sqrtms.append(state.y.cov_sqrtm)
 
