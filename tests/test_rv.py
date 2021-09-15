@@ -159,3 +159,50 @@ class TestMatrixNormal:
         fun_jitted = jax.jit(fun)
         out = fun_jitted(matrix_normal)
         assert type(out) == type(matrix_normal)
+
+
+class TestEK0SpecializedMatrixNormal:
+    @staticmethod
+    @pytest.fixture
+    def ek0_matrix_normal(mean, dimension, cov_sqrtm):
+        return tornadox.rv.EK0SpecializedMatrixNormal(
+            mean=mean, d=dimension, cov_sqrtm_2=cov_sqrtm
+        )
+
+    @staticmethod
+    def test_type(ek0_matrix_normal):
+        assert isinstance(ek0_matrix_normal, tornadox.rv.EK0SpecializedMatrixNormal)
+
+    @staticmethod
+    def test_cov_1_values(ek0_matrix_normal):
+        SC = ek0_matrix_normal.cov_sqrtm_1
+        C = ek0_matrix_normal.cov_1
+        assert jnp.allclose(C, SC @ SC.T)
+
+    @staticmethod
+    def test_cov_2_values(ek0_matrix_normal):
+        SC = ek0_matrix_normal.cov_sqrtm_2
+        C = ek0_matrix_normal.cov_2
+        assert jnp.allclose(C, SC @ SC.T)
+
+    @staticmethod
+    def test_dense_cov_sqrtm_values(ek0_matrix_normal):
+        sc = ek0_matrix_normal.dense_cov_sqrtm()
+        sc1, sc2 = ek0_matrix_normal.cov_sqrtm_1, ek0_matrix_normal.cov_sqrtm_2
+        assert jnp.allclose(sc, jnp.kron(sc1, sc2))
+
+    @staticmethod
+    def test_dense_cov_values(ek0_matrix_normal):
+        c = ek0_matrix_normal.dense_cov()
+        c1, c2 = ek0_matrix_normal.cov_1, ek0_matrix_normal.cov_2
+        assert jnp.allclose(c, jnp.kron(c1, c2))
+
+    @staticmethod
+    def test_jittable(ek0_matrix_normal):
+        def fun(rv):
+            m, d, sc2 = rv
+            return tornadox.rv.EK0SpecializedMatrixNormal(2 * m, 2 * d, 2 * sc2)
+
+        fun_jitted = jax.jit(fun)
+        out = fun_jitted(ek0_matrix_normal)
+        assert type(out) == type(ek0_matrix_normal)
