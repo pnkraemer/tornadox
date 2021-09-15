@@ -214,7 +214,7 @@ def test_attempt_step_y_shapes_reference(stepped_reference, d, num_derivatives):
 def test_attempt_step_error_estimate_kronecker(stepped_kronecker, d):
 
     assert isinstance(stepped_kronecker.error_estimate, jnp.ndarray)
-    assert stepped_kronecker.error_estimate.shape == (d,)
+    assert stepped_kronecker.error_estimate.shape == ()
     assert jnp.all(stepped_kronecker.error_estimate >= 0)
 
 

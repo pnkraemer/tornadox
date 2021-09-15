@@ -93,7 +93,9 @@ class AdaptiveSteps(StepRule):
         return scaled_error_estimate < 1
 
     def scale_error_estimate(self, unscaled_error_estimate, reference_state):
-        if unscaled_error_estimate.shape != reference_state.shape:
+        if (
+            not jnp.isscalar(unscaled_error_estimate.size)
+        ) and unscaled_error_estimate.shape != reference_state.shape:
             raise ValueError(
                 "Unscaled error estimate needs same shape as reference state."
             )

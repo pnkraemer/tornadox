@@ -128,7 +128,7 @@ class KroneckerEK0(odefilter.ODEFilter):
     def compute_sigmasquared_error(P, Ql, z):
         HQH = (P @ Ql @ Ql.T @ P.T)[1, 1]
         sigma_squared = z.T @ z / HQH / z.shape[0]
-        error_estimate = jnp.stack([jnp.sqrt(sigma_squared * HQH)] * z.shape[0])
+        error_estimate = jnp.sqrt(sigma_squared * HQH)
         return sigma_squared, error_estimate
 
     @staticmethod
