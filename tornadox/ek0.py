@@ -109,7 +109,6 @@ class KroneckerEK0(odefilter.ODEFilter):
         mean = extended_dy0
         n, d = self.iwp.num_derivatives + 1, self.iwp.wiener_process_dimension
 
-        self.P0 = self.iwp.projection_matrix(0)
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
 
