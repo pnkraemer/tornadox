@@ -70,6 +70,12 @@ def test_solve(ivp, solver):
     assert isinstance(sol, tornadox.odefilter.ODESolution)
 
 
+def test_solve_but_dont_save_covariances(ivp, solver):
+    sol = solver.solve(ivp, save_covariances=False)
+    assert isinstance(sol, tornadox.odefilter.ODESolution)
+    assert sol.cov_sqrtm is None
+
+
 @pytest.fixture
 def locations():
     return jnp.array([1.234])

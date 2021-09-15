@@ -49,7 +49,7 @@ class ODEFilter(ABC):
     def __repr__(self):
         return f"{self.__class__.__name__}(num_derivatives={self.num_derivatives}, steprule={self.steprule}, initialization={self.init})"
 
-    def solve(self, *args, **kwargs):
+    def solve(self, *args, save_covariances=True, **kwargs):
         solution_generator = self.solution_generator(*args, **kwargs)
         means = []
         cov_sqrtms = []
@@ -58,15 +58,16 @@ class ODEFilter(ABC):
         for state, info in solution_generator:
             times.append(state.t)
             means.append(state.y.mean)
-            if isinstance(self, ek0.KroneckerEK0):
-                cov_sqrtms.append((state.y.cov_sqrtm_1, state.y.cov_sqrtm_2))
-            else:
-                cov_sqrtms.append(state.y.cov_sqrtm)
+            if save_covariances:
+                if isinstance(self, ek0.KroneckerEK0):
+                    cov_sqrtms.append(state.y.dense_cov_sqrtm())
+                else:
+                    cov_sqrtms.append(state.y.cov_sqrtm)
 
         return ODESolution(
             t=jnp.stack(times),
             mean=jnp.stack(means),
-            cov_sqrtm=jnp.stack(cov_sqrtms),
+            cov_sqrtm=jnp.stack(cov_sqrtms) if save_covariances else None,
             info=info,
         )
 
