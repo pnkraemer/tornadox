@@ -26,7 +26,6 @@ class ODESolution:
     t: jnp.ndarray
     mean: jnp.ndarray
     cov_sqrtm: jnp.ndarray
-    cov: jnp.ndarray
     info: Dict
 
 
@@ -53,7 +52,6 @@ class ODEFilter(ABC):
     def solve(self, *args, **kwargs):
         solution_generator = self.solution_generator(*args, **kwargs)
         means = []
-        covs = []
         cov_sqrtms = []
         times = []
         info = dict()
@@ -61,17 +59,14 @@ class ODEFilter(ABC):
             times.append(state.t)
             means.append(state.y.mean)
             if isinstance(self, ek0.KroneckerEK0):
-                cov_sqrtms.append(state.y.dense_cov_sqrtm())
-                covs.append(state.y.dense_cov())
+                cov_sqrtms.append((state.y.cov_sqrtm_1, state.y.cov_sqrtm_2))
             else:
                 cov_sqrtms.append(state.y.cov_sqrtm)
-                covs.append(state.y.cov)
 
         return ODESolution(
             t=jnp.stack(times),
             mean=jnp.stack(means),
             cov_sqrtm=jnp.stack(cov_sqrtms),
-            cov=jnp.stack(covs),
             info=info,
         )
 
