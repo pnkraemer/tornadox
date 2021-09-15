@@ -126,8 +126,8 @@ class KroneckerEK0(odefilter.ODEFilter):
     @staticmethod
     @jax.jit
     def compute_sigmasquared_error(P, Ql, z):
-        _PQl = P[1, 1] * Ql[1, :]
-        HQH = _PQl @ _PQl.T
+        Q11 = Ql[1, :] @ Ql[1, :].T
+        HQH = P[1, 1] ** 2 * Q11
         sigma_squared = z.T @ z / HQH / z.shape[0]
         error_estimate = jnp.stack([jnp.sqrt(sigma_squared * HQH)] * z.shape[0])
         return sigma_squared, error_estimate
@@ -135,8 +135,8 @@ class KroneckerEK0(odefilter.ODEFilter):
     @staticmethod
     @jax.jit
     def update(mp, Clp, P, H, z):
-        _PClp = P[1, 1] * Clp[1, :]
-        S = _PClp @ _PClp.T
+        C11 = Clp[1, :] @ Clp[1, :].T
+        S = P[1, 1] ** 2 * C11
         K = Clp @ (Clp.T @ H.T) / S  # shape (n,1)
         m_new = mp - K * z[None, :]  # shape (n,d)
         Cl_new = Clp - K @ H @ Clp
