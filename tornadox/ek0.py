@@ -112,7 +112,7 @@ class KroneckerEK0(odefilter.ODEFilter):
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
 
-        y = rv.MatrixNormal(mean=mean, cov_sqrtm_1=jnp.eye(d), cov_sqrtm_2=cov_sqrtm)
+        y = rv.EK0SpecializedMatrixNormal(mean=mean, d=d, cov_sqrtm_2=cov_sqrtm)
 
         return odefilter.ODEFilterState(
             ivp=ivp,
@@ -190,7 +190,7 @@ class KroneckerEK0(odefilter.ODEFilter):
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,
-            y=rv.MatrixNormal(_m_new, state.y.cov_sqrtm_1, _Cl_new),
+            y=rv.EK0SpecializedMatrixNormal(_m_new, state.y.d, _Cl_new),
         )
         info_dict = dict(num_f_evaluations=1)
         return new_state, info_dict
