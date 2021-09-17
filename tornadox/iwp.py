@@ -1,5 +1,3 @@
-import dataclasses
-import functools
 from collections import namedtuple
 from functools import partial
 
@@ -8,15 +6,10 @@ import jax.numpy as jnp
 import scipy.linalg
 import scipy.special
 
-from tornadox import linops
-
 
 class IntegratedWienerTransition(
     namedtuple("_IWP", "wiener_process_dimension num_derivatives")
 ):
-
-    # wiener_process_dimension: int
-    # num_derivatives: int
 
     # jax.jit does not handle cached_property well, but it internally caches some values,
     # which is the reason for the property + jax.jit stuff

@@ -30,7 +30,7 @@ def num_derivatives():
 @pytest.fixture
 def ek0_solution(ek0_version, num_derivatives, ivp, steps):
     ek0 = ek0_version(num_derivatives=num_derivatives, steprule=steps)
-    state, info = ek0.simulate_final_state(ivp=ivp)
+    state, _ = ek0.simulate_final_state(ivp=ivp)
 
     final_t_ek0 = state.t
     final_y_ek0 = state.y.mean[0]

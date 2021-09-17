@@ -483,8 +483,8 @@ class EarlyTruncationEK1(odefilter.ODEFilter):
         return odefilter.ODEFilterState(
             t=ivp.t0,
             y=new_rv,
-            error_estimate=jnp.ones(self.iwp.wiener_process_dimension),
-            reference_state=jnp.ones(self.iwp.wiener_process_dimension),
+            error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
         )
 
     @partial(jax.jit, static_argnums=(0, 3, 7, 8))
