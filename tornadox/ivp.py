@@ -95,19 +95,23 @@ def _laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
     ) / dx ** 2
 
 
-def _laplace_2d_diag(grid_extent):
-    part = jnp.pad(
-        -4.0 * jnp.ones(grid_extent - 2),
-        pad_width=1,
-        mode="constant",
-        constant_values=0.0,
-    )
-    main_diag = jnp.pad(
-        jnp.tile(part, grid_extent - 2),
-        pad_width=grid_extent,
-        mode="constant",
-        constant_values=0.0,
-    )
+def _laplace_2d_diag(grid_extent, dx, cut_off_boundaries=True):
+    part = -4.0 * jnp.ones(grid_extent - 2) / (dx ** 2)
+    if not cut_off_boundaries:
+        part = jnp.pad(
+            part,
+            pad_width=1,
+            mode="constant",
+            constant_values=0.0,
+        )
+    main_diag = jnp.tile(part, grid_extent - 2)
+    if not cut_off_boundaries:
+        main_diag = jnp.pad(
+            main_diag,
+            pad_width=grid_extent,
+            mode="constant",
+            constant_values=0.0,
+        )
     return main_diag
 
 
@@ -291,9 +295,11 @@ def fhn_2d(
     @jax.jit
     def df_diag(_, x):
         u, v = jnp.split(x, 2)
-        dlaplace = _laplace_2d_diag(grid_extent=nx)
-        d_u = a * dlaplace + 1.0 - 3.0 * u ** 2
-        d_v = (b * dlaplace - 1.0) / tau
+        dlaplace = _laplace_2d_diag(grid_extent=nx, dx=dx, cut_off_boundaries=True)
+        d_u_interior = a * dlaplace + 1.0 - 3.0 * u[center] ** 2
+        d_v_interior = (b * dlaplace - 1.0) / tau
+        d_u = jax.ops.index_update(jnp.zeros_like(u), center, d_u_interior)
+        d_v = jax.ops.index_update(jnp.zeros_like(v), center, d_v_interior)
         return jnp.concatenate((d_u, d_v))
 
     return InitialValueProblem(
