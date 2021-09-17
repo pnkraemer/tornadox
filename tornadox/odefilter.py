@@ -2,23 +2,20 @@
 
 import dataclasses
 from abc import ABC, abstractmethod
+from collections import namedtuple
 from typing import Dict, Iterable, Union
 
 import jax.numpy as jnp
 import numpy as np
 from tqdm import tqdm
 
-from tornadox import ek0, init, ivp, rv, step
+from tornadox import ek0, init, step
 
 
-@dataclasses.dataclass
-class ODEFilterState:
-
-    ivp: ivp.InitialValueProblem
-    t: float
-    y: Union[rv.MultivariateNormal, rv.MatrixNormal, rv.BatchedMultivariateNormal]
-    error_estimate: jnp.ndarray
-    reference_state: jnp.ndarray
+class ODEFilterState(
+    namedtuple("_ODEFilterState", "t y error_estimate reference_state")
+):
+    pass
 
 
 @dataclasses.dataclass(frozen=False)
@@ -93,11 +90,10 @@ class ODEFilter(ABC):
 
         dt = self.steprule.first_dt(ivp)
 
-        # Use state.ivp in case a callback modifies the IVP
         _pbar_steps = 100
-        _pbar_update_threshold = _pbar_update_dt = state.ivp.tmax / _pbar_steps
+        _pbar_update_threshold = _pbar_update_dt = ivp.tmax / _pbar_steps
         pbar = tqdm(total=_pbar_steps) if progressbar else None
-        while state.t < state.ivp.tmax:
+        while state.t < ivp.tmax:
 
             if progressbar:
                 while state.t + dt >= _pbar_update_threshold:
@@ -107,7 +103,7 @@ class ODEFilter(ABC):
             if time_stopper is not None:
                 dt = time_stopper.adjust_dt_to_time_stops(state.t, dt)
 
-            state, dt, step_info = self.perform_full_step(state, dt, pbar=pbar)
+            state, dt, step_info = self.perform_full_step(state, dt, ivp, pbar=pbar)
 
             info["num_steps"] += 1
             info["num_f_evaluations"] += step_info["num_f_evaluations"]
@@ -131,7 +127,7 @@ class ODEFilter(ABC):
             time_stopper = None
         return time_stopper
 
-    def perform_full_step(self, state, initial_dt, pbar=None):
+    def perform_full_step(self, state, initial_dt, ivp, pbar=None):
         """Perform a full ODE solver step.
 
         This includes the acceptance/rejection decision as governed by error estimation
@@ -150,7 +146,7 @@ class ODEFilter(ABC):
             if pbar is not None:
                 pbar.set_description(f"t={state.t:.4f}, dt={dt:.2E}")
 
-            proposed_state, attempt_step_info = self.attempt_step(state, dt)
+            proposed_state, attempt_step_info = self.attempt_step(state, dt, ivp)
 
             # Gather some stats
             step_info["num_attempted_steps"] += 1
@@ -177,9 +173,9 @@ class ODEFilter(ABC):
             )
             # Get a new step-size for the next step
             if step_is_sufficiently_small:
-                dt = min(suggested_dt, state.ivp.tmax - proposed_state.t)
+                dt = min(suggested_dt, ivp.tmax - proposed_state.t)
             else:
-                dt = min(suggested_dt, state.ivp.tmax - state.t)
+                dt = min(suggested_dt, ivp.tmax - state.t)
 
             assert dt >= 0, f"Invalid step size: dt={dt}"
 
@@ -190,7 +186,7 @@ class ODEFilter(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def attempt_step(self, state, dt):
+    def attempt_step(self, state, dt, ivp):
         raise NotImplementedError
 
 

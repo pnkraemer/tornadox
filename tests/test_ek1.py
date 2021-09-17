@@ -145,11 +145,11 @@ def approx_initialized(solver_triple):
 @pytest.fixture
 def approx_stepped(solver_triple, approx_initialized, dt):
     """Attempt a step with the to-be-tested-EK1 and the reference EK1."""
-    ek1_approx, reference_ek1, _ = solver_triple
+    ek1_approx, reference_ek1, ivp = solver_triple
     init_ref, init_approx = approx_initialized
 
-    step_ref, _ = reference_ek1.attempt_step(state=init_ref, dt=dt)
-    step_approx, _ = ek1_approx.attempt_step(state=init_approx, dt=dt)
+    step_ref, _ = reference_ek1.attempt_step(state=init_ref, dt=dt, ivp=ivp)
+    step_approx, _ = ek1_approx.attempt_step(state=init_approx, dt=dt, ivp=ivp)
 
     return step_ref, step_approx
 

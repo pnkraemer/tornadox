@@ -112,8 +112,12 @@ def stepped_both(solver_tuple, ivp, initialized_both):
     kronecker_ek0, reference_ek0 = solver_tuple
     kronecker_init, reference_init = initialized_both
 
-    kronecker_stepped, _ = kronecker_ek0.attempt_step(state=kronecker_init, dt=0.12345)
-    reference_stepped, _ = reference_ek0.attempt_step(state=reference_init, dt=0.12345)
+    kronecker_stepped, _ = kronecker_ek0.attempt_step(
+        state=kronecker_init, dt=0.12345, ivp=ivp
+    )
+    reference_stepped, _ = reference_ek0.attempt_step(
+        state=reference_init, dt=0.12345, ivp=ivp
+    )
 
     return kronecker_stepped, reference_stepped
 

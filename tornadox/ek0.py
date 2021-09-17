@@ -1,12 +1,11 @@
 import dataclasses
 from functools import partial
 
-import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
 
 import tornadox.iwp
-from tornadox import init, ivp, iwp, odefilter, rv, sqrt, step
+from tornadox import odefilter, rv, sqrt
 from tornadox.ek1 import BatchedEK1
 
 
@@ -38,24 +37,23 @@ class ReferenceEK0(odefilter.ODEFilter):
             mean=extended_dy0, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
         )
         return odefilter.ODEFilterState(
-            ivp=ivp,
             t=ivp.t0,
             y=y,
             error_estimate=None,
             reference_state=None,
         )
 
-    def attempt_step(self, state, dt, verbose=False):
+    def attempt_step(self, state, dt, ivp):
         # [Setup]
         m, Cl = state.y.mean.reshape((-1,), order="F"), state.y.cov_sqrtm
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
-        n, d = self.num_derivatives + 1, state.ivp.dimension
+        n, d = self.num_derivatives + 1, ivp.dimension
 
         # [Predict]
         mp = A @ m
 
         # Measure / calibrate
-        z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
+        z = self.E1 @ mp - ivp.f(state.t + dt, self.E0 @ mp)
         H = self.E1
 
         S = H @ Ql @ Ql.T @ H.T
@@ -73,7 +71,6 @@ class ReferenceEK0(odefilter.ODEFilter):
         y_new = jnp.abs(m_new[0])
 
         new_state = odefilter.ODEFilterState(
-            ivp=state.ivp,
             t=state.t + dt,
             error_estimate=error,
             reference_state=y_new,
@@ -115,7 +112,6 @@ class KroneckerEK0(odefilter.ODEFilter):
         y = rv.MatrixNormal(mean=mean, cov_sqrtm_1=jnp.eye(d), cov_sqrtm_2=cov_sqrtm)
 
         return odefilter.ODEFilterState(
-            ivp=ivp,
             t=ivp.t0,
             error_estimate=None,
             reference_state=ivp.y0,
@@ -151,7 +147,7 @@ class KroneckerEK0(odefilter.ODEFilter):
         H = e1 @ P
         return z, H
 
-    def attempt_step(self, state, dt, verbose=False):
+    def attempt_step(self, state, dt, ivp):
         # [Setup]
         Y = state.y
         _m, _Cl = Y.mean, Y.cov_sqrtm_2
@@ -168,7 +164,7 @@ class KroneckerEK0(odefilter.ODEFilter):
         mp = A @ m
 
         # [Measure]
-        z, H = self.evaluate_ode(t_new, state.ivp.f, mp, P, self.e1)
+        z, H = self.evaluate_ode(t_new, ivp.f, mp, P, self.e1)
 
         # [Calibration]
         sigma_squared, error_estimate = self.compute_sigmasquared_error(P, Ql, z)
@@ -186,7 +182,6 @@ class KroneckerEK0(odefilter.ODEFilter):
         y_new = jnp.abs(_m_new[0])
 
         new_state = odefilter.ODEFilterState(
-            ivp=state.ivp,
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,
