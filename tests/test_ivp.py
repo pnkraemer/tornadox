@@ -121,6 +121,4 @@ def test_jacobian():
     ivp = tornadox.ivp.fhn_2d()
     diag_df = jnp.diagonal(ivp.df(ivp.t0, ivp.y0))
     df_diag = ivp.df_diagonal(ivp.t0, ivp.y0)
-    print(diag_df)
-    print(df_diag)
     assert jnp.allclose(diag_df, df_diag)
