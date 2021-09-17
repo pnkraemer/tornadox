@@ -95,7 +95,6 @@ def _laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
     ) / dx ** 2
 
 
-@jax.jit
 def _laplace_2d_diag(grid_extent):
     part = jnp.pad(
         -4.0 * jnp.ones(grid_extent - 2),
