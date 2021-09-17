@@ -39,21 +39,22 @@ class ReferenceEK0(odefilter.ODEFilter):
         return odefilter.ODEFilterState(
             t=ivp.t0,
             y=y,
-            error_estimate=None,
-            reference_state=None,
+            error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
         )
 
-    def attempt_step(self, state, dt, ivp):
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
         # [Setup]
         m, Cl = state.y.mean.reshape((-1,), order="F"), state.y.cov_sqrtm
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
-        n, d = self.num_derivatives + 1, ivp.dimension
+        n, d = self.num_derivatives + 1, self.iwp.wiener_process_dimension
 
         # [Predict]
         mp = A @ m
 
         # Measure / calibrate
-        z = self.E1 @ mp - ivp.f(state.t + dt, self.E0 @ mp)
+        z = self.E1 @ mp - f(state.t + dt, self.E0 @ mp)
         H = self.E1
 
         S = H @ Ql @ Ql.T @ H.T
@@ -113,7 +114,7 @@ class KroneckerEK0(odefilter.ODEFilter):
 
         return odefilter.ODEFilterState(
             t=ivp.t0,
-            error_estimate=None,
+            error_estimate=jnp.nan,
             reference_state=ivp.y0,
             y=y,
         )
@@ -147,12 +148,12 @@ class KroneckerEK0(odefilter.ODEFilter):
         H = e1 @ P
         return z, H
 
-    def attempt_step(self, state, dt, ivp):
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
         # [Setup]
         Y = state.y
         _m, _Cl = Y.mean, Y.cov_sqrtm_2
         A, Ql = self.A, self.Ql
-
         t_new = state.t + dt
 
         # [Preconditioners]
@@ -164,7 +165,7 @@ class KroneckerEK0(odefilter.ODEFilter):
         mp = A @ m
 
         # [Measure]
-        z, H = self.evaluate_ode(t_new, ivp.f, mp, P, self.e1)
+        z, H = self.evaluate_ode(t_new, f, mp, P, self.e1)
 
         # [Calibration]
         sigma_squared, error_estimate = self.compute_sigmasquared_error(P, Ql, z)

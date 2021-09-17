@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -29,7 +30,7 @@ def num_derivatives():
 @pytest.fixture
 def ek0_solution(ek0_version, num_derivatives, ivp, steps):
     ek0 = ek0_version(num_derivatives=num_derivatives, steprule=steps)
-    state, _ = ek0.simulate_final_state(ivp=ivp)
+    state, info = ek0.simulate_final_state(ivp=ivp)
 
     final_t_ek0 = state.t
     final_y_ek0 = state.y.mean[0]
@@ -112,12 +113,8 @@ def stepped_both(solver_tuple, ivp, initialized_both):
     kronecker_ek0, reference_ek0 = solver_tuple
     kronecker_init, reference_init = initialized_both
 
-    kronecker_stepped, _ = kronecker_ek0.attempt_step(
-        state=kronecker_init, dt=0.12345, ivp=ivp
-    )
-    reference_stepped, _ = reference_ek0.attempt_step(
-        state=reference_init, dt=0.12345, ivp=ivp
-    )
+    kronecker_stepped, _ = kronecker_ek0.attempt_step(kronecker_init, 0.12345, *ivp)
+    reference_stepped, _ = reference_ek0.attempt_step(reference_init, 0.12345, *ivp)
 
     return kronecker_stepped, reference_stepped
 
