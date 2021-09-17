@@ -18,7 +18,10 @@ class IntegratedWienerTransition(
     # wiener_process_dimension: int
     # num_derivatives: int
 
-    @functools.cached_property
+    # jax.jit does not handle cached_property well, but it internally caches some values,
+    # which is the reason for the property + jax.jit stuff
+    @property
+    @partial(jax.jit, static_argnums=0)
     def preconditioned_discretize_1d(self):
         """Preconditioned system matrices for one dimension.
 
@@ -37,7 +40,10 @@ class IntegratedWienerTransition(
         Q_1d = jnp.flip(jnp.array(scipy.linalg.hilbert(self.num_derivatives + 1)))
         return A_1d, jnp.linalg.cholesky(Q_1d)
 
-    @functools.cached_property
+    # jax.jit does not handle cached_property well, but it internally caches some values,
+    # which is the reason for the property + jax.jit stuff
+    @property
+    @partial(jax.jit, static_argnums=0)
     def preconditioned_discretize(self):
         """Preconditioned system matrices.
 
@@ -133,16 +139,18 @@ class IntegratedWienerTransition(
 
         return (state_trans_mat, proc_noise_cov_cholesky)
 
+    # No jit because weird internal jax tracing stuff
     def projection_matrix(self, derivative_to_project_onto):
         """Creates a projection matrix kron(I_d, e_p)"""
         I_d = jnp.eye(self.wiener_process_dimension)
         return jnp.kron(I_d, self.projection_matrix_1d(derivative_to_project_onto))
 
+    # No jit because weird internal jax tracing stuff
     def projection_matrix_1d(self, derivative_to_project_onto):
         """Creates a projection matrix e_p"""
         return jnp.eye(1, self.num_derivatives + 1, derivative_to_project_onto)
 
-    @functools.cached_property
+    @property
     def state_dimension(self):
         return self.wiener_process_dimension * (self.num_derivatives + 1)
 
