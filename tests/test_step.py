@@ -48,7 +48,7 @@ class TestConstantSteps:
 
     @staticmethod
     def test_first_dt_is_dt(steprule, ivp, dt):
-        first_dt = steprule.first_dt(ivp=ivp)
+        first_dt = steprule.first_dt(*ivp)
         assert first_dt == dt
 
 

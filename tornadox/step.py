@@ -1,7 +1,9 @@
 """Stepsize selection strategies."""
 
 import abc
+from functools import partial
 
+import jax
 import jax.numpy as jnp
 
 
@@ -32,17 +34,21 @@ class ConstantSteps(StepRule):
     def __repr__(self):
         return f"{self.__class__.__name__}(dt={self.dt})"
 
+    @partial(jax.jit, static_argnums=0)
     def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         return self.dt
 
+    @partial(jax.jit, static_argnums=0)
     def is_accepted(self, scaled_error_estimate):
         return True
 
+    @partial(jax.jit, static_argnums=0)
     def scale_error_estimate(self, unscaled_error_estimate, reference_state):
         # Return None to make sure this quantity is not used further below
         return None
 
-    def first_dt(self, ivp):
+    @partial(jax.jit, static_argnums=(0, 1, 5, 6))
+    def first_dt(self, f, t0, tmax, y0, df, df_diagonal):
         return self.dt
 
 
