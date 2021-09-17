@@ -124,26 +124,6 @@ class TestAdaptiveSteps:
         assert jnp.allclose(E, scaled_error)
 
     @staticmethod
-    def test_min_step_exception(steprule):
-        steprule.min_step = 0.1
-        with pytest.raises(ValueError):
-            steprule.suggest(
-                previous_dt=1e-1,
-                scaled_error_estimate=1_000_000_000,
-                local_convergence_rate=1,
-            )
-
-    @staticmethod
-    def test_max_step_exception(steprule):
-        steprule.max_step = 10.0
-        with pytest.raises(ValueError):
-            steprule.suggest(
-                previous_dt=9.0,
-                scaled_error_estimate=1 / 1_000_000_000,
-                local_convergence_rate=1,
-            )
-
-    @staticmethod
     def test_first_dt(steprule, ivp):
         dt = steprule.first_dt(*ivp)
         assert dt > 0.0
