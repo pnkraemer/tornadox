@@ -45,6 +45,40 @@ class ReferenceEK0(odefilter.ODEFilter):
             reference_state=None,
         )
 
+    @staticmethod
+    @jax.jit
+    def predict_mean(A, m):
+        return A @ m
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(1,))
+    def evaluate_ode(t, f, mp, E0, E1):
+        z = E1 @ mp - f(t, E0 @ mp)
+        H = E1
+        return z, H
+
+    @staticmethod
+    @jax.jit
+    def compute_sigma_and_error(H, Ql, z):
+        HQl = H @ Ql
+        HQH = HQl @ HQl.T
+        sigma_squared = z @ jnp.linalg.solve(HQH, z) / z.shape[0]
+        sigma = jnp.sqrt(sigma_squared)
+        error = jnp.sqrt(jnp.diag(HQH)) * sigma
+        return sigma, error
+
+    @staticmethod
+    @jax.jit
+    def predict_cov(A, Cl, sigma, Ql):
+        return sqrt.propagate_cholesky_factor(A @ Cl, sigma * Ql)
+
+    @staticmethod
+    @jax.jit
+    def update(mp, Clp, z, H):
+        Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
+        m_new = mp - K @ z
+        return m_new, Cl_new
+
     def attempt_step(self, state, dt, verbose=False):
         # [Setup]
         m, Cl = state.y.mean.reshape((-1,), order="F"), state.y.cov_sqrtm
@@ -52,22 +86,18 @@ class ReferenceEK0(odefilter.ODEFilter):
         n, d = self.num_derivatives + 1, state.ivp.dimension
 
         # [Predict]
-        mp = A @ m
+        mp = self.predict_mean(A, m)
 
         # Measure / calibrate
-        z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
-        H = self.E1
+        t_new = state.t + dt
+        z, H = self.evaluate_ode(t_new, state.ivp.f, mp, self.E0, self.E1)
 
-        S = H @ Ql @ Ql.T @ H.T
-        sigma_squared = z @ jnp.linalg.solve(S, z) / z.shape[0]
-        sigma = jnp.sqrt(sigma_squared)
-        error = jnp.sqrt(jnp.diag(S)) * sigma
+        sigma, error = self.compute_sigma_and_error(H, Ql, z)
 
-        Clp = sqrt.propagate_cholesky_factor(A @ Cl, sigma * Ql)
+        Clp = self.predict_cov(A, Cl, sigma, Ql)
 
         # [Update]
-        Cl_new, K, Sl = sqrt.update_sqrt(H, Clp)
-        m_new = mp - K @ z
+        m_new, Cl_new = self.update(mp, Clp, z, H)
 
         m_new = m_new.reshape((n, d), order="F")
         y_new = jnp.abs(m_new[0])
