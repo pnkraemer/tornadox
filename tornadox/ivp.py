@@ -8,6 +8,11 @@ import jax.numpy as jnp
 
 
 def laplace_kernel(grid_extent, dx):
+    """Build the 2D laplace kernel that works on a !!vectorized!! 2D grid
+
+    Example for a 5x5 grid, i.e. 25-dim vector:
+    [1, 0, 0, 0, 1, -4, 1, 0, 0, 0, 1]
+    """
     center_point = jnp.array([-4])
     center_point_and_neighbors = jnp.pad(
         center_point, pad_width=1, mode="constant", constant_values=1.0
@@ -20,15 +25,13 @@ def laplace_kernel(grid_extent, dx):
         mode="constant",
         constant_values=0.0,
     )
-    return (
-        jnp.pad(
-            skip,
-            pad_width=1,
-            mode="constant",
-            constant_values=1.0,
-        )
-        / (dx ** 2)
+    above_and_below = jnp.pad(
+        skip,
+        pad_width=1,
+        mode="constant",
+        constant_values=1.0,
     )
+    return above_and_below / (dx ** 2)
 
 
 @jax.jit

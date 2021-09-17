@@ -13,6 +13,7 @@ IVPs = [
     tornadox.ivp.lorenz96(),
     tornadox.ivp.lorenz96_loop(),
     tornadox.ivp.pleiades(),
+    tornadox.ivp.fhn_2d(),
 ]
 
 
@@ -115,10 +116,3 @@ class TestLorenzFormulations:
         dfx = lorenz.df(lorenz.t0, lorenz.y0)
         dfx_loop = lorenz_loop.df(lorenz_loop.t0, lorenz_loop.y0)
         assert jnp.allclose(dfx, dfx_loop)
-
-
-def test_diagonal_jacobian():
-    ivp = tornadox.ivp.fhn_2d()
-    diag_df = jnp.diagonal(ivp.df(ivp.t0, ivp.y0))
-    df_diag = ivp.df_diagonal(ivp.t0, ivp.y0)
-    assert jnp.allclose(diag_df, df_diag)
