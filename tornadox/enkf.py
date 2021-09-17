@@ -88,6 +88,7 @@ class EnK1(odefilter.ODEFilter):
             reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
         )
 
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
     def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
 
         t_new = state.t + dt
