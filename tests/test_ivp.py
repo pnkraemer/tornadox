@@ -117,7 +117,7 @@ class TestLorenzFormulations:
         assert jnp.allclose(dfx, dfx_loop)
 
 
-def test_jacobian():
+def test_diagonal_jacobian():
     ivp = tornadox.ivp.fhn_2d()
     diag_df = jnp.diagonal(ivp.df(ivp.t0, ivp.y0))
     df_diag = ivp.df_diagonal(ivp.t0, ivp.y0)
