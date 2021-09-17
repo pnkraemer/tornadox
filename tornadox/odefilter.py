@@ -88,7 +88,7 @@ class ODEFilter(ABC):
         )
         yield state, info
 
-        dt = self.steprule.first_dt(ivp)
+        dt = self.steprule.first_dt(*ivp)
 
         _pbar_steps = 100
         _pbar_update_threshold = _pbar_update_dt = ivp.tmax / _pbar_steps

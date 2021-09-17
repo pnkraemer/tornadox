@@ -72,6 +72,7 @@ class AdaptiveSteps(StepRule):
     def __repr__(self):
         return f"{self.__class__.__name__}(abstol={self.abstol}, reltol={self.reltol})"
 
+    @partial(jax.jit, static_argnums=0)
     def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         if local_convergence_rate is None:
             raise ValueError("Please provide a local convergence rate.")
@@ -95,9 +96,11 @@ class AdaptiveSteps(StepRule):
             raise ValueError("Step-size larger than maximum step-size")
         return dt
 
+    @partial(jax.jit, static_argnums=0)
     def is_accepted(self, scaled_error_estimate):
         return scaled_error_estimate < 1
 
+    @partial(jax.jit, static_argnums=0)
     def scale_error_estimate(self, unscaled_error_estimate, reference_state):
         if (
             not jnp.isscalar(unscaled_error_estimate.size)
@@ -110,11 +113,12 @@ class AdaptiveSteps(StepRule):
         dim = len(ratio) if ratio.ndim > 0 else 1
         return jnp.linalg.norm(ratio) / jnp.sqrt(dim)
 
-    def first_dt(self, ivp):
-        return propose_first_dt(ivp=ivp)
+    def first_dt(self, f, t0, tmax, y0, df, df_diagonal):
+        return propose_first_dt(f, t0, y0)
 
 
-def propose_first_dt(ivp):
-    norm_y0 = jnp.linalg.norm(ivp.y0)
-    norm_dy0 = jnp.linalg.norm(ivp.f(ivp.t0, ivp.y0))
+@partial(jax.jit, static_argnums=0)
+def propose_first_dt(f, t0, y0):
+    norm_y0 = jnp.linalg.norm(y0)
+    norm_dy0 = jnp.linalg.norm(f(t0, y0))
     return 0.01 * norm_y0 / norm_dy0

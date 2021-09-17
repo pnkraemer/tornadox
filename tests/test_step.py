@@ -10,7 +10,7 @@ def test_propose_first_dt():
 
     ivp = tornadox.ivp.vanderpol()
 
-    dt = tornadox.step.propose_first_dt(ivp)
+    dt = tornadox.step.propose_first_dt(ivp.f, ivp.t0, ivp.y0)
     assert dt > 0
 
 
@@ -145,5 +145,5 @@ class TestAdaptiveSteps:
 
     @staticmethod
     def test_first_dt(steprule, ivp):
-        dt = steprule.first_dt(ivp)
+        dt = steprule.first_dt(*ivp)
         assert dt > 0.0
