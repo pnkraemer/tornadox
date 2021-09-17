@@ -8,16 +8,21 @@ import jax.numpy as jnp
 
 
 def laplace_kernel(grid_extent, dx):
+    center_point = jnp.array([-4])
+    center_point_and_neighbors = jnp.pad(
+        center_point, pad_width=1, mode="constant", constant_values=1.0
+    )
+    # Skip all points up until the indices that correspond to the above and below points
+    # in the 2D grid
+    skip = jnp.pad(
+        center_point_and_neighbors,
+        pad_width=grid_extent - 2,
+        mode="constant",
+        constant_values=0.0,
+    )
     return (
         jnp.pad(
-            jnp.pad(
-                jnp.pad(
-                    jnp.array([-4]), pad_width=1, mode="constant", constant_values=1.0
-                ),
-                pad_width=grid_extent - 2,
-                mode="constant",
-                constant_values=0.0,
-            ),
+            skip,
             pad_width=1,
             mode="constant",
             constant_values=1.0,
