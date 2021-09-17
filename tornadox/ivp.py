@@ -1,118 +1,39 @@
 """Initial value problems and examples."""
 
 
-import itertools
 from collections import namedtuple
-from typing import Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
 
 
-def _shifted_indices_on_vectorized_2d_grid(nx, ny):
-    """The following generates the following indices for indexing a vectorized 2D grid:
-    * interior (center)
-    * interior shifted one index to the {top, bottom, left, right}
-    (in an admittedly very convoluted way)
-
-    This is needed for finite-difference discretization on vectorized 2d PDEs
-
-    Parameters
-    ----------
-    nx: int
-        Number of grid-points per row in the 2d grid
-    ny: int
-        Number of grid-points per column in the 2d grid
-
-    Returns
-    -------
-    1D indices to index the vectorized 2D grid
-
-    See also
-    --------
-    _laplace_2d (below). This probably explains best what this method here is good for.
-    """
-
-    center = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
+def laplace_kernel(grid_extent, dx):
+    return (
+        jnp.pad(
+            jnp.pad(
+                jnp.pad(
+                    jnp.array([-4]), pad_width=1, mode="constant", constant_values=1.0
+                ),
+                pad_width=grid_extent - 2,
+                mode="constant",
+                constant_values=0.0,
+            ),
+            pad_width=1,
+            mode="constant",
+            constant_values=1.0,
+        )
+        / (dx ** 2)
     )
-    top = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    bottom = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    left = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    right = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
-            )
-        ),
-        dims=(ny, nx),
-    )
-
-    return center, top, bottom, left, right
 
 
 @jax.jit
-def _laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
+def _laplace_2d(flattened_grid, kernel):
     """2D Laplace operator on a vectorized 2d grid."""
-
-    return (
-        flattened_grid[top]
-        + flattened_grid[bottom]
-        + flattened_grid[left]
-        + flattened_grid[right]
-        - 4.0 * flattened_grid[center]
-    ) / dx ** 2
+    return jax.scipy.signal.convolve(flattened_grid, kernel, mode="same")
 
 
-def _laplace_2d_diag(grid_extent, dx, cut_off_boundaries=True):
-    part = -4.0 * jnp.ones(grid_extent - 2) / (dx ** 2)
-    if not cut_off_boundaries:
-        part = jnp.pad(
-            part,
-            pad_width=1,
-            mode="constant",
-            constant_values=0.0,
-        )
-    main_diag = jnp.tile(part, grid_extent - 2)
-    if not cut_off_boundaries:
-        main_diag = jnp.pad(
-            main_diag,
-            pad_width=grid_extent,
-            mode="constant",
-            constant_values=0.0,
-        )
-    return main_diag
+def _laplace_2d_diag(grid_extent, dx):
+    return -4.0 * jnp.ones(grid_extent ** 2) / (dx ** 2)
 
 
 class InitialValueProblem(
@@ -268,39 +189,26 @@ def fhn_2d(
         v0 = jax.random.uniform(key, shape=(ny * nx,))
         y0 = jnp.concatenate((u0, v0))
 
-    center, top, bottom, left, right = _shifted_indices_on_vectorized_2d_grid(nx, ny)
+    kernel = laplace_kernel(nx, dx)
 
     @jax.jit
     def fhn_2d(_, x):
         u, v = jnp.split(x, 2)
 
-        u_interior = (
-            a * _laplace_2d(u, center, top, bottom, left, right, dx)
-            + u[center]
-            - u[center] ** 3
-            - v[center]
-            + k
-        )
-        v_interior = (
-            b * _laplace_2d(v, center, top, bottom, left, right, dx)
-            + u[center]
-            - v[center]
-        ) / tau
-        u_new = jax.ops.index_update(jnp.zeros_like(u), center, u_interior)
-        v_new = jax.ops.index_update(jnp.zeros_like(v), center, v_interior)
-        return jnp.concatenate((u_new, v_new))
+        new_u = a * _laplace_2d(u, kernel) + u - u ** 3 - v + k
+        new_v = (b * _laplace_2d(v, kernel) + u - v) / tau
+
+        return jnp.concatenate((new_u, new_v))
 
     dfhn_2d = jax.jit(jax.jacfwd(fhn_2d, argnums=1))
 
     @jax.jit
     def df_diag(_, x):
         u, v = jnp.split(x, 2)
-        dlaplace = _laplace_2d_diag(grid_extent=nx, dx=dx, cut_off_boundaries=True)
-        d_u_interior = a * dlaplace + 1.0 - 3.0 * u[center] ** 2
-        d_v_interior = (b * dlaplace - 1.0) / tau
-        d_u = jax.ops.index_update(jnp.zeros_like(u), center, d_u_interior)
-        d_v = jax.ops.index_update(jnp.zeros_like(v), center, d_v_interior)
-        return jnp.concatenate((d_u, d_v))
+        dlaplace = _laplace_2d_diag(grid_extent=nx, dx=dx)
+        d_u_diag = a * dlaplace + 1.0 - 3.0 * u ** 2
+        d_v_diag = (b * dlaplace - 1.0) / tau
+        return jnp.concatenate((d_u_diag, d_v_diag))
 
     return InitialValueProblem(
         f=fhn_2d,
@@ -332,18 +240,13 @@ def wave_2d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01
         dy0 = jnp.zeros_like(Y0)
         y0 = jnp.concatenate((Y0, dy0))
 
-    center, top, bottom, left, right = _shifted_indices_on_vectorized_2d_grid(nx, ny)
+    kernel = laplace_kernel(nx, dx)
 
     @jax.jit
     def f_wave_2d(_, x):
         _x, _dx = jnp.split(x, 2)
-        interior = diffusion_param * _laplace_2d(
-            _x, center, top, bottom, left, right, dx
-        )
-
-        _ddx = jax.ops.index_update(jnp.zeros_like(_x), center, interior)
-        new_dx = jax.ops.index_update(jnp.zeros_like(_dx), center, _dx[center])
-        return jnp.concatenate((new_dx, _ddx))
+        _ddx = diffusion_param * _laplace_2d(_x, kernel)
+        return jnp.concatenate((_dx, _ddx))
 
     df_wave_2d = jax.jit(jax.jacfwd(f_wave_2d, argnums=1))
 
