@@ -1,6 +1,7 @@
 """ENKF solvers."""
 
 import dataclasses
+from collections import namedtuple
 from functools import cached_property, partial
 
 import jax
@@ -10,15 +11,10 @@ import jax.scipy.linalg
 from tornadox import ivp, iwp, odefilter, rv, sqrt
 
 
-@dataclasses.dataclass
-class StateEnsemble:
-    ivp: ivp.InitialValueProblem
-    t: float
-
-    samples: jnp.ndarray  # shape = [d * (nu + 1), N]
-
-    error_estimate: jnp.ndarray
-    reference_state: jnp.ndarray
+class StateEnsemble(
+    namedtuple("_Ensemble", "t samples error_estimate reference_state")
+):
+    # samples are shape =  [d * (nu + 1), N]
 
     @cached_property
     def ensemble_size(self):
@@ -86,14 +82,13 @@ class EnK1(odefilter.ODEFilter):
         assert jnp.allclose(init_states[:, 0], mean.squeeze())
         assert jnp.allclose(init_states[:, -1], mean.squeeze())
         return StateEnsemble(
-            ivp=ivp,
             t=ivp.t0,
             samples=init_states,
-            error_estimate=None,
-            reference_state=None,
+            error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
         )
 
-    def attempt_step(self, state, dt, verbose=False):
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
 
         t_new = state.t + dt
 
@@ -107,8 +102,8 @@ class EnK1(odefilter.ODEFilter):
         # [Calibration]
         H, z_mean, b = self.evaluate_ode(
             t_new,
-            state.ivp.f,
-            state.ivp.df,
+            f,
+            df,
             P,
             predicted_mean,
             self.E0,
@@ -149,7 +144,6 @@ class EnK1(odefilter.ODEFilter):
         reference_state = jnp.maximum(y1, y2)
 
         new_state = StateEnsemble(
-            ivp=state.ivp,
             t=t_new,
             samples=updated_samples,
             error_estimate=error_estimate,
