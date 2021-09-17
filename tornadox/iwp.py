@@ -1,6 +1,9 @@
 import dataclasses
 import functools
+from collections import namedtuple
+from functools import partial
 
+import jax
 import jax.numpy as jnp
 import scipy.linalg
 import scipy.special
@@ -8,11 +11,12 @@ import scipy.special
 from tornadox import linops
 
 
-@dataclasses.dataclass
-class IntegratedWienerTransition:
+class IntegratedWienerTransition(
+    namedtuple("_IWP", "wiener_process_dimension num_derivatives")
+):
 
-    wiener_process_dimension: int
-    num_derivatives: int
+    # wiener_process_dimension: int
+    # num_derivatives: int
 
     @functools.cached_property
     def preconditioned_discretize_1d(self):
@@ -56,6 +60,7 @@ class IntegratedWienerTransition:
         )
         return A, L_Q
 
+    @partial(jax.jit, static_argnums=0)
     def nordsieck_preconditioner_1d_raw(self, dt):
         powers = jnp.arange(self.num_derivatives, -1, -1)
         scales = jnp.array(scipy.special.factorial(powers))
@@ -65,6 +70,7 @@ class IntegratedWienerTransition:
         scaling_vector_inv = (jnp.abs(dt) ** (-powers)) * scales
         return scaling_vector, scaling_vector_inv
 
+    @partial(jax.jit, static_argnums=0)
     def nordsieck_preconditioner_1d(self, dt):
         """Create matrix for 1-D Nordsieck preconditioner and its inverse.
 
@@ -80,6 +86,7 @@ class IntegratedWienerTransition:
         nordsieck_procond_inv_1d = jnp.diag(scaling_vector_inv)
         return nordsieck_precond_1d, nordsieck_procond_inv_1d
 
+    @partial(jax.jit, static_argnums=0)
     def nordsieck_preconditioner(self, dt):
         """Create matrix for Nordsieck preconditioner and its inverse.
 
@@ -100,6 +107,7 @@ class IntegratedWienerTransition:
             jnp.kron(id_factor, nordsieck_procond_inv_1d),
         )
 
+    @partial(jax.jit, static_argnums=0)
     def non_preconditioned_discretize(self, dt):
         """Non-preconditioned system matrices. Mainly for testing and debugging.
 
@@ -134,21 +142,20 @@ class IntegratedWienerTransition:
         """Creates a projection matrix e_p"""
         return jnp.eye(1, self.num_derivatives + 1, derivative_to_project_onto)
 
-    def projection_operator_1d(self, derivative_to_project_onto):
-        return linops.DerivativeSelection(derivative=derivative_to_project_onto)
-
-    @property
+    @functools.cached_property
     def state_dimension(self):
         return self.wiener_process_dimension * (self.num_derivatives + 1)
 
     # Reordering functionality
 
+    @partial(jax.jit, static_argnums=0)
     def reorder_state_from_derivative_to_coordinate(self, state):
         d, dim = self.wiener_process_dimension, self.state_dimension
         stride = lambda i: jnp.arange(start=i, stop=dim, step=d).reshape((-1, 1))
         indices = jnp.vstack([stride(i) for i in range(d)])[:, 0]
         return state[indices]
 
+    @partial(jax.jit, static_argnums=0)
     def reorder_state_from_coordinate_to_derivative(self, state):
         n, dim = self.num_derivatives, self.state_dimension
         stride = lambda i: jnp.arange(start=i, stop=dim, step=(n + 1)).reshape((-1, 1))

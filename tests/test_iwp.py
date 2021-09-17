@@ -114,18 +114,6 @@ def test_projection_matrix_num_nonzeros(projection_matrix, iwp):
     assert (projection_matrix == 1).sum() == iwp.wiener_process_dimension
 
 
-# Tests for the projection operator
-
-
-@pytest.fixture
-def projection_operator(iwp):
-    return iwp.projection_operator_1d(0)
-
-
-def test_projection_operator(projection_operator):
-    assert isinstance(projection_operator, tornadox.linops.DerivativeSelection)
-
-
 def test_reorder_states():
     # Transition handles reordering
     iwp = tornadox.iwp.IntegratedWienerTransition(
