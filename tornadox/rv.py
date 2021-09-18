@@ -63,6 +63,10 @@ class EK0SpecializedMatrixNormal(
     def cov_2(self):
         return self.cov_sqrtm_2 @ self.cov_sqrtm_2.T
 
+    @property
+    def cov(self):
+        return jnp.stack([self.cov_2 for _ in range(self.d)])
+
     def dense_cov(self):
         return jnp.kron(self.cov_1, self.cov_2)
 
