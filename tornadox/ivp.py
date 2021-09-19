@@ -95,6 +95,26 @@ def _laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
     ) / dx ** 2
 
 
+def _laplace_2d_diag(grid_extent, dx, cut_off_boundaries=True):
+    part = -4.0 * jnp.ones(grid_extent - 2) / (dx ** 2)
+    if not cut_off_boundaries:
+        part = jnp.pad(
+            part,
+            pad_width=1,
+            mode="constant",
+            constant_values=0.0,
+        )
+    main_diag = jnp.tile(part, grid_extent - 2)
+    if not cut_off_boundaries:
+        main_diag = jnp.pad(
+            main_diag,
+            pad_width=grid_extent,
+            mode="constant",
+            constant_values=0.0,
+        )
+    return main_diag
+
+
 class InitialValueProblem(
     namedtuple(
         "_InitialValueProblem", "f t0 tmax y0 df df_diagonal", defaults=(None, None)
@@ -236,8 +256,12 @@ def fhn_2d(
     if bbox is None:
         bbox = [[0.0, 0.0], [1.0, 1.0]]
 
-    key = jax.random.PRNGKey(0)
     ny, nx = int((bbox[1][0] - bbox[0][0]) / dx), int((bbox[1][1] - bbox[0][1]) / dx)
+    if ny != nx:
+        raise ValueError(
+            f"The diagonal jacobian only works for quadratic spatial grids. Got {bbox}."
+        )
+    key = jax.random.PRNGKey(0)
     if y0 is None:
         u0 = jax.random.uniform(key, shape=(ny * nx,))
         _, key = jax.random.split(key)
@@ -268,13 +292,23 @@ def fhn_2d(
 
     dfhn_2d = jax.jit(jax.jacfwd(fhn_2d, argnums=1))
 
+    @jax.jit
+    def df_diag(_, x):
+        u, v = jnp.split(x, 2)
+        dlaplace = _laplace_2d_diag(grid_extent=nx, dx=dx, cut_off_boundaries=True)
+        d_u_interior = a * dlaplace + 1.0 - 3.0 * u[center] ** 2
+        d_v_interior = (b * dlaplace - 1.0) / tau
+        d_u = jax.ops.index_update(jnp.zeros_like(u), center, d_u_interior)
+        d_v = jax.ops.index_update(jnp.zeros_like(v), center, d_v_interior)
+        return jnp.concatenate((d_u, d_v))
+
     return InitialValueProblem(
         f=fhn_2d,
         t0=t0,
         tmax=tmax,
         y0=y0,
         df=dfhn_2d,
-        df_diagonal=lambda t, x: jnp.diag(dfhn_2d(t, x)),
+        df_diagonal=df_diag,
     )
 
 
