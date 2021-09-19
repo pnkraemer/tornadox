@@ -143,18 +143,11 @@ class BatchedEK1(odefilter.ODEFilter):
         self.batched_sq = None
 
     def initialize(self, ivp):
-
         self.iwp = iwp.IntegratedWienerTransition(
             num_derivatives=self.num_derivatives,
             wiener_process_dimension=ivp.dimension,
         )
-        d = self.iwp.wiener_process_dimension
-        self.phi_1d, self.sq_1d = self.iwp.preconditioned_discretize_1d
-
-        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
-        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
-        self.batched_sq = jnp.stack([self.sq_1d] * d)
-
+        self.phi_1d, self.batched_sq = BatchedEK1.create_system(prior=self.iwp)
         extended_dy0, cov_sqrtm = self.init(
             f=ivp.f,
             df=ivp.df,
@@ -162,14 +155,30 @@ class BatchedEK1(odefilter.ODEFilter):
             t0=ivp.t0,
             num_derivatives=self.iwp.num_derivatives,
         )
-        d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
+        return BatchedEK1.y0_to_initial_state(
+            extended_dy0, cov_sqrtm, d=ivp.dimension, t0=ivp.t0
+        )
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=0)
+    def create_system(prior):
+        phi_1d, sq_1d = prior.preconditioned_discretize_1d
+
+        # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
+        # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
+        batched_sq = jnp.stack([sq_1d] * prior.wiener_process_dimension)
+        return phi_1d, batched_sq
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=2)
+    def y0_to_initial_state(extended_dy0, cov_sqrtm, d, t0):
         cov_sqrtm = jnp.stack([cov_sqrtm] * d)
         new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odefilter.ODEFilterState(
-            t=ivp.t0,
+            t=t0,
             y=new_rv,
-            error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
-            reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            error_estimate=jnp.nan * jnp.ones(d),
+            reference_state=jnp.nan * jnp.ones(d),
         )
 
     @partial(jax.jit, static_argnums=(0, 3, 7, 8))

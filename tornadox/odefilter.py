@@ -127,6 +127,7 @@ class ODEFilter(ABC):
             ]
             info["num_attempted_steps"] += step_info["num_attempted_steps"]
             yield state, info
+
         if pbar is not None:
             pbar.update()
             pbar.close()

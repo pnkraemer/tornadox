@@ -112,7 +112,6 @@ class RungeKutta(InitializationRoutine):
     def __repr__(self):
         return f"{self.__class__.__name__}(dt={self.dt}, method={self.method})"
 
-    @partial(jax.jit, static_argnums=(0, 1, 2))
     def __call__(self, f, df, y0, t0, num_derivatives):
         num_steps = num_derivatives + 1
         ts, ys = self.rk_data(
@@ -317,22 +316,14 @@ class Stack(InitializationRoutine):
     def __init__(self, use_df=True):
         self.use_df = use_df
 
-    @partial(jax.jit, static_argnums=(0, 1, 2))
     def __call__(self, f, df, y0, t0, num_derivatives):
-        return jax.lax.cond(
-            self.use_df,
-            Stack.initial_state_jac,
-            Stack.initial_state_no_jac,
-            (f, df, y0, t0, num_derivatives),
+        if self.use_df:
+            return Stack.initial_state_jac(
+                f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+            )
+        return Stack.initial_state_no_jac(
+            f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
-        #
-        # if self.use_df:
-        #     return Stack.initial_state_jac(
-        #         f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
-        #     )
-        # return Stack.initial_state_no_jac(
-        #     f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
-        # )
 
     @staticmethod
     @partial(jax.jit, static_argnums=(0, 1, 4))
@@ -347,8 +338,8 @@ class Stack(InitializationRoutine):
         return m, sc
 
     @staticmethod
-    @partial(jax.jit, static_argnums=(0, 1, 4))
-    def initial_state_no_jac(f, _, y0, t0, num_derivatives):
+    @partial(jax.jit, static_argnums=(0, 3))
+    def initial_state_no_jac(f, y0, t0, num_derivatives):
         d = y0.shape[0]
         n = num_derivatives + 1
 
