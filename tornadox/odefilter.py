@@ -45,9 +45,6 @@ class ODEFilter(ABC):
         # Initialization strategy
         self.init = initialization or init.TaylorMode()
 
-        self.body_fun = None
-        self.cond_fun = None
-
     def __repr__(self):
         return f"{self.__class__.__name__}(num_derivatives={self.num_derivatives}, steprule={self.steprule}, initialization={self.init})"
 
