@@ -97,7 +97,7 @@ class ODEFilter(ABC):
         perform_full_step = choose_perform_step[compile_step]
 
         time_stopper = self._process_event_inputs(stop_at_locations=stop_at)
-        state = self.initialize(ivp)
+        state = self.initialize(*ivp)
         info = dict(
             num_f_evaluations=0,
             num_df_evaluations=0,
@@ -334,7 +334,7 @@ class ODEFilter(ABC):
         )
 
     @abstractmethod
-    def initialize(self, ivp):
+    def initialize(self, f, t0, tmax, y0, df, df_diagonal):
         raise NotImplementedError
 
     @abstractmethod

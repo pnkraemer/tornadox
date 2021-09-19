@@ -16,26 +16,26 @@ class ReferenceEK1(odefilter.ODEFilter):
         self.P0 = None
         self.P1 = None
 
-    def initialize(self, ivp):
+    def initialize(self, f, t0, tmax, y0, df, df_diagonal):
 
         self.iwp = iwp.IntegratedWienerTransition(
             num_derivatives=self.num_derivatives,
-            wiener_process_dimension=ivp.dimension,
+            wiener_process_dimension=y0.shape[0],
         )
         self.P0 = self.iwp.projection_matrix(0)
         self.P1 = self.iwp.projection_matrix(1)
 
         extended_dy0, cov_sqrtm = self.init(
-            f=ivp.f,
-            df=ivp.df,
-            y0=ivp.y0,
-            t0=ivp.t0,
+            f=f,
+            df=df,
+            y0=y0,
+            t0=t0,
             num_derivatives=self.iwp.num_derivatives,
         )
         mean = extended_dy0  # .reshape((-1,), order="F")
-        y = rv.MultivariateNormal(mean, jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm))
+        y = rv.MultivariateNormal(mean, jnp.kron(jnp.eye(y0.shape[0]), cov_sqrtm))
         return odefilter.ODEFilterState(
-            t=ivp.t0,
+            t=t0,
             y=y,
             error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
             reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
@@ -142,31 +142,30 @@ class BatchedEK1(odefilter.ODEFilter):
         self.sq_1d = None
         self.batched_sq = None
 
-    def initialize(self, ivp):
+    def initialize(self, f, t0, tmax, y0, df, df_diagonal):
         self.iwp = iwp.IntegratedWienerTransition(
             num_derivatives=self.num_derivatives,
-            wiener_process_dimension=ivp.dimension,
+            wiener_process_dimension=y0.shape[0],
         )
-        self.phi_1d, self.batched_sq = BatchedEK1.create_system(prior=self.iwp)
+        self.phi_1d, self.batched_sq = self.create_system()
         extended_dy0, cov_sqrtm = self.init(
-            f=ivp.f,
-            df=ivp.df,
-            y0=ivp.y0,
-            t0=ivp.t0,
+            f=f,
+            df=df,
+            y0=y0,
+            t0=t0,
             num_derivatives=self.iwp.num_derivatives,
         )
         return BatchedEK1.y0_to_initial_state(
-            extended_dy0, cov_sqrtm, d=ivp.dimension, t0=ivp.t0
+            extended_dy0, cov_sqrtm, d=y0.shape[0], t0=t0
         )
 
-    @staticmethod
     @partial(jax.jit, static_argnums=0)
-    def create_system(prior):
-        phi_1d, sq_1d = prior.preconditioned_discretize_1d
+    def create_system(self):
+        phi_1d, sq_1d = self.iwp.preconditioned_discretize_1d
 
         # No broadcasting possible here (ad-hoc, that is) bc. jax.vmap expects matching batch sizes
         # This can be solved by batching propagate_cholesky_factor differently, but maybe this is not necessary
-        batched_sq = jnp.stack([sq_1d] * prior.wiener_process_dimension)
+        batched_sq = jnp.stack([sq_1d] * self.iwp.wiener_process_dimension)
         return phi_1d, batched_sq
 
     @staticmethod
