@@ -163,9 +163,8 @@ class RungeKutta(InitializationRoutine):
         carry = FilterState(m, sc, None, None, None, None, None, None, t0)
         filter_res = [carry]
 
-        # Ignore the first (t,y) pair because this information is already contained in the initial value
-        # with certainty, thus it would lead to clashes.
-        for t, y in zip(ts[1:], ys[1:]):
+        def body_fun(carry, data):
+            t, y = data
 
             # Fetch preconditioner
             t_loc = carry.t_loc
@@ -175,7 +174,7 @@ class RungeKutta(InitializationRoutine):
             # Make the next step but return ALL the intermediate quantities
             # (they are needed for efficient smoothing)
             (m, sc, m_pred, sc_pred, sgain, x,) = RungeKutta._forward_filter_step(
-                y, sc, m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d
+                y, carry.sc, carry.m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d
             )
 
             # Store parameters;
@@ -183,6 +182,12 @@ class RungeKutta(InitializationRoutine):
             carry = FilterState(
                 m, sc, sgain, m_pred, sc_pred, x, p_1d_raw, p_inv_1d_raw, t_loc=t
             )
+            return carry
+
+        # Ignore the first (t,y) pair because this information is already contained in the initial value
+        # with certainty, thus it would lead to clashes.
+        for data in zip(ts[1:], ys[1:]):
+            carry = body_fun(carry, data)
             filter_res.append(carry)
 
         # Smoothing pass. Make heavy use of the filter output.
