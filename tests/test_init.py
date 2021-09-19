@@ -288,7 +288,7 @@ class TestStack:
     @staticmethod
     def test_initial_state_no_jac(f, df, y0, t0, num_derivatives):
         m0, sc0 = tornadox.init.Stack.initial_state_no_jac(
-            f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
+            f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
         )
 
         assert m0.shape == (num_derivatives + 1, y0.shape[0])

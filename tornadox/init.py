@@ -112,6 +112,7 @@ class RungeKutta(InitializationRoutine):
     def __repr__(self):
         return f"{self.__class__.__name__}(dt={self.dt}, method={self.method})"
 
+    @partial(jax.jit, static_argnums=(0, 1, 2))
     def __call__(self, f, df, y0, t0, num_derivatives):
         num_steps = num_derivatives + 1
         ts, ys = self.rk_data(
@@ -140,9 +141,8 @@ class RungeKutta(InitializationRoutine):
         )
         return sol.t, sol.y.T
 
-    # Jitting this is possibly, but debatable -- it is not very fast due to the for-loop logic underneath.
-    # I think for now we leave it to a "user" -> us :)
     @staticmethod
+    @jax.jit
     def rk_init_improve(m, sc, t0, ts, ys):
         """Improve an initial mean estimate by fitting it to a number of RK steps."""
 
@@ -160,10 +160,23 @@ class RungeKutta(InitializationRoutine):
             "FilterState", "m sc m_pred sc_pred sgain x p_1d_raw p_inv_1d_raw t_loc"
         )
 
-        carry = FilterState(m, sc, None, None, None, None, None, None, t0)
-        filter_res = [carry]
+        m_dummy = jnp.nan * m
+        sc_dummy = jnp.nan * sc
+        p_dummy = jnp.nan * jnp.ones(num_derivatives + 1)
+        init_carry_filter = FilterState(
+            m=m,
+            sc=sc,
+            m_pred=m_dummy,
+            sc_pred=sc_dummy,
+            sgain=sc_dummy,
+            x=sc_dummy,
+            p_1d_raw=p_dummy,
+            p_inv_1d_raw=p_dummy,
+            t_loc=t0,
+        )
 
-        def body_fun(carry, data):
+        @jax.jit
+        def filter_body_fun(carry, data):
             t, y = data
 
             # Fetch preconditioner
@@ -180,24 +193,46 @@ class RungeKutta(InitializationRoutine):
             # Store parameters;
             # (m, sc) are in "normal" coordinates, the others are already preconditioned!
             carry = FilterState(
-                m, sc, sgain, m_pred, sc_pred, x, p_1d_raw, p_inv_1d_raw, t_loc=t
+                m=m,
+                sc=sc,
+                m_pred=m_pred,
+                sc_pred=sc_pred,
+                sgain=sgain,
+                x=x,
+                p_1d_raw=p_1d_raw,
+                p_inv_1d_raw=p_inv_1d_raw,
+                t_loc=t,
             )
-            return carry
+            return carry, carry
 
         # Ignore the first (t,y) pair because this information is already contained in the initial value
         # with certainty, thus it would lead to clashes.
-        for data in zip(ts[1:], ys[1:]):
-            carry = body_fun(carry, data)
-            filter_res.append(carry)
+        # The return type of scan() is a single FilterState, where each attribute is stacked (num_t,) times.
+        final_out, filter_res = jax.lax.scan(
+            filter_body_fun, init_carry_filter, (ts[1:], ys[1:])
+        )
 
-        # Smoothing pass. Make heavy use of the filter output.
-        final_out = filter_res[-1]
-        m_fut, sc_fut, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw, _ = final_out
+        ######### Smoothing #########
 
-        for filter_output in reversed(filter_res[:-1]):
+        SmoothingState = namedtuple(
+            "SmoothingState", "previous_filter_state m_fut sc_fut"
+        )
+
+        @jax.jit
+        def smoothing_body_fun(carry, filter_state):
+            m_fut, sc_fut = carry.m_fut, carry.sc_fut
+
+            bla = carry.previous_filter_state
+            m_pred = bla.m_pred
+            sgain = bla.sgain
+            x = bla.x
+            p_1d_raw = bla.p_1d_raw
+            p_inv_1d_raw = bla.p_inv_1d_raw
+
+            # _, _, m_pred, _, sgain, x, p_1d_raw, p_inv_1d_raw, _ = carry.previous_filter_state
 
             # Push means and covariances into the preconditioned space
-            m_, sc_ = filter_output[0], filter_output[1]
+            m_, sc_ = filter_state.m, filter_state.sc
             m, sc = p_inv_1d_raw[:, None] * m_, p_inv_1d_raw[:, None] * sc_
             m_fut_, sc_fut_ = (
                 p_inv_1d_raw[:, None] * m_fut,
@@ -210,7 +245,7 @@ class RungeKutta(InitializationRoutine):
                 sc=sc,
                 m_fut=m_fut_,
                 sc_fut=sc_fut_,
-                sgain=sgain_fut,
+                sgain=sgain,
                 sq=sq_1d,
                 mp=m_pred,
                 x=x,
@@ -224,9 +259,23 @@ class RungeKutta(InitializationRoutine):
             # Read out the new parameters
             # They are already preconditioned. m_fut, sc_fut are not,
             # but will be pushed into the correct coordinates in the next iteration.
-            _, _, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw, _ = filter_output
+            new_carry = SmoothingState(
+                previous_filter_state=filter_state, m_fut=m_fut, sc_fut=sc_fut
+            )
+            return new_carry, (m_fut, sc_fut)
 
-        return m_fut, sc_fut
+        # Remove the final time point from the data -- no smoothing necessary here
+        data_ = FilterState(*[x[:-1] for x in filter_res])
+
+        # Run the backwards loop
+        init_carry_smoother = SmoothingState(
+            previous_filter_state=final_out, m_fut=final_out.m, sc_fut=final_out.sc
+        )
+        almost_done, _ = jax.lax.scan(
+            smoothing_body_fun, init_carry_smoother, data_, reverse=True
+        )
+        _, (m, sc) = smoothing_body_fun(almost_done, init_carry_filter)
+        return m, sc
 
     @staticmethod
     @jax.jit
@@ -268,14 +317,22 @@ class Stack(InitializationRoutine):
     def __init__(self, use_df=True):
         self.use_df = use_df
 
+    @partial(jax.jit, static_argnums=(0, 1, 2))
     def __call__(self, f, df, y0, t0, num_derivatives):
-        if self.use_df:
-            return Stack.initial_state_jac(
-                f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
-            )
-        return Stack.initial_state_no_jac(
-            f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
+        return jax.lax.cond(
+            self.use_df,
+            Stack.initial_state_jac,
+            Stack.initial_state_no_jac,
+            (f, df, y0, t0, num_derivatives),
         )
+        #
+        # if self.use_df:
+        #     return Stack.initial_state_jac(
+        #         f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+        #     )
+        # return Stack.initial_state_no_jac(
+        #     f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
+        # )
 
     @staticmethod
     @partial(jax.jit, static_argnums=(0, 1, 4))
@@ -290,8 +347,8 @@ class Stack(InitializationRoutine):
         return m, sc
 
     @staticmethod
-    @partial(jax.jit, static_argnums=(0, 3))
-    def initial_state_no_jac(f, y0, t0, num_derivatives):
+    @partial(jax.jit, static_argnums=(0, 1, 4))
+    def initial_state_no_jac(f, _, y0, t0, num_derivatives):
         d = y0.shape[0]
         n = num_derivatives + 1
 
