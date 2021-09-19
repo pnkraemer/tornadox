@@ -1,4 +1,5 @@
 import abc
+from collections import namedtuple
 from functools import partial
 
 import jax
@@ -155,14 +156,19 @@ class RungeKutta(InitializationRoutine):
         phi_1d, sq_1d = iwp.preconditioned_discretize_1d
 
         # Store  -- mean and cov are needed, the other ones should be taken from future steps!
-        filter_res = [(m, sc, None, None, None, None, None, None)]
-        t_loc = t0
+        FilterState = namedtuple(
+            "FilterState", "m sc m_pred sc_pred sgain x p_1d_raw p_inv_1d_raw t_loc"
+        )
+
+        carry = FilterState(m, sc, None, None, None, None, None, None, t0)
+        filter_res = [carry]
 
         # Ignore the first (t,y) pair because this information is already contained in the initial value
         # with certainty, thus it would lead to clashes.
         for t, y in zip(ts[1:], ys[1:]):
 
             # Fetch preconditioner
+            t_loc = carry.t_loc
             dt = t - t_loc
             p_1d_raw, p_inv_1d_raw = iwp.nordsieck_preconditioner_1d_raw(dt)
 
@@ -174,14 +180,14 @@ class RungeKutta(InitializationRoutine):
 
             # Store parameters;
             # (m, sc) are in "normal" coordinates, the others are already preconditioned!
-            filter_res.append(
-                (m, sc, sgain, m_pred, sc_pred, x, p_1d_raw, p_inv_1d_raw)
+            carry = FilterState(
+                m, sc, sgain, m_pred, sc_pred, x, p_1d_raw, p_inv_1d_raw, t_loc=t
             )
-            t_loc = t
+            filter_res.append(carry)
 
         # Smoothing pass. Make heavy use of the filter output.
         final_out = filter_res[-1]
-        m_fut, sc_fut, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw = final_out
+        m_fut, sc_fut, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw, _ = final_out
 
         for filter_output in reversed(filter_res[:-1]):
 
@@ -213,7 +219,7 @@ class RungeKutta(InitializationRoutine):
             # Read out the new parameters
             # They are already preconditioned. m_fut, sc_fut are not,
             # but will be pushed into the correct coordinates in the next iteration.
-            _, _, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw = filter_output
+            _, _, sgain_fut, m_pred, _, x, p_1d_raw, p_inv_1d_raw, _ = filter_output
 
         return m_fut, sc_fut
 
