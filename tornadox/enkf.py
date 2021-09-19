@@ -54,20 +54,20 @@ class EnK1(odefilter.ODEFilter):
         enkf_signature = f"ensemble_size={self.ensemble_size}, prng_key={self.prng_key}"
         return f"{name}({odefilter_signature}, {enkf_signature})"
 
-    def initialize(self, ivp):
+    def initialize(self, f, t0, tmax, y0, df, df_diagonal):
         self.iwp = iwp.IntegratedWienerTransition(
             num_derivatives=self.num_derivatives,
-            wiener_process_dimension=ivp.dimension,
+            wiener_process_dimension=y0.shape[0],
         )
 
         self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
 
         extended_dy0, cov_sqrtm = self.init(
-            f=ivp.f,
-            df=ivp.df,
-            y0=ivp.y0,
-            t0=ivp.t0,
+            f=f,
+            df=df,
+            y0=y0,
+            t0=t0,
             num_derivatives=self.iwp.num_derivatives,
         )
         mean = extended_dy0.reshape((-1, 1), order="F")
@@ -76,13 +76,13 @@ class EnK1(odefilter.ODEFilter):
             mean, self.ensemble_size, axis=1
         )  #  shape = [d * (nu + 1), N]
         assert init_states.shape == (
-            ivp.dimension * (self.num_derivatives + 1),
+            y0.shape[0] * (self.num_derivatives + 1),
             self.ensemble_size,
         )
         assert jnp.allclose(init_states[:, 0], mean.squeeze())
         assert jnp.allclose(init_states[:, -1], mean.squeeze())
         return StateEnsemble(
-            t=ivp.t0,
+            t=t0,
             samples=init_states,
             error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
             reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),

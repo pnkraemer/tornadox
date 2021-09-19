@@ -14,13 +14,11 @@ class EulerState(namedtuple("_EulerState", "t y error_estimate reference_state")
 
 
 class EulerAsODEFilter(tornadox.odefilter.ODEFilter):
-    def initialize(self, ivp):
+    def initialize(self, f, t0, tmax, y0, df, df_diagonal):
         y = tornadox.rv.MultivariateNormal(
-            ivp.y0, cov_sqrtm=jnp.zeros((ivp.y0.shape[0], ivp.y0.shape[0]))
+            y0, cov_sqrtm=jnp.zeros((y0.shape[0], y0.shape[0]))
         )
-        return EulerState(
-            y=y, t=ivp.t0, error_estimate=jnp.nan * ivp.y0, reference_state=ivp.y0
-        )
+        return EulerState(y=y, t=t0, error_estimate=jnp.nan * y0, reference_state=y0)
 
     def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
         y = state.y.mean + dt * f(state.t, state.y.mean)

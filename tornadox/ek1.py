@@ -466,10 +466,10 @@ class EarlyTruncationEK1(odefilter.ODEFilter):
         self.P0 = None
         self.P1 = None
 
-    def initialize(self, ivp):
+    def initialize(self, f, t0, tmax, y0, df, df_diagonal):
 
         self.iwp = iwp.IntegratedWienerTransition(
-            num_derivatives=self.num_derivatives, wiener_process_dimension=ivp.dimension
+            num_derivatives=self.num_derivatives, wiener_process_dimension=y0.shape[0]
         )
         self.P0_1d = self.iwp.projection_matrix_1d(0)
         self.P1_1d = self.iwp.projection_matrix_1d(1)
@@ -479,17 +479,17 @@ class EarlyTruncationEK1(odefilter.ODEFilter):
         self.P1 = linops.BlockDiagonal(jnp.stack([self.P1_1d] * d))
 
         extended_dy0, cov_sqrtm = self.init(
-            f=ivp.f,
-            df=ivp.df,
-            y0=ivp.y0,
-            t0=ivp.t0,
+            f=f,
+            df=df,
+            y0=y0,
+            t0=t0,
             num_derivatives=self.iwp.num_derivatives,
         )
         d, n = self.iwp.wiener_process_dimension, self.iwp.num_derivatives + 1
         cov_sqrtm = jnp.stack([cov_sqrtm] * d)
         new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odefilter.ODEFilterState(
-            t=ivp.t0,
+            t=t0,
             y=new_rv,
             error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
             reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
