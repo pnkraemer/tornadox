@@ -80,12 +80,27 @@ class ODEFilter(ABC):
             pass
         return state, info
 
-    def solution_generator(self, ivp, stop_at=None, progressbar=False):
+    def solution_generator(
+        self, ivp, stop_at=None, progressbar=False, compile_step=True
+    ):
         """Generate ODE solver steps."""
+
+        # Choose the compiled or non-compiled perform_full_step implementation.
+        # For small problems (d << 1000), compiling accelerates things drastically;
+        # for LARGE problems (d >> 1000), it seems to slow things
+        # down---at least, at the moment.
+        #
+        # This is only an intermediate functionality:
+        # I plan on replacing the "compile_step" flag with a new solve() interface soon,
+        # that is, as soon as the WHOLE solve can be compiled. (This takes a few more changes.)
+        choose_perform_step = {
+            True: self.perform_full_step_compiled,
+            False: self.perform_full_step,
+        }
+        perform_full_step = choose_perform_step[compile_step]
 
         time_stopper = self._process_event_inputs(stop_at_locations=stop_at)
         state = self.initialize(ivp)
-        self.post_initialize(ivp)
         info = dict(
             num_f_evaluations=0,
             num_df_evaluations=0,
@@ -113,7 +128,7 @@ class ODEFilter(ABC):
             if time_stopper is not None:
                 dt = time_stopper.adjust_dt_to_time_stops(state.t, dt)
 
-            state, dt, step_info = self.perform_full_step(state, dt, *ivp)
+            state, dt, step_info = perform_full_step(state, dt, *ivp)
 
             # Todo: the following safety net has been removed for jitting reasons.
             # Todo: If we run into issues here, we have to add something back. (The code is left for doc purposes)
@@ -135,17 +150,6 @@ class ODEFilter(ABC):
             pbar.update()
             pbar.close()
 
-    def post_initialize(self, ivp):
-        self.body_fun = jax.jit(
-            partial(
-                self.perform_full_step_body_fun,
-                f=ivp.f,
-                df=ivp.df,
-                df_diagonal=ivp.df_diagonal,
-            )
-        )
-        self.cond_fun = jax.jit(ODEFilter.perform_full_step_cond_fun)
-
     @staticmethod
     def _process_event_inputs(stop_at_locations):
         """Process callbacks and time-stamps into a format suitable for solve()."""
@@ -156,9 +160,65 @@ class ODEFilter(ABC):
             time_stopper = None
         return time_stopper
 
-    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
     def perform_full_step(self, state, initial_dt, f, t0, tmax, y0, df, df_diagonal):
         """Perform a full ODE solver step.
+
+        This includes the acceptance/rejection decision as governed by error estimation
+        and steprule.
+        """
+        dt = initial_dt
+        step_is_sufficiently_small = False
+        proposed_state = None
+        step_info = dict(
+            num_f_evaluations=0,
+            num_df_evaluations=0,
+            num_df_diagonal_evaluations=0,
+            num_attempted_steps=0,
+        )
+        while not step_is_sufficiently_small:
+
+            proposed_state, attempt_step_info = self.attempt_step(
+                state, dt, f, t0, tmax, y0, df, df_diagonal
+            )
+
+            # Gather some stats
+            step_info["num_attempted_steps"] += 1
+            if "num_f_evaluations" in attempt_step_info:
+                nfevals = attempt_step_info["num_f_evaluations"]
+                step_info["num_f_evaluations"] += nfevals
+            if "num_df_evaluations" in attempt_step_info:
+                ndfevals = attempt_step_info["num_df_evaluations"]
+                step_info["num_df_evaluations"] += ndfevals
+            if "num_df_diagonal_evaluations" in attempt_step_info:
+                ndfevals_diag = attempt_step_info["num_df_diagonal_evaluations"]
+                step_info["num_df_diagonal_evaluations"] += ndfevals_diag
+
+            # Acceptance/Rejection due to the step-rule
+            internal_norm = self.steprule.scale_error_estimate(
+                unscaled_error_estimate=dt * proposed_state.error_estimate
+                if proposed_state.error_estimate is not None
+                else None,
+                reference_state=proposed_state.reference_state,
+            )
+            step_is_sufficiently_small = self.steprule.is_accepted(internal_norm)
+            suggested_dt = self.steprule.suggest(
+                dt, internal_norm, local_convergence_rate=self.num_derivatives + 1
+            )
+            # Get a new step-size for the next step
+            if step_is_sufficiently_small:
+                dt = min(suggested_dt, tmax - proposed_state.t)
+            else:
+                dt = min(suggested_dt, tmax - state.t)
+
+            assert dt >= 0, f"Invalid step size: dt={dt}"
+
+        return proposed_state, dt, step_info
+
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def perform_full_step_compiled(
+        self, state, initial_dt, f, t0, tmax, y0, df, df_diagonal
+    ):
+        """Perform a full ODE solver step, but using jax control flow.
 
         This includes the acceptance/rejection decision as governed by error estimation
         and steprule.
@@ -167,15 +227,6 @@ class ODEFilter(ABC):
         # Implement the iteration of refining the steps until a step is small enough
         # via jax.lax.while_loop. It requires a value, a body() function and a condition() function.
         # Below we define those, and then carry out the loop.
-
-        # Note:
-        # f, df, and df_diagonal do not behave well as part of the loop (the function cannot be jitted)
-        # This is why we use a rather dirty hack of leaving f, df, and df_diagonal in the "global" namespace
-        # of the present function and JITing anyway. This works well, until f, df, and df_diagonal are changed.
-        # (I hope they are not...). See the explanation in
-        #   https://jax.readthedocs.io/en/latest/notebooks/Common_Gotchas_in_JAX.html#pure-functions.
-        # A similar approach has been taken in
-        #   https://github.com/google/jax/blob/main/jax/experimental/ode.py.
 
         # Initialise the first instance of the data structure
         step_info = dict(
@@ -197,13 +248,16 @@ class ODEFilter(ABC):
         )
 
         # Fix all the non-jittable inputs (i.e. all the callables) via partial()
-        # body_fun = jax.jit(partial(self.perform_full_step_body_fun, f=f, df=df, df_diagonal=df_diagonal))
-        # cond_fun = jax.jit(ODEFilter.perform_full_step_cond_fun)
+        full_step_body_fixed_inputs = partial(
+            self.perform_full_step_body_fun, f=f, df=df, df_diagonal=df_diagonal
+        )
+        body_fun = jax.jit(full_step_body_fixed_inputs)
+        cond_fun = jax.jit(ODEFilter.perform_full_step_cond_fun)
 
         # Do the actual loop
-        final_value = jax.lax.while_loop(self.cond_fun, self.body_fun, init_val)
+        final_value = jax.lax.while_loop(cond_fun, body_fun, init_val)
 
-        # Return the interesting quantities
+        # Return only the interesting quantities
         return final_value.proposed_state, final_value.dt, final_value.step_info
 
     # Define a reasonable data structure that is a valid jax type: (named)tuple
