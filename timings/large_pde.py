@@ -8,7 +8,7 @@ We can use it to check the efficiency of the implementation scheme in the future
 import tornadox
 
 # 0.04 -> 20k dimensions
-fhn = tornadox.ivp.fhn_2d(bbox=[[-1.0, -1.0], [1.0, 1.0]], dx=0.04)
+fhn = tornadox.ivp.fhn_2d(bbox=[[-1.0, -1.0], [1.0, 1.0]], dx=0.5)
 steprule = tornadox.step.AdaptiveSteps(abstol=1e-3, reltol=1e-2)
 solver = tornadox.ek1.DiagonalEK1(
     num_derivatives=4,

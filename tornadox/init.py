@@ -5,6 +5,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 import scipy.integrate
+from jax.experimental import ode
 from jax.experimental.jet import jet
 
 import tornadox.iwp
@@ -312,18 +313,54 @@ class RungeKutta(InitializationRoutine):
         return m, sc, m_pred, sc_pred, sgain, x
 
 
+class CompiledRungeKutta(RungeKutta):
+    def __init__(self, dt=0.01, method="RK45", use_df=True):
+        if method != "RK45":
+            raise ValueError("CompiledRungeKutta does RK45 only.")
+        super().__init__(dt=dt, method=method, use_df=use_df)
+
+    @partial(jax.jit, static_argnums=(0, 1, 2, 5))
+    def __call__(self, f, df, y0, t0, num_derivatives):
+        num_steps = num_derivatives + 1
+        ts, ys = self.rk_data(
+            f=f, t0=t0, dt=self.dt, num_steps=num_steps, y0=y0, method=self.method
+        )
+        m, sc = self.stack_initvals(
+            f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
+        )
+        return RungeKutta.rk_init_improve(m=m, sc=sc, t0=t0, ts=ts, ys=ys)
+
+    @staticmethod
+    @partial(jax.jit, static_argnums=(0, 3, 5))
+    def rk_data(f, t0, dt, num_steps, y0, method):
+        # Generate RK data via jax.experimental.ode
+
+        def body_fun_rk(state, _, func, dt):
+            t, y, fy = state
+            y_next, fy_next, *_ = ode.runge_kutta_step(func, y, fy, t, dt)
+            t_next = t + dt
+            return (t_next, y_next, fy_next), (t_next, y_next)
+
+        f_reversed_inputs = lambda y, t: f(t, y)
+        body_fun = jax.jit(partial(body_fun_rk, func=f_reversed_inputs, dt=dt))
+        init_state = (t0, y0, f(t0, y0))
+        _, (ts, ys) = jax.lax.scan(
+            f=body_fun, init=init_state, xs=None, length=num_steps
+        )
+        return ts, ys
+
+
 class Stack(InitializationRoutine):
     def __init__(self, use_df=True):
         self.use_df = use_df
-
-    def __call__(self, f, df, y0, t0, num_derivatives):
         if self.use_df:
-            return Stack.initial_state_jac(
-                f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives
-            )
-        return Stack.initial_state_no_jac(
-            f=f, y0=y0, t0=t0, num_derivatives=num_derivatives
-        )
+            self.call_init = Stack.initial_state_jac
+        else:
+            self.call_init = Stack.initial_state_no_jac
+
+    @partial(jax.jit, static_argnums=(0, 1, 2, 5))
+    def __call__(self, f, df, y0, t0, num_derivatives):
+        return self.call_init(f=f, df=df, y0=y0, t0=t0, num_derivatives=num_derivatives)
 
     @staticmethod
     @partial(jax.jit, static_argnums=(0, 1, 4))
@@ -338,8 +375,8 @@ class Stack(InitializationRoutine):
         return m, sc
 
     @staticmethod
-    @partial(jax.jit, static_argnums=(0, 3))
-    def initial_state_no_jac(f, y0, t0, num_derivatives):
+    @partial(jax.jit, static_argnums=(0, 1, 4))
+    def initial_state_no_jac(f, df, y0, t0, num_derivatives):
         d = y0.shape[0]
         n = num_derivatives + 1
 
