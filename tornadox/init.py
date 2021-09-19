@@ -319,6 +319,7 @@ class CompiledRungeKutta(RungeKutta):
             raise ValueError("CompiledRungeKutta does RK45 only.")
         super().__init__(dt=dt, method=method, use_df=use_df)
 
+    # Repeat the implementation from above, but this time, we can use the jax.jit decorator.
     @partial(jax.jit, static_argnums=(0, 1, 2, 5))
     def __call__(self, f, df, y0, t0, num_derivatives):
         num_steps = num_derivatives + 1
@@ -335,12 +336,15 @@ class CompiledRungeKutta(RungeKutta):
     def rk_data(f, t0, dt, num_steps, y0, method):
         # Generate RK data via jax.experimental.ode
 
-        def body_fun_rk(state, _, func, dt):
+        # "data" is unused, because we loop forward in time, and not _over_ something.
+        # https://jax.readthedocs.io/en/latest/_autosummary/jax.lax.scan.html#jax.lax.scan
+        def body_fun_rk(state, data, func, dt):
             t, y, fy = state
             y_next, fy_next, *_ = ode.runge_kutta_step(func, y, fy, t, dt)
             t_next = t + dt
             return (t_next, y_next, fy_next), (t_next, y_next)
 
+        # jax.experimental.ode wants different signatures
         f_reversed_inputs = lambda y, t: f(t, y)
         body_fun = jax.jit(partial(body_fun_rk, func=f_reversed_inputs, dt=dt))
         init_state = (t0, y0, f(t0, y0))
@@ -352,8 +356,7 @@ class CompiledRungeKutta(RungeKutta):
 
 class Stack(InitializationRoutine):
     def __init__(self, use_df=True):
-        self.use_df = use_df
-        if self.use_df:
+        if use_df:
             self.call_init = Stack.initial_state_jac
         else:
             self.call_init = Stack.initial_state_no_jac
