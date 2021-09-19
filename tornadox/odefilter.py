@@ -141,7 +141,7 @@ class ODEFilter(ABC):
             time_stopper = None
         return time_stopper
 
-    @partial(jax.jit, static_argnums=(0, 3, 7, 8, 9))
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
     def perform_full_step(self, state, initial_dt, f, t0, tmax, y0, df, df_diagonal):
         """Perform a full ODE solver step.
 
@@ -191,6 +191,7 @@ class ODEFilter(ABC):
             y0,
         )
 
+        @jax.jit
         def body_fun(value):
             """The body of the while loop.
 
@@ -252,6 +253,7 @@ class ODEFilter(ABC):
 
         # Condition for whether to continue the while loop or not.
         # Check that the state was not too large
+        @jax.jit
         def cond_fun(value):
             # We could add a maximum number of step attempts here
             return jnp.logical_not(value.step_is_sufficiently_small)
