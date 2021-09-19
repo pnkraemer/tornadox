@@ -78,7 +78,12 @@ class ODEFilter(ABC):
         return state, info
 
     def solution_generator(
-        self, ivp, stop_at=None, progressbar=False, compile_step=True
+        self,
+        ivp,
+        stop_at=None,
+        progressbar=False,
+        compile_step=True,
+        compile_init=False,
     ):
         """Generate ODE solver steps."""
 
@@ -95,9 +100,13 @@ class ODEFilter(ABC):
             False: self.perform_full_step,
         }
         perform_full_step = choose_perform_step[compile_step]
+        if compile_init:
+            initialize = jax.jit(self.initialize, static_argnums=(0, 1, 5, 6))
+        else:
+            initialize = self.initialize
 
         time_stopper = self._process_event_inputs(stop_at_locations=stop_at)
-        state = self.initialize(*ivp)
+        state = initialize(*ivp)
         info = dict(
             num_f_evaluations=0,
             num_df_evaluations=0,
