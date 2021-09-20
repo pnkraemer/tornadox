@@ -161,17 +161,17 @@ class TestMatrixNormal:
         assert type(out) == type(matrix_normal)
 
 
-class TestEK0SpecializedMatrixNormal:
+class TestLeftIsotropicMatrixNormal:
     @staticmethod
     @pytest.fixture
     def ek0_matrix_normal(mean, dimension, cov_sqrtm):
-        return tornadox.rv.EK0SpecializedMatrixNormal(
+        return tornadox.rv.LeftIsotropicMatrixNormal(
             mean=mean, d=dimension, cov_sqrtm_2=cov_sqrtm
         )
 
     @staticmethod
     def test_type(ek0_matrix_normal):
-        assert isinstance(ek0_matrix_normal, tornadox.rv.EK0SpecializedMatrixNormal)
+        assert isinstance(ek0_matrix_normal, tornadox.rv.LeftIsotropicMatrixNormal)
 
     @staticmethod
     def test_cov_1_values(ek0_matrix_normal):
@@ -201,7 +201,7 @@ class TestEK0SpecializedMatrixNormal:
     def test_jittable(ek0_matrix_normal):
         def fun(rv):
             m, d, sc2 = rv
-            return tornadox.rv.EK0SpecializedMatrixNormal(2 * m, 2 * d, 2 * sc2)
+            return tornadox.rv.LeftIsotropicMatrixNormal(2 * m, 2 * d, 2 * sc2)
 
         fun_jitted = jax.jit(fun)
         out = fun_jitted(ek0_matrix_normal)

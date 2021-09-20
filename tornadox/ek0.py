@@ -112,7 +112,7 @@ class KroneckerEK0(odefilter.ODEFilter):
         self.e0 = self.iwp.projection_matrix_1d(0)
         self.e1 = self.iwp.projection_matrix_1d(1)
 
-        y = rv.EK0SpecializedMatrixNormal(mean=mean, d=d, cov_sqrtm_2=cov_sqrtm)
+        y = rv.LeftIsotropicMatrixNormal(mean=mean, d=d, cov_sqrtm_2=cov_sqrtm)
 
         return odefilter.ODEFilterState(
             ivp=ivp,
@@ -190,7 +190,7 @@ class KroneckerEK0(odefilter.ODEFilter):
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,
-            y=rv.EK0SpecializedMatrixNormal(_m_new, state.y.d, _Cl_new),
+            y=rv.LeftIsotropicMatrixNormal(_m_new, state.y.d, _Cl_new),
         )
         info_dict = dict(num_f_evaluations=1)
         return new_state, info_dict
@@ -258,6 +258,7 @@ class DiagonalEK0(BatchedEK1):
         h_sc_bd = sc_bd_no_precon_1  # shape (d,n)
 
         s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
+        s += 1e-16
         cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
         kgain = cross / s[..., None, None]  # shape (d,n,1)
 

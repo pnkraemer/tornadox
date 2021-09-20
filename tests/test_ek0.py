@@ -123,7 +123,7 @@ def stepped_both(solver_tuple, ivp, initialized_both):
 
 def test_init_type(initialized_both):
     kronecker_init, _ = initialized_both
-    assert isinstance(kronecker_init.y, tornadox.rv.EK0SpecializedMatrixNormal)
+    assert isinstance(kronecker_init.y, tornadox.rv.LeftIsotropicMatrixNormal)
 
 
 def test_init_values(initialized_both, d):
@@ -187,7 +187,7 @@ def stepped_reference(stepped_both):
 
 
 def test_attempt_step_y_type(stepped_kronecker):
-    assert isinstance(stepped_kronecker.y, tornadox.rv.EK0SpecializedMatrixNormal)
+    assert isinstance(stepped_kronecker.y, tornadox.rv.LeftIsotropicMatrixNormal)
 
 
 def test_attempt_step_y_shapes_kronecker(stepped_kronecker, d, num_derivatives):

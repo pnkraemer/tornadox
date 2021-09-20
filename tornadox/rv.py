@@ -42,8 +42,8 @@ class MatrixNormal(namedtuple("_MatrixNormal", "mean cov_sqrtm_1 cov_sqrtm_2")):
         return jnp.kron(self.cov_sqrtm_1, self.cov_sqrtm_2)
 
 
-class EK0SpecializedMatrixNormal(
-    namedtuple("_EK0SpecializedMatrixNormal", "mean d cov_sqrtm_2")
+class LeftIsotropicMatrixNormal(
+    namedtuple("_LeftIsotropicMatrixNormal", "mean d cov_sqrtm_2")
 ):
     """Matrixvariate normal distributions as they appear in the EK0
 
