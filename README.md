@@ -38,7 +38,7 @@ for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7, so
     # Only solve for the final state
     solver.simulate_final_state(vdp)
     
-    # Or go straight to the generator.
+    # Or go straight to the generator
     for state, info in solver.solution_generator(vdp):
         pass
     print(info)
