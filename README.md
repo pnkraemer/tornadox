@@ -16,10 +16,12 @@ solver1 = ek0.KroneckerEK0()
 solver2 = ek0.ReferenceEK0(num_derivatives=6)
 solver3 = ek1.ReferenceEK1(initialization=init.TaylorMode())
 solver4 = ek1.DiagonalEK1(initialization=init.RungeKutta())
-solver5 = ek1.TruncationEK1(num_derivatives=5, steprule=step.ConstantSteps(0.1))
-solver6 = ek1.ReferenceEK1(num_derivatives=5, steprule=step.AdaptiveSteps())
+solver5 = ek1.ReferenceEK1(num_derivatives=5, steprule=step.AdaptiveSteps())
+
+# These also solve ODEs, but use them at your own risk.
+solver6 = ek1.TruncationEK1(num_derivatives=5, steprule=step.ConstantSteps(0.1))
 solver7 = ek1.EarlyTruncationEK1(steprule=step.AdaptiveSteps(abstol=1e-4, reltol=1e-2))
-solver8 = enkf.EnK1(prng_key=jax.random.PRNGKey(1), ensemble_size=100) 
+solver8 = enkf.EnK1(prng_key=jax.random.PRNGKey(1), ensemble_size=100, initialization=init.CompiledRungeKutta(use_df=True)) 
 solver9 = enkf.EnK1(prng_key=jax.random.PRNGKey(1), ensemble_size=100, steprule=step.AdaptiveSteps(abstol=1e-4, reltol=1e-2)) 
 
 
@@ -36,7 +38,7 @@ for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7, so
     # Only solve for the final state
     solver.simulate_final_state(vdp)
     
-    # Go straight to the generator
+    # Or go straight to the generator.
     for state, info in solver.solution_generator(vdp):
         pass
     print(info)

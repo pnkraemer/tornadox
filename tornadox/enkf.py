@@ -12,7 +12,7 @@ from tornadox import ivp, iwp, odefilter, rv, sqrt
 
 
 class StateEnsemble(
-    namedtuple("_Ensemble", "t samples error_estimate reference_state")
+    namedtuple("_Ensemble", "t samples error_estimate reference_state prng_key")
 ):
     # samples are shape =  [d * (nu + 1), N]
 
@@ -75,20 +75,15 @@ class EnK1(odefilter.ODEFilter):
         init_states = jnp.repeat(
             mean, self.ensemble_size, axis=1
         )  #  shape = [d * (nu + 1), N]
-        assert init_states.shape == (
-            y0.shape[0] * (self.num_derivatives + 1),
-            self.ensemble_size,
-        )
-        assert jnp.allclose(init_states[:, 0], mean.squeeze())
-        assert jnp.allclose(init_states[:, -1], mean.squeeze())
         return StateEnsemble(
             t=t0,
             samples=init_states,
             error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
             reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            prng_key=self.prng_key,
         )
 
-    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    # not JIT, because of random sampling...
     def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
 
         t_new = state.t + dt
@@ -114,11 +109,11 @@ class EnK1(odefilter.ODEFilter):
         error_estimate, sigma = self.estimate_error(H=H, sq=PQl, z=z_mean)
 
         std_nrml_w = jax.random.normal(
-            self.prng_key, shape=(state.dim, state.ensemble_size)
+            state.prng_key, shape=(state.dim, state.ensemble_size)
         )
         w = PQl @ std_nrml_w
 
-        _, self.prng_key = jax.random.split(self.prng_key)
+        _, new_prng_key = jax.random.split(state.prng_key)
 
         preconditioned_samples = Pinv @ state.samples
 
@@ -149,6 +144,7 @@ class EnK1(odefilter.ODEFilter):
             samples=updated_samples,
             error_estimate=error_estimate,
             reference_state=reference_state,
+            prng_key=new_prng_key,
         )
         info = dict(num_f_evaluations=1, num_df_evaluations=1)
         return new_state, info
