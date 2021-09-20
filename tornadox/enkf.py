@@ -83,7 +83,7 @@ class EnK1(odefilter.ODEFilter):
             prng_key=self.prng_key,
         )
 
-    # not JIT, because of random sampling...
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
     def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
 
         t_new = state.t + dt
