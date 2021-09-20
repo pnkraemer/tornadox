@@ -198,6 +198,7 @@ def fhn_2d(
         y0 = jnp.concatenate((u0, v0))
 
     kernel = laplace_kernel(nx, dx)
+    dlaplace = _laplace_2d_diag(grid_extent=nx, dx=dx)
 
     @jax.jit
     def fhn_2d(_, x):
@@ -213,7 +214,6 @@ def fhn_2d(
     @jax.jit
     def df_diag(_, x):
         u, v = jnp.split(x, 2)
-        dlaplace = _laplace_2d_diag(grid_extent=nx, dx=dx)
         d_u_diag = a * dlaplace + 1.0 - 3.0 * u ** 2
         d_v_diag = (b * dlaplace - 1.0) / tau
         return jnp.concatenate((d_u_diag, d_v_diag))
