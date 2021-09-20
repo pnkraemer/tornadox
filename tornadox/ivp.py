@@ -190,7 +190,7 @@ def fhn_2d(
         raise ValueError(
             f"The diagonal jacobian only works for quadratic spatial grids. Got {bbox}."
         )
-    key = jax.random.PRNGKey(0)
+    key = jax.random.PRNGKey(4224)
     if y0 is None:
         u0 = jax.random.uniform(key, shape=(ny * nx,))
         _, key = jax.random.split(key)
