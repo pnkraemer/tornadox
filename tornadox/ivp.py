@@ -437,19 +437,6 @@ def fhn_2d(
             raise ValueError("I need a y0 or a key.")
         y0 = jax.random.uniform(prng_key, shape=(2 * ny * nx,))
 
-    # indices = _shifted_indices_on_vectorized_2d_grid(nx, ny)
-    # center, top, bottom, left, right, left_bd, right_bd, bottom_bd, top_bd = indices
-    #
-    # print(center)
-    # print(top)
-    # print(bottom)
-    # print(left)
-    # print(right)
-    # print(left_bd)
-    # print(right_bd)
-    # print(bottom_bd)
-    # print(top_bd)
-
     @jax.jit
     def fhn_2d(_, x):
         u, v = jnp.split(x, 2)
@@ -464,11 +451,9 @@ def fhn_2d(
     @jax.jit
     def df_diag(_, x):
         u, v = jnp.split(x, 2)
-        dlaplace = -4.0 / dx ** 2 * jnp.ones(u.shape[0])
+        dlaplace = -4.0 / (dx ** 2) * jnp.ones(u.shape[0])
         d_u = a * dlaplace + 1.0 - 3.0 * u ** 2
         d_v = (b * dlaplace - 1.0) / tau
-        # d_u = jax.ops.index_update(jnp.zeros_like(u), center, d_u_interior)
-        # d_v = jax.ops.index_update(jnp.zeros_like(v), center, d_v_interior)
         return jnp.concatenate((d_u, d_v))
 
     return InitialValueProblem(
@@ -601,26 +586,24 @@ def _shifted_indices_on_vectorized_2d_grid(nx, ny):
 def _laplace_2d(grid, dx):
     """2D Laplace operator on a vectorized 2d grid."""
 
-    # Set flattened grid boundary values to the nearest interior node
-    # This enforces Neumann conditions (indirectly).
-    grid = jax.ops.index_update(grid, jax.ops.index[0, :], grid[1, :])
-    grid = jax.ops.index_update(grid, jax.ops.index[-1, :], grid[-2, :])
-    grid = jax.ops.index_update(grid, jax.ops.index[:, 0], grid[:, 1])
-    grid = jax.ops.index_update(grid, jax.ops.index[:, -1], grid[:, -2])
+    # Set the boundary values to the nearest interior node
+    # This enforces Neumann conditions.
+    padded_grid = jnp.pad(grid, pad_width=1, mode="edge")
 
     # Laplacian via convolve2d()
     kernel = (
-        jnp.array(
+        1
+        / (dx ** 2)
+        * jnp.array(
             [
                 [0.0, 1.0, 0.0],
                 [1.0, -4.0, 1.0],
                 [0.0, 1.0, 0.0],
             ]
         )
-        / dx ** 2
     )
-    grid = convolve2d(grid, kernel, mode="same")
-    return grid
+    grid = convolve2d(padded_grid, kernel, mode="same")
+    return grid[1:-1, 1:-1]
 
 
 @jax.jit

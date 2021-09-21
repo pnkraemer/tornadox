@@ -6,6 +6,7 @@ import pytest
 
 import tornadox
 
+key = jax.random.PRNGKey(2)
 IVPs = [
     # tornadox.ivp.vanderpol(),
     # tornadox.ivp.vanderpol_julia(),
@@ -13,7 +14,7 @@ IVPs = [
     # tornadox.ivp.lorenz96(),
     # tornadox.ivp.lorenz96_loop(),
     # tornadox.ivp.pleiades(),
-    tornadox.ivp.fhn_2d(dx=0.1),
+    tornadox.ivp.fhn_2d(dx=0.1, prng_key=key),
 ]
 
 
