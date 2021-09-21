@@ -2,23 +2,22 @@
 
 import dataclasses
 from abc import ABC, abstractmethod
+from collections import namedtuple
+from functools import partial
 from typing import Dict, Iterable, Union
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from tqdm import tqdm
 
-from tornadox import ek0, init, ivp, rv, step
+from tornadox import ek0, init, step
 
 
-@dataclasses.dataclass
-class ODEFilterState:
-
-    ivp: ivp.InitialValueProblem
-    t: float
-    y: Union[rv.MultivariateNormal, rv.MatrixNormal, rv.BatchedMultivariateNormal]
-    error_estimate: jnp.ndarray
-    reference_state: jnp.ndarray
+class ODEFilterState(
+    namedtuple("_ODEFilterState", "t y error_estimate reference_state")
+):
+    pass
 
 
 @dataclasses.dataclass(frozen=False)
@@ -55,6 +54,7 @@ class ODEFilter(ABC):
         cov_sqrtms = []
         times = []
         info = dict()
+
         for state, info in solution_generator:
             times.append(state.t)
             means.append(state.y.mean)
@@ -77,8 +77,24 @@ class ODEFilter(ABC):
             pass
         return state, info
 
-    def solution_generator(self, ivp, stop_at=None, progressbar=False):
+    def solution_generator(
+        self, ivp, stop_at=None, progressbar=False, compile_step=True
+    ):
         """Generate ODE solver steps."""
+
+        # Choose the compiled or non-compiled perform_full_step implementation.
+        # For small problems (d << 1000), compiling accelerates things drastically;
+        # for LARGE problems (d >> 1000), it seems to slow things
+        # down---at least, at the moment.
+        #
+        # This is only an intermediate functionality:
+        # I plan on replacing the "compile_step" flag with a new solve() interface soon,
+        # that is, as soon as the WHOLE solve can be compiled. (This takes a few more changes.)
+        choose_perform_step = {
+            True: self.perform_full_step_compiled,
+            False: self.perform_full_step,
+        }
+        perform_full_step = choose_perform_step[compile_step]
 
         time_stopper = self._process_event_inputs(stop_at_locations=stop_at)
         state = self.initialize(ivp)
@@ -91,23 +107,33 @@ class ODEFilter(ABC):
         )
         yield state, info
 
-        dt = self.steprule.first_dt(ivp)
+        dt = self.steprule.first_dt(*ivp)
 
-        # Use state.ivp in case a callback modifies the IVP
-        _pbar_steps = 100
-        _pbar_update_threshold = _pbar_update_dt = state.ivp.tmax / _pbar_steps
-        pbar = tqdm(total=_pbar_steps) if progressbar else None
-        while state.t < state.ivp.tmax:
+        progressbar_steps = 100
+        progressbar_update_threshold = progressbar_update_increment = (
+            ivp.tmax / progressbar_steps
+        )
+        pbar = tqdm(total=progressbar_steps) if progressbar else None
+        while state.t < ivp.tmax:
 
-            if progressbar:
-                while state.t + dt >= _pbar_update_threshold:
+            if pbar is not None:
+                while state.t + dt >= progressbar_update_threshold:
                     pbar.update()
-                    _pbar_update_threshold += _pbar_update_dt
+                    progressbar_update_threshold += progressbar_update_increment
+                pbar.set_description(f"t={state.t:.4f}, dt={dt:.2E}")
 
             if time_stopper is not None:
                 dt = time_stopper.adjust_dt_to_time_stops(state.t, dt)
 
-            state, dt, step_info = self.perform_full_step(state, dt, pbar=pbar)
+            state, dt, step_info = perform_full_step(state, dt, *ivp)
+
+            # Todo: the following safety net has been removed for jitting reasons.
+            # Todo: If we run into issues here, we have to add something back. (The code is left for doc purposes)
+            #
+            # if dt < self.steprule.min_step:
+            #     raise ValueError("Step-size smaller than minimum step-size")
+            # if dt > self.steprule.max_step:
+            #     raise ValueError("Step-size larger than maximum step-size")
 
             info["num_steps"] += 1
             info["num_f_evaluations"] += step_info["num_f_evaluations"]
@@ -117,7 +143,7 @@ class ODEFilter(ABC):
             ]
             info["num_attempted_steps"] += step_info["num_attempted_steps"]
             yield state, info
-        if progressbar:
+        if pbar is not None:
             pbar.update()
             pbar.close()
 
@@ -131,7 +157,7 @@ class ODEFilter(ABC):
             time_stopper = None
         return time_stopper
 
-    def perform_full_step(self, state, initial_dt, pbar=None):
+    def perform_full_step(self, state, initial_dt, f, t0, tmax, y0, df, df_diagonal):
         """Perform a full ODE solver step.
 
         This includes the acceptance/rejection decision as governed by error estimation
@@ -147,10 +173,10 @@ class ODEFilter(ABC):
             num_attempted_steps=0,
         )
         while not step_is_sufficiently_small:
-            if pbar is not None:
-                pbar.set_description(f"t={state.t:.4f}, dt={dt:.2E}")
 
-            proposed_state, attempt_step_info = self.attempt_step(state, dt)
+            proposed_state, attempt_step_info = self.attempt_step(
+                state, dt, f, t0, tmax, y0, df, df_diagonal
+            )
 
             # Gather some stats
             step_info["num_attempted_steps"] += 1
@@ -177,20 +203,141 @@ class ODEFilter(ABC):
             )
             # Get a new step-size for the next step
             if step_is_sufficiently_small:
-                dt = min(suggested_dt, state.ivp.tmax - proposed_state.t)
+                dt = min(suggested_dt, tmax - proposed_state.t)
             else:
-                dt = min(suggested_dt, state.ivp.tmax - state.t)
+                dt = min(suggested_dt, tmax - state.t)
 
             assert dt >= 0, f"Invalid step size: dt={dt}"
 
         return proposed_state, dt, step_info
+
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def perform_full_step_compiled(
+        self, state, initial_dt, f, t0, tmax, y0, df, df_diagonal
+    ):
+        """Perform a full ODE solver step, but using jax control flow.
+
+        This includes the acceptance/rejection decision as governed by error estimation
+        and steprule.
+        """
+
+        # Implement the iteration of refining the steps until a step is small enough
+        # via jax.lax.while_loop. It requires a value, a body() function and a condition() function.
+        # Below we define those, and then carry out the loop.
+
+        # Initialise the first instance of the data structure
+        step_info = dict(
+            num_f_evaluations=0,
+            num_df_evaluations=0,
+            num_df_diagonal_evaluations=0,
+            num_attempted_steps=0,
+        )
+        init_val = ODEFilter.CarryingValue(
+            i=0,
+            dt=initial_dt,
+            step_is_sufficiently_small=False,
+            proposed_state=state,
+            step_info=step_info,
+            state=state,
+            t0=t0,
+            tmax=tmax,
+            y0=y0,
+        )
+
+        # Fix all the non-jittable inputs (i.e. all the callables) via partial()
+        full_step_body_fixed_inputs = partial(
+            self.perform_full_step_body_fun, f=f, df=df, df_diagonal=df_diagonal
+        )
+        body_fun = jax.jit(full_step_body_fixed_inputs)
+        cond_fun = jax.jit(ODEFilter.perform_full_step_cond_fun)
+
+        # Do the actual loop
+        final_value = jax.lax.while_loop(cond_fun, body_fun, init_val)
+
+        # Return only the interesting quantities
+        return final_value.proposed_state, final_value.dt, final_value.step_info
+
+    # Define a reasonable data structure that is a valid jax type: (named)tuple
+    # and that carries all information that we need to perform the next step attempt.
+    CarryingValue = namedtuple(
+        "CarryingValue",
+        "i dt step_is_sufficiently_small proposed_state step_info state t0 tmax y0",
+    )
+
+    @staticmethod
+    def perform_full_step_cond_fun(value):
+        # Condition for whether to continue the while loop or not.
+        # Check that the state was not too large
+        #
+        # We could add a maximum number of step attempts here
+        return jnp.logical_not(value.step_is_sufficiently_small)
+
+    # Not jitted... will be jitted later
+    def perform_full_step_body_fun(self, value, f, df, df_diagonal):
+        """The body of the while loop.
+
+        Keep attempting steps until the error estimate suggests a sufficiently small step.
+        """
+        # Extract relevant states from current input
+        # Ignore the step_is_sufficiently_small flag and the proposed_state, they are only in the tuple
+        # because they are returned at the end of the loop.
+        i, dt, _, _, step_info, state, t0, tmax, y0 = value
+
+        # Attempt a step
+        proposed_state, attempt_step_info = self.attempt_step(
+            state, dt, f, t0, tmax, y0, df, df_diagonal
+        )
+
+        # Gather some stats
+        step_info["num_attempted_steps"] += 1
+        if "num_f_evaluations" in attempt_step_info:
+            nfevals = attempt_step_info["num_f_evaluations"]
+            step_info["num_f_evaluations"] += nfevals
+        if "num_df_evaluations" in attempt_step_info:
+            ndfevals = attempt_step_info["num_df_evaluations"]
+            step_info["num_df_evaluations"] += ndfevals
+        if "num_df_diagonal_evaluations" in attempt_step_info:
+            ndfevals_diag = attempt_step_info["num_df_diagonal_evaluations"]
+            step_info["num_df_diagonal_evaluations"] += ndfevals_diag
+
+        # Acceptance/Rejection due to the step-rule
+        internal_norm = self.steprule.scale_error_estimate(
+            unscaled_error_estimate=dt * proposed_state.error_estimate
+            if proposed_state.error_estimate is not None
+            else None,
+            reference_state=proposed_state.reference_state,
+        )
+        step_is_sufficiently_small = self.steprule.is_accepted(internal_norm)
+        suggested_dt = self.steprule.suggest(
+            dt, internal_norm, local_convergence_rate=self.num_derivatives + 1
+        )
+
+        # Get a new step-size for the next step
+        # Roughly equivalent to: if step was good, pick either the proposed step or tmax-t.
+        true_fun = lambda x: jnp.minimum(x[0], x[1] - x[2])
+        false_fun = lambda x: jnp.minimum(x[0], x[1] - x[3])
+        operand = suggested_dt, tmax, proposed_state.t, state.t
+        dt = jax.lax.cond(step_is_sufficiently_small, true_fun, false_fun, operand)
+
+        # Return all the important information to continue the loop
+        return ODEFilter.CarryingValue(
+            i + 1,
+            dt,
+            step_is_sufficiently_small,
+            proposed_state,
+            step_info,
+            state,
+            t0,
+            tmax,
+            y0,
+        )
 
     @abstractmethod
     def initialize(self, ivp):
         raise NotImplementedError
 
     @abstractmethod
-    def attempt_step(self, state, dt):
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
         raise NotImplementedError
 
 

@@ -1,12 +1,11 @@
 import dataclasses
 from functools import partial
 
-import jax
 import jax.numpy as jnp
 import jax.scipy.linalg
 
 import tornadox.iwp
-from tornadox import init, ivp, iwp, odefilter, rv, sqrt, step
+from tornadox import odefilter, rv, sqrt
 from tornadox.ek1 import BatchedEK1
 
 
@@ -38,24 +37,24 @@ class ReferenceEK0(odefilter.ODEFilter):
             mean=extended_dy0, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
         )
         return odefilter.ODEFilterState(
-            ivp=ivp,
             t=ivp.t0,
             y=y,
-            error_estimate=None,
-            reference_state=None,
+            error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
         )
 
-    def attempt_step(self, state, dt, verbose=False):
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
         # [Setup]
         m, Cl = state.y.mean.reshape((-1,), order="F"), state.y.cov_sqrtm
         A, Ql = self.iwp.non_preconditioned_discretize(dt)
-        n, d = self.num_derivatives + 1, state.ivp.dimension
+        n, d = self.num_derivatives + 1, self.iwp.wiener_process_dimension
 
         # [Predict]
         mp = A @ m
 
         # Measure / calibrate
-        z = self.E1 @ mp - state.ivp.f(state.t + dt, self.E0 @ mp)
+        z = self.E1 @ mp - f(state.t + dt, self.E0 @ mp)
         H = self.E1
 
         S = H @ Ql @ Ql.T @ H.T
@@ -73,7 +72,6 @@ class ReferenceEK0(odefilter.ODEFilter):
         y_new = jnp.abs(m_new[0])
 
         new_state = odefilter.ODEFilterState(
-            ivp=state.ivp,
             t=state.t + dt,
             error_estimate=error,
             reference_state=y_new,
@@ -115,9 +113,8 @@ class KroneckerEK0(odefilter.ODEFilter):
         y = rv.LeftIsotropicMatrixNormal(mean=mean, d=d, cov_sqrtm_2=cov_sqrtm)
 
         return odefilter.ODEFilterState(
-            ivp=ivp,
             t=ivp.t0,
-            error_estimate=None,
+            error_estimate=jnp.nan,
             reference_state=ivp.y0,
             y=y,
         )
@@ -151,12 +148,12 @@ class KroneckerEK0(odefilter.ODEFilter):
         H = e1 @ P
         return z, H
 
-    def attempt_step(self, state, dt, verbose=False):
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
         # [Setup]
         Y = state.y
         _m, _Cl = Y.mean, Y.cov_sqrtm_2
         A, Ql = self.A, self.Ql
-
         t_new = state.t + dt
 
         # [Preconditioners]
@@ -168,7 +165,7 @@ class KroneckerEK0(odefilter.ODEFilter):
         mp = A @ m
 
         # [Measure]
-        z, H = self.evaluate_ode(t_new, state.ivp.f, mp, P, self.e1)
+        z, H = self.evaluate_ode(t_new, f, mp, P, self.e1)
 
         # [Calibration]
         sigma_squared, error_estimate = self.compute_sigmasquared_error(P, Ql, z)
@@ -186,7 +183,6 @@ class KroneckerEK0(odefilter.ODEFilter):
         y_new = jnp.abs(_m_new[0])
 
         new_state = odefilter.ODEFilterState(
-            ivp=state.ivp,
             t=t_new,
             error_estimate=error_estimate,
             reference_state=y_new,

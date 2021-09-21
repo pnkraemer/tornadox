@@ -35,25 +35,25 @@ class ReferenceEK1(odefilter.ODEFilter):
         mean = extended_dy0  # .reshape((-1,), order="F")
         y = rv.MultivariateNormal(mean, jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm))
         return odefilter.ODEFilterState(
-            ivp=ivp,
             t=ivp.t0,
             y=y,
-            error_estimate=None,
-            reference_state=None,
+            error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
         )
 
-    def attempt_step(self, state, dt):
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
         # Extract system matrices
         P, Pinv = self.iwp.nordsieck_preconditioner(dt=dt)
         A, SQ = self.iwp.preconditioned_discretize
         t = state.t + dt
-        n, d = self.num_derivatives + 1, state.ivp.dimension
+        n, d = self.num_derivatives + 1, self.iwp.wiener_process_dimension
 
         # Pull states into preconditioned state
         m, SC = Pinv @ state.y.mean.reshape((-1,), order="F"), Pinv @ state.y.cov_sqrtm
 
         cov_cholesky, error_estimate, new_mean = self.attempt_unit_step(
-            A, P, SC, SQ, m, state, t
+            A, P, SC, SQ, m, state, t, f, t0, tmax, y0, df, df_diagonal
         )
 
         # Push back to non-preconditioned state
@@ -68,7 +68,6 @@ class ReferenceEK1(odefilter.ODEFilter):
 
         # Return new state
         new_state = odefilter.ODEFilterState(
-            ivp=state.ivp,
             t=t,
             y=new_rv,
             error_estimate=error_estimate,
@@ -77,12 +76,15 @@ class ReferenceEK1(odefilter.ODEFilter):
         info_dict = dict(num_f_evaluations=1, num_df_evaluations=1)
         return new_state, info_dict
 
-    def attempt_unit_step(self, A, P, SC, SQ, m, state, t):
+    @partial(jax.jit, static_argnums=(0, 8, 12, 13))
+    def attempt_unit_step(
+        self, A, P, SC, SQ, m, state, t, f, t0, tmax, y0, df, df_diagonal
+    ):
         m_pred = self.predict_mean(m=m, phi=A)
         H, z = self.evaluate_ode(
             t=t,
-            f=state.ivp.f,
-            df=state.ivp.df,
+            f=f,
+            df=df,
             p=P,
             m_pred=m_pred,
             e0=self.P0,
@@ -164,14 +166,14 @@ class BatchedEK1(odefilter.ODEFilter):
         cov_sqrtm = jnp.stack([cov_sqrtm] * d)
         new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odefilter.ODEFilterState(
-            ivp=ivp,
             t=ivp.t0,
             y=new_rv,
-            error_estimate=None,
-            reference_state=None,
+            error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
         )
 
-    def attempt_step(self, state, dt):
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
 
         p_1d_raw, p_inv_1d_raw = self.iwp.nordsieck_preconditioner_1d_raw(dt=dt)
         m = p_inv_1d_raw[:, None] * state.y.mean
@@ -179,9 +181,9 @@ class BatchedEK1(odefilter.ODEFilter):
 
         t = state.t + dt
         new_mean, cov_sqrtm, error, info_dict = self.attempt_unit_step(
-            f=state.ivp.f,
-            df=state.ivp.df,
-            df_diagonal=state.ivp.df_diagonal,
+            f=f,
+            df=df,
+            df_diagonal=df_diagonal,
             p_1d_raw=p_1d_raw,
             m=m,
             sc=sc,
@@ -197,7 +199,6 @@ class BatchedEK1(odefilter.ODEFilter):
 
         new_rv = rv.BatchedMultivariateNormal(new_mean, cov_sqrtm)
         new_state = odefilter.ODEFilterState(
-            ivp=state.ivp,
             t=t,
             y=new_rv,
             error_estimate=error,
@@ -481,14 +482,14 @@ class EarlyTruncationEK1(odefilter.ODEFilter):
         cov_sqrtm = jnp.stack([cov_sqrtm] * d)
         new_rv = rv.BatchedMultivariateNormal(extended_dy0, cov_sqrtm)
         return odefilter.ODEFilterState(
-            ivp=ivp,
             t=ivp.t0,
             y=new_rv,
-            error_estimate=None,
-            reference_state=None,
+            error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
+            reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
         )
 
-    def attempt_step(self, state, dt):
+    @partial(jax.jit, static_argnums=(0, 3, 7, 8))
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
         d = self.iwp.wiener_process_dimension
         n = self.iwp.num_derivatives + 1
 
@@ -534,8 +535,8 @@ class EarlyTruncationEK1(odefilter.ODEFilter):
         # Evaluate ODE
         t = state.t + dt
         m_at = P0 @ m_pred
-        f = state.ivp.f(t, m_at)
-        Jx = state.ivp.df(t, m_at)  # Use full Jacobian here!
+        f = f(t, m_at)
+        Jx = df(t, m_at)  # Use full Jacobian here!
 
         # Evaluate H @ sth manually (i.e. pseudo-lazily),
         # because P0/P1 slice, and Jx @ sth is dense matmul.
@@ -642,7 +643,6 @@ class EarlyTruncationEK1(odefilter.ODEFilter):
         info_dict = dict(num_f_evaluations=1, num_df_evaluations=1)
 
         new_state = odefilter.ODEFilterState(
-            ivp=state.ivp,
             t=t,
             y=new_rv,
             error_estimate=error_estimate,

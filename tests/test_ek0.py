@@ -1,3 +1,4 @@
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -112,8 +113,8 @@ def stepped_both(solver_tuple, ivp, initialized_both):
     kronecker_ek0, reference_ek0 = solver_tuple
     kronecker_init, reference_init = initialized_both
 
-    kronecker_stepped, _ = kronecker_ek0.attempt_step(state=kronecker_init, dt=0.12345)
-    reference_stepped, _ = reference_ek0.attempt_step(state=reference_init, dt=0.12345)
+    kronecker_stepped, _ = kronecker_ek0.attempt_step(kronecker_init, 0.12345, *ivp)
+    reference_stepped, _ = reference_ek0.attempt_step(reference_init, 0.12345, *ivp)
 
     return kronecker_stepped, reference_stepped
 
