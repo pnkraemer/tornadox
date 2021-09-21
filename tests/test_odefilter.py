@@ -1,21 +1,16 @@
 """Tests for ODEFilter interfaces."""
 
+from collections import namedtuple
 
-import dataclasses
-
+import jax
 import jax.numpy as jnp
 import pytest
 
 import tornadox
 
 
-@dataclasses.dataclass
-class EulerState:
-    ivp: tornadox.ivp.InitialValueProblem
-    y: jnp.array
-    t: float
-    error_estimate: jnp.array
-    reference_state: jnp.array
+class EulerState(namedtuple("_EulerState", "t y error_estimate reference_state")):
+    pass
 
 
 class EulerAsODEFilter(tornadox.odefilter.ODEFilter):
@@ -24,17 +19,17 @@ class EulerAsODEFilter(tornadox.odefilter.ODEFilter):
             ivp.y0, cov_sqrtm=jnp.zeros((ivp.y0.shape[0], ivp.y0.shape[0]))
         )
         return EulerState(
-            ivp=ivp, y=y, t=ivp.t0, error_estimate=None, reference_state=ivp.y0
+            y=y, t=ivp.t0, error_estimate=jnp.nan * ivp.y0, reference_state=ivp.y0
         )
 
-    def attempt_step(self, state, dt):
-        y = state.y.mean + dt * state.ivp.f(state.t, state.y.mean)
+    def attempt_step(self, state, dt, f, t0, tmax, y0, df, df_diagonal):
+        y = state.y.mean + dt * f(state.t, state.y.mean)
         t = state.t + dt
         y = tornadox.rv.MultivariateNormal(
             y, cov_sqrtm=jnp.zeros((y.shape[0], y.shape[0]))
         )
         new_state = EulerState(
-            ivp=state.ivp, y=y, t=t, error_estimate=None, reference_state=y
+            y=y, t=t, error_estimate=jnp.nan * y0, reference_state=y.mean
         )
         return new_state, {}
 
@@ -78,3 +73,17 @@ def locations():
 def test_solve_stop_at(ivp, solver, locations):
     sol = solver.solve(ivp, stop_at=locations)
     assert jnp.isin(locations[0], jnp.array(sol.t))
+
+
+def test_odefilter_state_jittable(ivp):
+    def fun(state):
+        t, y, err, ref = state
+        return tornadox.odefilter.ODEFilterState(t, y, err, ref)
+
+    fun_jitted = jax.jit(fun)
+    x = jnp.zeros(3)
+    state = tornadox.odefilter.ODEFilterState(
+        t=0, y=x, error_estimate=x, reference_state=x
+    )
+    out = fun_jitted(state)
+    assert type(out) == type(state)

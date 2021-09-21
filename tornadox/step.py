@@ -1,7 +1,9 @@
 """Stepsize selection strategies."""
 
 import abc
+from functools import partial
 
+import jax
 import jax.numpy as jnp
 
 
@@ -32,17 +34,21 @@ class ConstantSteps(StepRule):
     def __repr__(self):
         return f"{self.__class__.__name__}(dt={self.dt})"
 
+    @partial(jax.jit, static_argnums=0)
     def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         return self.dt
 
+    @partial(jax.jit, static_argnums=0)
     def is_accepted(self, scaled_error_estimate):
         return True
 
+    @partial(jax.jit, static_argnums=0)
     def scale_error_estimate(self, unscaled_error_estimate, reference_state):
         # Return None to make sure this quantity is not used further below
         return None
 
-    def first_dt(self, ivp):
+    @partial(jax.jit, static_argnums=(0, 1, 5, 6))
+    def first_dt(self, f, t0, tmax, y0, df, df_diagonal):
         return self.dt
 
 
@@ -66,6 +72,7 @@ class AdaptiveSteps(StepRule):
     def __repr__(self):
         return f"{self.__class__.__name__}(abstol={self.abstol}, reltol={self.reltol})"
 
+    @partial(jax.jit, static_argnums=0)
     def suggest(self, previous_dt, scaled_error_estimate, local_convergence_rate=None):
         if local_convergence_rate is None:
             raise ValueError("Please provide a local convergence rate.")
@@ -75,23 +82,15 @@ class AdaptiveSteps(StepRule):
         ratio = 1.0 / scaled_error_estimate
         change = self.safety_scale * ratio ** (1.0 / local_convergence_rate)
 
-        # The below code should be doable in a single line?
-        if change < small:
-            dt = small * previous_dt
-        elif large < change:
-            dt = large * previous_dt
-        else:
-            dt = change * previous_dt
-
-        if dt < self.min_step:
-            raise ValueError("Step-size smaller than minimum step-size")
-        if dt > self.max_step:
-            raise ValueError("Step-size larger than maximum step-size")
+        change = jnp.maximum(small, jnp.minimum(change, large))
+        dt = change * previous_dt
         return dt
 
+    @partial(jax.jit, static_argnums=0)
     def is_accepted(self, scaled_error_estimate):
         return scaled_error_estimate < 1
 
+    @partial(jax.jit, static_argnums=0)
     def scale_error_estimate(self, unscaled_error_estimate, reference_state):
         if (
             not jnp.isscalar(unscaled_error_estimate.size)
@@ -104,11 +103,13 @@ class AdaptiveSteps(StepRule):
         dim = len(ratio) if ratio.ndim > 0 else 1
         return jnp.linalg.norm(ratio) / jnp.sqrt(dim)
 
-    def first_dt(self, ivp):
-        return propose_first_dt(ivp=ivp)
+    @partial(jax.jit, static_argnums=(0, 1, 5, 6))
+    def first_dt(self, f, t0, tmax, y0, df, df_diagonal):
+        return propose_first_dt(f, t0, y0)
 
 
-def propose_first_dt(ivp):
-    norm_y0 = jnp.linalg.norm(ivp.y0)
-    norm_dy0 = jnp.linalg.norm(ivp.f(ivp.t0, ivp.y0))
+@partial(jax.jit, static_argnums=0)
+def propose_first_dt(f, t0, y0):
+    norm_y0 = jnp.linalg.norm(y0)
+    norm_dy0 = jnp.linalg.norm(f(t0, y0))
     return 0.01 * norm_y0 / norm_dy0
