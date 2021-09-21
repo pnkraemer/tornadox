@@ -433,8 +433,7 @@ def fhn_2d(
         )
 
     if y0 is None:
-        if prng_key is None:
-            raise ValueError("I need a y0 or a key.")
+        prng_key = prng_key or jax.random.PRNGKey(seed=2)
         y0 = jax.random.uniform(prng_key, shape=(2 * ny * nx,))
 
     @jax.jit
@@ -485,122 +484,6 @@ def fhn_2d(
     )
 
 
-def _shifted_indices_on_vectorized_2d_grid(nx, ny):
-    """The following generates the following indices for indexing a vectorized 2D grid:
-    * interior (center)
-    * interior shifted one index to the {top, bottom, left, right}
-    (in an admittedly very convoluted way)
-
-    This is needed for finite-difference discretization on vectorized 2d PDEs
-
-    Parameters
-    ----------
-    nx: int
-        Number of grid-points per row in the 2d grid
-    ny: int
-        Number of grid-points per column in the 2d grid
-
-    Returns
-    -------
-    1D indices to index the vectorized 2D grid
-
-    See also
-    --------
-    _laplace_2d (below). This probably explains best what this method here is good for.
-    """
-
-    center = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    top = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    bottom = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    left = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    right = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
-            )
-        ),
-        dims=(ny, nx),
-    )
-
-    left_boundary = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(*itertools.product(jnp.arange(0, 1), jnp.arange(0, nx)))
-        ),
-        dims=(ny, nx),
-    )
-    right_boundary = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(ny - 1, ny), jnp.arange(0, nx))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    bottom_boundary = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(*itertools.product(jnp.arange(0, ny), jnp.arange(0, 1)))
-        ),
-        dims=(ny, nx),
-    )
-    top_boundary = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(0, ny), jnp.arange(nx - 1, nx))
-            )
-        ),
-        dims=(ny, nx),
-    )
-
-    return (
-        center,
-        top,
-        bottom,
-        left,
-        right,
-        left_boundary,
-        right_boundary,
-        bottom_boundary,
-        top_boundary,
-    )
-
-
 @jax.jit
 def _laplace_2d(grid, dx):
     """2D Laplace operator on a vectorized 2d grid."""
@@ -623,36 +506,3 @@ def _laplace_2d(grid, dx):
     )
     grid = convolve2d(padded_grid, kernel, mode="same")
     return grid[1:-1, 1:-1]
-
-
-@jax.jit
-def _laplace_2d2(flattened_grid, center, top, bottom, left, right, dx):
-    """2D Laplace operator on a vectorized 2d grid."""
-
-    return (
-        flattened_grid[top]
-        + flattened_grid[bottom]
-        + flattened_grid[left]
-        + flattened_grid[right]
-        - 4.0 * flattened_grid[center]
-    ) / dx ** 2
-
-
-def _laplace_2d_diag(grid_extent, dx, cut_off_boundaries=True):
-    part = -4.0 * jnp.ones(grid_extent - 2) / (dx ** 2)
-    if not cut_off_boundaries:
-        part = jnp.pad(
-            part,
-            pad_width=1,
-            mode="constant",
-            constant_values=0.0,
-        )
-    main_diag = jnp.tile(part, grid_extent - 2)
-    if not cut_off_boundaries:
-        main_diag = jnp.pad(
-            main_diag,
-            pad_width=grid_extent,
-            mode="constant",
-            constant_values=0.0,
-        )
-    return main_diag

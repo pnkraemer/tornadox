@@ -6,15 +6,14 @@ import pytest
 
 import tornadox
 
-key = jax.random.PRNGKey(2)
 IVPs = [
-    # tornadox.ivp.vanderpol(),
-    # tornadox.ivp.vanderpol_julia(),
-    # tornadox.ivp.brusselator(),
-    # tornadox.ivp.lorenz96(),
-    # tornadox.ivp.lorenz96_loop(),
-    # tornadox.ivp.pleiades(),
-    tornadox.ivp.fhn_2d(bbox=[[0.0, 0.0], [1.0, 1.0]], dx=0.1, prng_key=key),
+    tornadox.ivp.vanderpol(),
+    tornadox.ivp.vanderpol_julia(),
+    tornadox.ivp.brusselator(),
+    tornadox.ivp.lorenz96(),
+    tornadox.ivp.lorenz96_loop(),
+    tornadox.ivp.pleiades(),
+    tornadox.ivp.fhn_2d(dx=0.5),
 ]
 
 
@@ -62,18 +61,7 @@ class TestIVPCommonBehaviour:
     def test_df_diagonal_values(ivp):
         df_diagonal = ivp.df_diagonal(ivp.t0, ivp.y0)
         df = ivp.df(ivp.t0, ivp.y0)
-        print(df)
-        print(jnp.sum(df, axis=1) + 1)
-
-        print()
-        print(df_diagonal)
-        print(jnp.diag(df))
-        print()
-
-        print(df_diagonal - jnp.diag(df))
-        print()
         assert jnp.allclose(df_diagonal, jnp.diag(df))
-        # assert False
 
     @staticmethod
     @pytest.mark.parametrize("ivp", IVPs)
