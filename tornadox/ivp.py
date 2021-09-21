@@ -7,6 +7,7 @@ from typing import Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
+from jax.scipy.signal import convolve2d
 
 
 class InitialValueProblem(
@@ -409,7 +410,16 @@ def pleiades(t0=0.0, tmax=3.0):
 
 
 def fhn_2d(
-    t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, a=2.8e-4, b=5e-3, k=-0.005, tau=0.1
+    t0=0.0,
+    tmax=20.0,
+    y0=None,
+    bbox=None,
+    dx=0.02,
+    a=2.8e-4,
+    b=5e-3,
+    k=-0.005,
+    tau=0.1,
+    prng_key=None,
 ):
     """Source: https://ipython-books.github.io/124-simulating-a-partial-differential-equation-reaction-diffusion-systems-and-turing-patterns/"""
 
@@ -423,42 +433,30 @@ def fhn_2d(
         )
 
     if y0 is None:
-        key = jax.random.PRNGKey(0)
-        y0 = jax.random.uniform(key, shape=(2 * ny * nx,))
+        if prng_key is None:
+            raise ValueError("I need a y0 or a key.")
+        y0 = jax.random.uniform(prng_key, shape=(2 * ny * nx,))
 
-    indices = _shifted_indices_on_vectorized_2d_grid(nx, ny)
-    center, top, bottom, left, right, left_bd, right_bd, bottom_bd, top_bd = indices
-
-    print(center)
-    print(top)
-    print(bottom)
-    print(left)
-    print(right)
-    print(left_bd)
-    print(right_bd)
-    print(bottom_bd)
-    print(top_bd)
-
-    assert False
+    # indices = _shifted_indices_on_vectorized_2d_grid(nx, ny)
+    # center, top, bottom, left, right, left_bd, right_bd, bottom_bd, top_bd = indices
+    #
+    # print(center)
+    # print(top)
+    # print(bottom)
+    # print(left)
+    # print(right)
+    # print(left_bd)
+    # print(right_bd)
+    # print(bottom_bd)
+    # print(top_bd)
 
     @jax.jit
     def fhn_2d(_, x):
         u, v = jnp.split(x, 2)
-
-        u_interior = (
-            a * _laplace_2d(u, center, top, bottom, left, right, dx)
-            + u[center]
-            - u[center] ** 3
-            - v[center]
-            + k
-        )
-        v_interior = (
-            b * _laplace_2d(v, center, top, bottom, left, right, dx)
-            + u[center]
-            - v[center]
-        ) / tau
-        u_new = jax.ops.index_update(jnp.zeros_like(u), center, u_interior)
-        v_new = jax.ops.index_update(jnp.zeros_like(v), center, v_interior)
+        du = _laplace_2d(u.reshape((nx, ny)), dx=dx).reshape((-1,))
+        dv = _laplace_2d(v.reshape((nx, ny)), dx=dx).reshape((-1,))
+        u_new = a * du + u - u ** 3 - v + k
+        v_new = (b * dv + u - v) / tau
         return jnp.concatenate((u_new, v_new))
 
     dfhn_2d = jax.jit(jax.jacfwd(fhn_2d, argnums=1))
@@ -466,11 +464,11 @@ def fhn_2d(
     @jax.jit
     def df_diag(_, x):
         u, v = jnp.split(x, 2)
-        dlaplace = _laplace_2d_diag(grid_extent=nx, dx=dx, cut_off_boundaries=True)
-        d_u_interior = a * dlaplace + 1.0 - 3.0 * u[center] ** 2
-        d_v_interior = (b * dlaplace - 1.0) / tau
-        d_u = jax.ops.index_update(jnp.zeros_like(u), center, d_u_interior)
-        d_v = jax.ops.index_update(jnp.zeros_like(v), center, d_v_interior)
+        dlaplace = -4.0 / dx ** 2 * jnp.ones(u.shape[0])
+        d_u = a * dlaplace + 1.0 - 3.0 * u ** 2
+        d_v = (b * dlaplace - 1.0) / tau
+        # d_u = jax.ops.index_update(jnp.zeros_like(u), center, d_u_interior)
+        # d_v = jax.ops.index_update(jnp.zeros_like(v), center, d_v_interior)
         return jnp.concatenate((d_u, d_v))
 
     return InitialValueProblem(
@@ -600,16 +598,29 @@ def _shifted_indices_on_vectorized_2d_grid(nx, ny):
 
 
 @jax.jit
-def _laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
+def _laplace_2d(grid, dx):
     """2D Laplace operator on a vectorized 2d grid."""
 
-    return (
-        flattened_grid[top]
-        + flattened_grid[bottom]
-        + flattened_grid[left]
-        + flattened_grid[right]
-        - 4.0 * flattened_grid[center]
-    ) / dx ** 2
+    # Set flattened grid boundary values to the nearest interior node
+    # This enforces Neumann conditions (indirectly).
+    grid = jax.ops.index_update(grid, jax.ops.index[0, :], grid[1, :])
+    grid = jax.ops.index_update(grid, jax.ops.index[-1, :], grid[-2, :])
+    grid = jax.ops.index_update(grid, jax.ops.index[:, 0], grid[:, 1])
+    grid = jax.ops.index_update(grid, jax.ops.index[:, -1], grid[:, -2])
+
+    # Laplacian via convolve2d()
+    kernel = (
+        jnp.array(
+            [
+                [0.0, 1.0, 0.0],
+                [1.0, -4.0, 1.0],
+                [0.0, 1.0, 0.0],
+            ]
+        )
+        / dx ** 2
+    )
+    grid = convolve2d(grid, kernel, mode="same")
+    return grid
 
 
 @jax.jit
