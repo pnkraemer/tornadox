@@ -297,6 +297,7 @@ class DiagonalEK1(BatchedEK1):
         )  # shape (d,n)
 
         s = jnp.einsum("dn,dn->d", h_sc_bd, h_sc_bd)  # shape (d,)
+        s += 1e-16
         cross = sc_bd @ h_sc_bd[..., None]  # shape (d,n,1)
         kgain = cross / s[..., None, None]  # shape (d,n,1)
 
