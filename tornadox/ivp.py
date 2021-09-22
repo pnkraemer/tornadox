@@ -7,112 +7,7 @@ from typing import Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp
-
-
-def _shifted_indices_on_vectorized_2d_grid(nx, ny):
-    """The following generates the following indices for indexing a vectorized 2D grid:
-    * interior (center)
-    * interior shifted one index to the {top, bottom, left, right}
-    (in an admittedly very convoluted way)
-
-    This is needed for finite-difference discretization on vectorized 2d PDEs
-
-    Parameters
-    ----------
-    nx: int
-        Number of grid-points per row in the 2d grid
-    ny: int
-        Number of grid-points per column in the 2d grid
-
-    Returns
-    -------
-    1D indices to index the vectorized 2D grid
-
-    See also
-    --------
-    _laplace_2d (below). This probably explains best what this method here is good for.
-    """
-
-    center = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    top = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(0, ny - 2), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    bottom = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(2, ny), jnp.arange(1, nx - 1))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    left = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(0, nx - 2))
-            )
-        ),
-        dims=(ny, nx),
-    )
-    right = jnp.ravel_multi_index(
-        tuple(
-            jnp.array(idcs)
-            for idcs in zip(
-                *itertools.product(jnp.arange(1, ny - 1), jnp.arange(2, nx))
-            )
-        ),
-        dims=(ny, nx),
-    )
-
-    return center, top, bottom, left, right
-
-
-@jax.jit
-def _laplace_2d(flattened_grid, center, top, bottom, left, right, dx):
-    """2D Laplace operator on a vectorized 2d grid."""
-
-    return (
-        flattened_grid[top]
-        + flattened_grid[bottom]
-        + flattened_grid[left]
-        + flattened_grid[right]
-        - 4.0 * flattened_grid[center]
-    ) / dx ** 2
-
-
-def _laplace_2d_diag(grid_extent, dx, cut_off_boundaries=True):
-    part = -4.0 * jnp.ones(grid_extent - 2) / (dx ** 2)
-    if not cut_off_boundaries:
-        part = jnp.pad(
-            part,
-            pad_width=1,
-            mode="constant",
-            constant_values=0.0,
-        )
-    main_diag = jnp.tile(part, grid_extent - 2)
-    if not cut_off_boundaries:
-        main_diag = jnp.pad(
-            main_diag,
-            pad_width=grid_extent,
-            mode="constant",
-            constant_values=0.0,
-        )
-    return main_diag
+from jax.scipy.signal import convolve2d
 
 
 class InitialValueProblem(
@@ -245,70 +140,6 @@ def wave_1d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01
         y0=Y0,
         df=df_wave_1d,
         df_diagonal=lambda t, x: jnp.diag(df_wave_1d(t, x)),
-    )
-
-
-def fhn_2d(
-    t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, a=2.8e-4, b=5e-3, k=-0.005, tau=0.1
-):
-    """Source: https://ipython-books.github.io/124-simulating-a-partial-differential-equation-reaction-diffusion-systems-and-turing-patterns/"""
-
-    if bbox is None:
-        bbox = [[0.0, 0.0], [1.0, 1.0]]
-
-    ny, nx = int((bbox[1][0] - bbox[0][0]) / dx), int((bbox[1][1] - bbox[0][1]) / dx)
-    if ny != nx:
-        raise ValueError(
-            f"The diagonal jacobian only works for quadratic spatial grids. Got {bbox}."
-        )
-    key = jax.random.PRNGKey(0)
-    if y0 is None:
-        u0 = jax.random.uniform(key, shape=(ny * nx,))
-        _, key = jax.random.split(key)
-        v0 = jax.random.uniform(key, shape=(ny * nx,))
-        y0 = jnp.concatenate((u0, v0))
-
-    center, top, bottom, left, right = _shifted_indices_on_vectorized_2d_grid(nx, ny)
-
-    @jax.jit
-    def fhn_2d(_, x):
-        u, v = jnp.split(x, 2)
-
-        u_interior = (
-            a * _laplace_2d(u, center, top, bottom, left, right, dx)
-            + u[center]
-            - u[center] ** 3
-            - v[center]
-            + k
-        )
-        v_interior = (
-            b * _laplace_2d(v, center, top, bottom, left, right, dx)
-            + u[center]
-            - v[center]
-        ) / tau
-        u_new = jax.ops.index_update(jnp.zeros_like(u), center, u_interior)
-        v_new = jax.ops.index_update(jnp.zeros_like(v), center, v_interior)
-        return jnp.concatenate((u_new, v_new))
-
-    dfhn_2d = jax.jit(jax.jacfwd(fhn_2d, argnums=1))
-
-    @jax.jit
-    def df_diag(_, x):
-        u, v = jnp.split(x, 2)
-        dlaplace = _laplace_2d_diag(grid_extent=nx, dx=dx, cut_off_boundaries=True)
-        d_u_interior = a * dlaplace + 1.0 - 3.0 * u[center] ** 2
-        d_v_interior = (b * dlaplace - 1.0) / tau
-        d_u = jax.ops.index_update(jnp.zeros_like(u), center, d_u_interior)
-        d_v = jax.ops.index_update(jnp.zeros_like(v), center, d_v_interior)
-        return jnp.concatenate((d_u, d_v))
-
-    return InitialValueProblem(
-        f=fhn_2d,
-        t0=t0,
-        tmax=tmax,
-        y0=y0,
-        df=dfhn_2d,
-        df_diagonal=df_diag,
     )
 
 
@@ -576,3 +407,102 @@ def pleiades(t0=0.0, tmax=3.0):
         df=df,
         df_diagonal=df_diagonal,
     )
+
+
+def fhn_2d(
+    t0=0.0,
+    tmax=20.0,
+    y0=None,
+    bbox=None,
+    dx=0.02,
+    a=2.8e-4,
+    b=5e-3,
+    k=-0.005,
+    tau=0.1,
+    prng_key=None,
+):
+    """Source: https://ipython-books.github.io/124-simulating-a-partial-differential-equation-reaction-diffusion-systems-and-turing-patterns/"""
+
+    if bbox is None:
+        bbox = [[0.0, 0.0], [1.0, 1.0]]
+
+    ny, nx = int((bbox[1][0] - bbox[0][0]) / dx), int((bbox[1][1] - bbox[0][1]) / dx)
+    if ny != nx:
+        raise ValueError(
+            f"The diagonal Jacobian only works for quadratic spatial grids. Got {bbox}."
+        )
+
+    if y0 is None:
+        prng_key = prng_key or jax.random.PRNGKey(seed=2)
+        y0 = jax.random.uniform(prng_key, shape=(2 * ny * nx,))
+
+    @jax.jit
+    def fhn_2d(_, x):
+        u, v = jnp.split(x, 2)
+        du = _laplace_2d(u.reshape((nx, ny)), dx=dx).reshape((-1,))
+        dv = _laplace_2d(v.reshape((nx, ny)), dx=dx).reshape((-1,))
+        u_new = a * du + u - u ** 3 - v + k
+        v_new = (b * dv + u - v) / tau
+        return jnp.concatenate((u_new, v_new))
+
+    dfhn_2d = jax.jit(jax.jacfwd(fhn_2d, argnums=1))
+
+    @jax.jit
+    def df_diag(_, x):
+
+        u, v = jnp.split(x, 2)
+
+        # The diagonal entries of the Jacobian are iether
+        # 2. (for corner nodes), 3. (for boundary nodes), or 4. (for interior nodes)
+        df_diag_interior = 4.0 * jnp.ones((nx - 2, ny - 2))
+        df_diag_with_bdry = jnp.pad(
+            df_diag_interior, pad_width=1, mode="constant", constant_values=3.0
+        )
+        df_diag = (
+            df_diag_with_bdry.at[0, 0]
+            .set(2.0)
+            .at[0, -1]
+            .set(2.0)
+            .at[-1, 0]
+            .set(2.0)
+            .at[-1, -1]
+            .set(2.0)
+        )
+        dlaplace = -1.0 * df_diag.reshape((-1,)) / (dx ** 2)
+
+        d_u = a * dlaplace + 1.0 - 3.0 * u ** 2
+        d_v = (b * dlaplace - 1.0) / tau
+        return jnp.concatenate((d_u, d_v))
+
+    return InitialValueProblem(
+        f=fhn_2d,
+        t0=t0,
+        tmax=tmax,
+        y0=y0,
+        df=dfhn_2d,
+        df_diagonal=df_diag,
+    )
+
+
+@jax.jit
+def _laplace_2d(grid, dx):
+    """2D Laplace operator on a vectorized 2d grid."""
+
+    # Set the boundary values to the nearest interior node
+    # This enforces Neumann conditions.
+    padded_grid = jnp.pad(grid, pad_width=1, mode="edge")
+
+    # Laplacian via convolve2d()
+    kernel = (
+        1
+        / (dx ** 2)
+        * jnp.array(
+            [
+                [0.0, 1.0, 0.0],
+                [1.0, -4.0, 1.0],
+                [0.0, 1.0, 0.0],
+            ]
+        )
+    )
+    grid = convolve2d(padded_grid, kernel, mode="same")
+    return grid[1:-1, 1:-1]
