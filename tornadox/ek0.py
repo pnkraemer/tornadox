@@ -16,28 +16,28 @@ class ReferenceEK0(odefilter.ODEFilter):
         self.E0 = None
         self.E1 = None
 
-    def initialize(self, ivp):
+    def initialize(self, f, t0, tmax, y0, df, df_diagonal):
 
         self.iwp = tornadox.iwp.IntegratedWienerTransition(
             num_derivatives=self.num_derivatives,
-            wiener_process_dimension=ivp.dimension,
+            wiener_process_dimension=y0.shape[0],
         )
 
         self.P0 = self.E0 = self.iwp.projection_matrix(0)
         self.E1 = self.iwp.projection_matrix(1)
 
         extended_dy0, cov_sqrtm = self.init(
-            f=ivp.f,
-            df=ivp.df,
-            y0=ivp.y0,
-            t0=ivp.t0,
+            f=f,
+            df=df,
+            y0=y0,
+            t0=t0,
             num_derivatives=self.iwp.num_derivatives,
         )
         y = rv.MultivariateNormal(
-            mean=extended_dy0, cov_sqrtm=jnp.kron(jnp.eye(ivp.dimension), cov_sqrtm)
+            mean=extended_dy0, cov_sqrtm=jnp.kron(jnp.eye(y0.shape[0]), cov_sqrtm)
         )
         return odefilter.ODEFilterState(
-            t=ivp.t0,
+            t=t0,
             y=y,
             error_estimate=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
             reference_state=jnp.nan * jnp.ones(self.iwp.wiener_process_dimension),
@@ -90,18 +90,18 @@ class KroneckerEK0(odefilter.ODEFilter):
         self.e0 = None
         self.e1 = None
 
-    def initialize(self, ivp):
+    def initialize(self, f, t0, tmax, y0, df, df_diagonal):
         self.iwp = tornadox.iwp.IntegratedWienerTransition(
             num_derivatives=self.num_derivatives,
-            wiener_process_dimension=ivp.dimension,
+            wiener_process_dimension=y0.shape[0],
         )
         self.A, self.Ql = self.iwp.preconditioned_discretize_1d
 
         extended_dy0, cov_sqrtm = self.init(
-            f=ivp.f,
-            df=ivp.df,
-            y0=ivp.y0,
-            t0=ivp.t0,
+            f=f,
+            df=df,
+            y0=y0,
+            t0=t0,
             num_derivatives=self.iwp.num_derivatives,
         )
         mean = extended_dy0
@@ -113,9 +113,9 @@ class KroneckerEK0(odefilter.ODEFilter):
         y = rv.LeftIsotropicMatrixNormal(mean=mean, d=d, cov_sqrtm_2=cov_sqrtm)
 
         return odefilter.ODEFilterState(
-            t=ivp.t0,
+            t=t0,
             error_estimate=jnp.nan,
-            reference_state=ivp.y0,
+            reference_state=jnp.nan * y0,
             y=y,
         )
 

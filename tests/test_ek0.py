@@ -101,8 +101,8 @@ def solver_tuple(steps, num_derivatives, d):
 def initialized_both(solver_tuple, ivp):
     kronecker_ek0, reference_ek0 = solver_tuple
 
-    kronecker_init = kronecker_ek0.initialize(ivp=ivp)
-    reference_init = reference_ek0.initialize(ivp=ivp)
+    kronecker_init = kronecker_ek0.initialize(*ivp)
+    reference_init = reference_ek0.initialize(*ivp)
 
     return kronecker_init, reference_init
 

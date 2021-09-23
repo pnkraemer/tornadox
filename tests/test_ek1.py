@@ -136,8 +136,8 @@ def approx_initialized(solver_triple):
 
     ek1_approx, reference_ek1, ivp = solver_triple
 
-    init_ref = reference_ek1.initialize(ivp=ivp)
-    init_approx = ek1_approx.initialize(ivp=ivp)
+    init_ref = reference_ek1.initialize(*ivp)
+    init_approx = ek1_approx.initialize(*ivp)
 
     return init_ref, init_approx
 
