@@ -447,28 +447,28 @@ def fhn_2d(
 
     dfhn_2d = jax.jit(jax.jacfwd(fhn_2d, argnums=1))
 
+    # The diagonal entries of the Jacobian are iether
+    # 2. (for corner nodes), 3. (for boundary nodes), or 4. (for interior nodes)
+    df_diag_interior = 4.0 * jnp.ones((nx - 2, ny - 2))
+    df_diag_with_bdry = jnp.pad(
+        df_diag_interior, pad_width=1, mode="constant", constant_values=3.0
+    )
+    df_diag = (
+        df_diag_with_bdry.at[0, 0]
+        .set(2.0)
+        .at[0, -1]
+        .set(2.0)
+        .at[-1, 0]
+        .set(2.0)
+        .at[-1, -1]
+        .set(2.0)
+    )
+    dlaplace = -1.0 * df_diag.reshape((-1,)) / (dx ** 2)
+
     @jax.jit
     def df_diag(_, x):
 
         u, v = jnp.split(x, 2)
-
-        # The diagonal entries of the Jacobian are iether
-        # 2. (for corner nodes), 3. (for boundary nodes), or 4. (for interior nodes)
-        df_diag_interior = 4.0 * jnp.ones((nx - 2, ny - 2))
-        df_diag_with_bdry = jnp.pad(
-            df_diag_interior, pad_width=1, mode="constant", constant_values=3.0
-        )
-        df_diag = (
-            df_diag_with_bdry.at[0, 0]
-            .set(2.0)
-            .at[0, -1]
-            .set(2.0)
-            .at[-1, 0]
-            .set(2.0)
-            .at[-1, -1]
-            .set(2.0)
-        )
-        dlaplace = -1.0 * df_diag.reshape((-1,)) / (dx ** 2)
 
         d_u = a * dlaplace + 1.0 - 3.0 * u ** 2
         d_v = (b * dlaplace - 1.0) / tau
