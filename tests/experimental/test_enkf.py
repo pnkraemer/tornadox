@@ -34,7 +34,7 @@ def ensemble_size():
 
 @pytest.fixture
 def ek1_solution(num_derivatives, ivp, steps, ensemble_size):
-    ek1 = tornadox.enkf.EnK1(
+    ek1 = tornadox.experimental.enkf.EnK1(
         num_derivatives=num_derivatives,
         steprule=steps,
         ensemble_size=ensemble_size,
