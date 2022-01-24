@@ -1,5 +1,6 @@
 """Tests for Taylor-mode initialization."""
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import tornadox
@@ -211,8 +212,8 @@ class TestRungeKutta:
     @all_rk_methods
     def test_rk_init_generate_data_types(rk_data):
         ts, ys = rk_data
-        assert isinstance(ts, jnp.ndarray)
-        assert isinstance(ys, jnp.ndarray)
+        assert isinstance(ts, np.ndarray)
+        assert isinstance(ys, np.ndarray)
 
     @staticmethod
     @all_rk_methods
