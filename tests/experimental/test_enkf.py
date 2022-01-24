@@ -72,7 +72,7 @@ def test_info_dict(ivp, num_derivatives, ensemble_size):
     num_steps = 5
     steprule = tornadox.step.ConstantSteps((ivp.tmax - ivp.t0) / num_steps)
 
-    enkf = tornadox.enkf.EnK1(
+    enkf = tornadox.experimental.enkf.EnK1(
         num_derivatives=num_derivatives,
         steprule=steprule,
         ensemble_size=ensemble_size,
