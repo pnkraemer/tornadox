@@ -367,6 +367,16 @@ def df_diagonal(ivp):
     return ivp.df_diagonal
 
 
+@pytest.fixture
+def sc_as_bd(sc_1d, d):
+    return jnp.stack([sc_1d] * d)
+
+
+@pytest.fixture
+def sq_as_bd(sq_1d, d):
+    return jnp.stack([sq_1d] * d)
+
+
 class TestLowLevelTruncationEK1Functions:
     """Test suite for low-level, truncated EK1 functions."""
 
