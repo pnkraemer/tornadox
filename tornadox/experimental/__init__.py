@@ -1,1 +1,1 @@
-from . import enkf, truncated
+from . import enkf, linops, truncated
