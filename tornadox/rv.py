@@ -1,6 +1,5 @@
 """Random variables."""
 
-
 from collections import namedtuple
 
 import jax.numpy as jnp

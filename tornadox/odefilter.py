@@ -4,7 +4,7 @@ import dataclasses
 from abc import ABC, abstractmethod
 from collections import namedtuple
 from functools import partial
-from typing import Dict, Iterable, Union
+from typing import Dict, Iterable
 
 import jax
 import jax.numpy as jnp

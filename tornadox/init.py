@@ -1,3 +1,5 @@
+"""Initialization routines."""
+
 import abc
 from collections import namedtuple
 from functools import partial

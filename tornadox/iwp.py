@@ -1,3 +1,5 @@
+"""Integrated Wiener process functionalities."""
+
 from collections import namedtuple
 from functools import partial
 
