@@ -284,7 +284,7 @@ def test_truncated_ek1_attempt_step_y_values(approx_stepped):
 
     num_blocks = step_approx.y.cov.shape[0]
     block_shape = step_approx.y.cov.shape[1:3]
-    ref_cov_as_batch = tornadox.linops.truncate_block_diagonal(
+    ref_cov_as_batch = tornadox.experimental.linops.truncate_block_diagonal(
         step_ref.y.cov,
         num_blocks=num_blocks,
         block_shape=block_shape,
