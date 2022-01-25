@@ -137,7 +137,8 @@ class ODEFilter(ABC):
             state, dt, step_info = perform_full_step(state, dt, *ivp)
 
             # Todo: the following safety net has been removed for jitting reasons.
-            # Todo: If we run into issues here, we have to add something back. (The code is left for doc purposes)
+            # Todo: If we run into issues here, we have to add something back.
+            # (The code is left for doc purposes)
             #
             # if dt < self.steprule.min_step:
             #     raise ValueError("Step-size smaller than minimum step-size")

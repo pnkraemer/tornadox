@@ -3,6 +3,7 @@ from functools import partial
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import scipy.linalg
 import scipy.special
 
@@ -61,7 +62,7 @@ class IntegratedWienerTransition(
 
     @partial(jax.jit, static_argnums=0)
     def nordsieck_preconditioner_1d_raw(self, dt):
-        powers = jnp.arange(self.num_derivatives, -1, -1)
+        powers = np.arange(self.num_derivatives, -1, -1)
         scales = jnp.array(scipy.special.factorial(powers))
         powers = powers + 0.5
 

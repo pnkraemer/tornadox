@@ -2,6 +2,19 @@
 
 from jax.config import config
 
-from . import ek0, ek1, enkf, init, ivp, iwp, kalman, linops, odefilter, rv, sqrt, step
+from . import (
+    ek0,
+    ek1,
+    experimental,
+    init,
+    ivp,
+    iwp,
+    kalman,
+    linops,
+    odefilter,
+    rv,
+    sqrt,
+    step,
+)
 
 config.update("jax_enable_x64", True)
