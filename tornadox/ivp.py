@@ -1,9 +1,6 @@
 """Initial value problems and examples."""
 
-
-import itertools
 from collections import namedtuple
-from typing import Callable, Optional, Union
 
 import jax
 import jax.numpy as jnp

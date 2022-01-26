@@ -55,14 +55,14 @@ def test_batched_propagate_cholesky_factors(
     """Batched propagation coincides with non-batched propagation."""
 
     H, SQ = H_and_SQ
-    H = tornadox.linops.BlockDiagonal(jnp.stack([H] * batch_size))
-    SQ = tornadox.linops.BlockDiagonal(jnp.stack([SQ] * batch_size))
-    SC = tornadox.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
+    H = tornadox.experimental.linops.BlockDiagonal(jnp.stack([H] * batch_size))
+    SQ = tornadox.experimental.linops.BlockDiagonal(jnp.stack([SQ] * batch_size))
+    SC = tornadox.experimental.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
 
     chol = tornadox.sqrt.batched_propagate_cholesky_factor(
         (H @ SC).array_stack, SQ.array_stack
     )
-    chol_as_bd = tornadox.linops.BlockDiagonal(chol)
+    chol_as_bd = tornadox.experimental.linops.BlockDiagonal(chol)
     reference = tornadox.sqrt.propagate_cholesky_factor(
         (H @ SC).todense(), SQ.todense()
     )
@@ -74,11 +74,11 @@ def test_batched_sqrtm_to_cholesky(H_and_SQ, SC, measurement_style, batch_size):
     """Sqrtm-to-cholesky is the same for batched and non-batched."""
     H, SQ = H_and_SQ
     d = H.shape[0]
-    H = tornadox.linops.BlockDiagonal(jnp.stack([H] * batch_size))
-    SC = tornadox.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
+    H = tornadox.experimental.linops.BlockDiagonal(jnp.stack([H] * batch_size))
+    SC = tornadox.experimental.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
 
     chol = tornadox.sqrt.batched_sqrtm_to_cholesky((H @ SC).T.array_stack)
-    chol_as_bd = tornadox.linops.BlockDiagonal(chol)
+    chol_as_bd = tornadox.experimental.linops.BlockDiagonal(chol)
 
     reference = tornadox.sqrt.sqrtm_to_cholesky((H @ SC).T.todense())
     assert jnp.allclose(chol_as_bd.todense(), reference)
@@ -121,8 +121,8 @@ def test_batched_update_sqrt(H_and_SQ, SC, measurement_style, batch_size):
     """Batched updated coincides with non-batched update."""
     H, _ = H_and_SQ
     d_out, d_in = H.shape
-    H = tornadox.linops.BlockDiagonal(jnp.stack([H] * batch_size))
-    SC = tornadox.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
+    H = tornadox.experimental.linops.BlockDiagonal(jnp.stack([H] * batch_size))
+    SC = tornadox.experimental.linops.BlockDiagonal(jnp.stack([SC] * batch_size))
 
     chol, K, S = tornadox.sqrt.batched_update_sqrt(
         H.array_stack,
@@ -136,9 +136,9 @@ def test_batched_update_sqrt(H_and_SQ, SC, measurement_style, batch_size):
     assert S.shape == (batch_size, d_out, d_out)
 
     ref_chol, ref_K, ref_S = tornadox.sqrt.update_sqrt(H.todense(), SC.todense())
-    chol_as_bd = tornadox.linops.BlockDiagonal(chol)
-    K_as_bd = tornadox.linops.BlockDiagonal(K)
-    S_as_bd = tornadox.linops.BlockDiagonal(S)
+    chol_as_bd = tornadox.experimental.linops.BlockDiagonal(chol)
+    K_as_bd = tornadox.experimental.linops.BlockDiagonal(K)
+    S_as_bd = tornadox.experimental.linops.BlockDiagonal(S)
 
     # K can be compared elementwise, S and chol not (see below).
     assert jnp.allclose(K_as_bd.todense(), ref_K)
