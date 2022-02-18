@@ -133,6 +133,51 @@ class ReferenceEK1(odefilter.ODEFilter):
         return error_estimate, sigma
 
 
+class ReferenceEK1ConstantDiffusion(ReferenceEK1):
+    """Can only be used with jax.disable_jit()."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.diffusion_list_scalar = []
+
+    def solve(self, *args, **kwargs):
+        raise RuntimeError(
+            "I cannot do 'solve()'. Do 'simulate_final_state()' instead."
+        )
+
+    def simulate_final_state(self, *args, **kwargs):
+        final_state, info = super().simulate_final_state(*args, **kwargs)
+        s = jnp.sqrt(jnp.mean(jnp.asarray(self.diffusion_list_scalar)))
+        final_state = final_state._replace(
+            y=final_state.y._replace(cov_sqrtm=s * final_state.y.cov_sqrtm)
+        )
+        return final_state, info
+
+    # Does not like JIT bc side effects (append).
+    # Use with caution.
+    def attempt_unit_step(
+        self, A, P, SC, SQ, m, state, t, f, t0, tmax, y0, df, df_diagonal
+    ):
+        m_pred = self.predict_mean(m=m, phi=A)
+        H, z = self.evaluate_ode(
+            t=t,
+            f=f,
+            df=df,
+            p=P,
+            m_pred=m_pred,
+            e0=self.P0,
+            e1=self.P1,
+        )
+        error_estimate, _ = self.estimate_error(h=H, sq=SQ, z=z)
+        SC_pred = self.predict_cov_sqrtm(sc=SC, phi=A, sq=SQ)
+        cov_cholesky, Kgain, sqrt_S = sqrt.update_sqrt(H, SC_pred)
+        new_mean = m_pred - Kgain @ z
+
+        diff = z @ jnp.linalg.solve(sqrt_S @ sqrt_S.T, z) / z.shape[0]
+        self.diffusion_list_scalar.append(diff)
+        return cov_cholesky, error_estimate, new_mean
+
+
 class BatchedEK1(odefilter.ODEFilter):
     """Common functionality for EK1 variations that act on batched multivariate normals."""
 
