@@ -45,3 +45,18 @@ for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7, so
     
     print()
 ```
+
+
+## Citation
+The efficient implementation of ODE filters is explained in the paper ([link](https://arxiv.org/abs/2110.11812))
+```
+@misc{krämer2021probabilistic,
+      title={Probabilistic ODE Solutions in Millions of Dimensions}, 
+      author={Nicholas Krämer and Nathanael Bosch and Jonathan Schmidt and Philipp Hennig},
+      year={2021},
+      eprint={2110.11812},
+      archivePrefix={arXiv},
+      primaryClass={stat.ML}
+}
+```
+Please consider citing it if you use this repository for your research.
