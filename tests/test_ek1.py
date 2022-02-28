@@ -273,17 +273,17 @@ def m_as_matrix(m, n, d):
 
 @pytest.fixture
 def sc_1d(n):
-    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+    return jnp.arange(1, 1 + n**2).reshape((n, n))
 
 
 @pytest.fixture
 def phi_1d(n):
-    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+    return jnp.arange(1, 1 + n**2).reshape((n, n))
 
 
 @pytest.fixture
 def sq_1d(n):
-    return jnp.arange(1, 1 + n ** 2).reshape((n, n))
+    return jnp.arange(1, 1 + n**2).reshape((n, n))
 
 
 @pytest.fixture

@@ -86,12 +86,12 @@ def burgers_1d(t0=0.0, tmax=10.0, y0=None, bbox=None, dx=0.02, diffusion_param=0
     @jax.jit
     def f_burgers_1d(_, x):
         nonlinear_convection = x[1:-1] * (x[1:-1] - x[:-2]) / dx
-        diffusion = diffusion_param * (x[2:] - 2.0 * x[1:-1] + x[:-2]) / (dx ** 2)
+        diffusion = diffusion_param * (x[2:] - 2.0 * x[1:-1] + x[:-2]) / (dx**2)
         interior = jnp.array(-nonlinear_convection + diffusion).reshape(-1)
         # Set "cyclic" boundary conditions
         boundary = jnp.array(
             -x[0] * (x[0] - x[-2]) / dx
-            + diffusion_param * (x[1] - 2.0 * x[0] + x[-2]) / (dx ** 2)
+            + diffusion_param * (x[1] - 2.0 * x[0] + x[-2]) / (dx**2)
         ).reshape(-1)
         return jnp.concatenate((boundary, interior, boundary))
 
@@ -122,7 +122,7 @@ def wave_1d(t0=0.0, tmax=20.0, y0=None, bbox=None, dx=0.02, diffusion_param=0.01
     @jax.jit
     def f_wave_1d(_, x):
         _x, _dx = jnp.split(x, 2)
-        interior = diffusion_param * (_x[2:] - 2.0 * _x[1:-1] + _x[:-2]) / (dx ** 2)
+        interior = diffusion_param * (_x[2:] - 2.0 * _x[1:-1] + _x[:-2]) / (dx**2)
         boundaries = (jnp.array(_x[0]).reshape(-1), jnp.array(_x[-1]).reshape(-1))
         _ddx = jnp.concatenate((boundaries[0], interior, boundaries[1]))
         new_dx = jnp.concatenate((jnp.zeros(1), _dx[1:-1], jnp.zeros(1)))
@@ -237,8 +237,8 @@ def brusselator(N=20, t0=0.0, tmax=10.0):
         conv_u = jnp.convolve(u_, w, mode="valid")
         conv_v = jnp.convolve(v_, w, mode="valid")
 
-        u_new = 1.0 + u ** 2 * v - 4 * u + c * conv_u
-        v_new = 3 * u - u ** 2 * v + c * conv_v
+        u_new = 1.0 + u**2 * v - 4 * u + c * conv_u
+        v_new = 3 * u - u**2 * v + c * conv_v
         return jnp.concatenate([u_new, v_new])
 
     df_brusselator = jax.jit(jax.jacfwd(f_brusselator, argnums=1))
@@ -247,7 +247,7 @@ def brusselator(N=20, t0=0.0, tmax=10.0):
     def df_diagonal_brusselator(_, y, n=N, c=const):
         u, v = y[:n], y[n:]
         u_new = 2 * u * v - 4 - 2 * c
-        v_new = -(u ** 2) - 2 * c
+        v_new = -(u**2) - 2 * c
         concat = jnp.concatenate([u_new, v_new])
         return concat
 
@@ -438,7 +438,7 @@ def fhn_2d(
         u, v = jnp.split(x, 2)
         du = _laplace_2d(u.reshape((nx, ny)), dx=dx).reshape((-1,))
         dv = _laplace_2d(v.reshape((nx, ny)), dx=dx).reshape((-1,))
-        u_new = a * du + u - u ** 3 - v + k
+        u_new = a * du + u - u**3 - v + k
         v_new = (b * dv + u - v) / tau
         return jnp.concatenate((u_new, v_new))
 
@@ -460,14 +460,14 @@ def fhn_2d(
         .at[-1, -1]
         .set(2.0)
     )
-    dlaplace = -1.0 * df_diag.reshape((-1,)) / (dx ** 2)
+    dlaplace = -1.0 * df_diag.reshape((-1,)) / (dx**2)
 
     @jax.jit
     def df_diag(_, x):
 
         u, v = jnp.split(x, 2)
 
-        d_u = a * dlaplace + 1.0 - 3.0 * u ** 2
+        d_u = a * dlaplace + 1.0 - 3.0 * u**2
         d_v = (b * dlaplace - 1.0) / tau
         return jnp.concatenate((d_u, d_v))
 
@@ -492,7 +492,7 @@ def _laplace_2d(grid, dx):
     # Laplacian via convolve2d()
     kernel = (
         1
-        / (dx ** 2)
+        / (dx**2)
         * jnp.array(
             [
                 [0.0, 1.0, 0.0],

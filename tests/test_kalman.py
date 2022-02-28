@@ -24,7 +24,7 @@ def sc(n):
 
 @pytest.fixture
 def phi(n):
-    return jnp.triu(jnp.arange(1, 1 + n ** 2).reshape((n, n)).T)
+    return jnp.triu(jnp.arange(1, 1 + n**2).reshape((n, n)).T)
 
 
 @pytest.fixture

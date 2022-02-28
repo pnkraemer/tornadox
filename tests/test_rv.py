@@ -27,7 +27,7 @@ def mean(dimension):
 
 @pytest.fixture
 def cov_sqrtm(dimension):
-    return jnp.arange(dimension ** 2).reshape((dimension, dimension))
+    return jnp.arange(dimension**2).reshape((dimension, dimension))
 
 
 class TestMultivariateNormal:
