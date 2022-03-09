@@ -7,8 +7,7 @@ Use `tornadox` as follows.
 
 ```python
 import jax.numpy as jnp
-import jax.random
-from tornadox import ek0, ek1, init, step, ivp, experimental
+from tornadox import ek0, ek1, init, step, ivp
 
 # Create a solver. Any of the following work. 
 # The signatures of all solvers coincide.
@@ -21,7 +20,7 @@ solver5 = ek1.ReferenceEK1(num_derivatives=5, steprule=step.AdaptiveSteps())
 # Solve an IVP
 vdp = ivp.vanderpol(t0=0., tmax=1., stiffness_constant=1.0)
 
-for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7, solver8, solver9]:
+for solver in [solver1, solver2, solver3, solver4, solver5]:
     
     # Full solve
     print(solver)
