@@ -7,8 +7,7 @@ Use `tornadox` as follows.
 
 ```python
 import jax.numpy as jnp
-import jax.random
-from tornadox import ek0, ek1, init, step, ivp, enkf
+from tornadox import ek0, ek1, init, step, ivp
 
 # Create a solver. Any of the following work. 
 # The signatures of all solvers coincide.
@@ -18,17 +17,10 @@ solver3 = ek1.ReferenceEK1(initialization=init.TaylorMode())
 solver4 = ek1.DiagonalEK1(initialization=init.RungeKutta())
 solver5 = ek1.ReferenceEK1(num_derivatives=5, steprule=step.AdaptiveSteps())
 
-# These also solve ODEs, but use them at your own risk.
-solver6 = ek1.TruncationEK1(num_derivatives=5, steprule=step.ConstantSteps(0.1))
-solver7 = ek1.EarlyTruncationEK1(steprule=step.AdaptiveSteps(abstol=1e-4, reltol=1e-2))
-solver8 = enkf.EnK1(prng_key=jax.random.PRNGKey(1), ensemble_size=100, initialization=init.CompiledRungeKutta(use_df=True)) 
-solver9 = enkf.EnK1(prng_key=jax.random.PRNGKey(1), ensemble_size=100, steprule=step.AdaptiveSteps(abstol=1e-4, reltol=1e-2)) 
-
-
 # Solve an IVP
 vdp = ivp.vanderpol(t0=0., tmax=1., stiffness_constant=1.0)
 
-for solver in [solver1, solver2, solver3, solver4, solver5, solver6, solver7, solver8, solver9]:
+for solver in [solver1, solver2, solver3, solver4, solver5]:
     
     # Full solve
     print(solver)
