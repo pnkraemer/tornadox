@@ -2,6 +2,18 @@
 Lightweight, probabilistic ODE solvers. Fast like the wind. 🌪️ Powered by JAX.
 
 
+## Installation
+
+Install `tornadox` via
+```
+pip install tornadox
+```
+Or get the most recent version from source:
+```
+pip install git+https://github.com/pnkraemer/tornadox.git
+```
+
+
 ## Usage
 Use `tornadox` as follows.
 
