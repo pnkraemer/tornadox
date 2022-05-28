@@ -3,8 +3,15 @@ Lightweight, probabilistic ODE solvers. Fast like the wind. 🌪️ Powered by J
 
 
 ## Installation
+`tornadox` depends on XLA via JAX. 
+But since the JAX installation depends on you personal choices (CPU/GPU/TPU, etc.),
+`tornadox` does not list a JAX dependency.
 
-Install `tornadox` via
+If you want the CPU version of JAX, install it via
+```
+pip install jax[cpu]
+```
+and then  follow up with installing `tornadox` via
 ```
 pip install tornadox
 ```
@@ -12,7 +19,8 @@ Or get the most recent version from source:
 ```
 pip install git+https://github.com/pnkraemer/tornadox.git
 ```
-
+A word of caution: at the moment, the tests are executed on CPU only.
+Things are not guaranteed to work on GPU and TPU. 
 
 ## Usage
 Use `tornadox` as follows.
