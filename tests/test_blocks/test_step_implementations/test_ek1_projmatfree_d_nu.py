@@ -68,7 +68,7 @@ def test_ek1_attempt_step_projmatfree_d_nu_forward_only(n, d):
 @pytest.mark.parametrize("n", (3,))
 @pytest.mark.parametrize("d", (2,))
 def test_ek1_attempt_step_projmatfree_d_nu(n, d):
-    (p, p_inv), (a, q_sqrtm), (e0, e1), (m, c_sqrtm) = _setup(n=n, d=d)
+    (p, p_inv), (a, q_sqrtm), _, (m, c_sqrtm) = _setup(n=n, d=d)
     out = ek1_projmatfree_d_nu.attempt_step(
         f=lambda x: jnp.flip(x) * (1 - x),
         df=lambda x: 1 - 2 * x,
