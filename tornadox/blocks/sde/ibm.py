@@ -16,12 +16,6 @@ def system_matrices_1d(*, num_derivatives):
 
 
 @partial(jax.jit, static_argnames=("num_derivatives",))
-def preconditioner(*, dt, num_derivatives):
-    p, p_inv = preconditioner_diagonal(dt=dt, num_derivatives=num_derivatives)
-    return jnp.diag(p), jnp.diag(p_inv)
-
-
-@partial(jax.jit, static_argnames=("num_derivatives",))
 def preconditioner_diagonal(*, dt, num_derivatives):
     powers = jnp.arange(num_derivatives, -1, -1)
 
@@ -32,13 +26,6 @@ def preconditioner_diagonal(*, dt, num_derivatives):
     scaling_vector_inv = (jnp.abs(dt) ** (-powers)) * scales
 
     return scaling_vector, scaling_vector_inv
-
-
-@partial(jax.jit, static_argnames=("num_derivatives",))
-@partial(jax.vmap, in_axes=(0, None), out_axes=(0, 0))
-def preconditioner_diagonal_batched(dts, num_derivatives):
-    """Computes the diagonal preconditioner, but for a number of time-steps at once."""
-    return preconditioner_diagonal(dt=dts, num_derivatives=num_derivatives)
 
 
 @jax.jit
