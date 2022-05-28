@@ -7,6 +7,7 @@ on:
   pull_request:
     branches:
     - main
+    - collection
 
 jobs:
   lint:
@@ -16,14 +17,12 @@ jobs:
       with:
         python-version: "3.x"
     - uses: actions/checkout@v2
-    - name: Lint with black through tox
+    - name: Apply linter
       run: |
+        pip install --upgrade pip
         pip install tox
-        tox -e black
-    - name: Lint with isort through tox
-      run: |
-        pip install isort
-        tox -e isort
+        tox -e lint
+
   tests:
     runs-on: ubuntu-latest
     steps:
