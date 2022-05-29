@@ -15,12 +15,13 @@ def attempt_step(*, f, m, c_sqrtm, p, p_inv, a, q_sqrtm):
     Includes error estimation.
     Includes time-varying, scalar diffusion.
     """
-    # m is an (nu+1,d) array. c_sqrtm is a (nu+1,nu+1) array.
+    # todo: move the below to a docstring :)
+    #  m is an (nu+1,d) array. c_sqrtm is a (nu+1,nu+1) array.
 
     # Apply the pre-conditioner
     m, c_sqrtm = p_inv[:, None] * m, p_inv[:, None] * c_sqrtm
 
-    # Predict the mean.
+    # Extrapolate the mean
     # Immediately undo the preconditioning,
     # because it's served its purpose for the mean.
     # (It is not really necessary for the mean, to be honest.)
@@ -31,7 +32,7 @@ def attempt_step(*, f, m, c_sqrtm, p, p_inv, a, q_sqrtm):
     m_obs = m_ext[1, :] - f(m_ext[0, :])
     err, diff_sqrtm = _estimate_error(m_res=m_obs, q_sqrtm=p[:, None] * q_sqrtm)
 
-    # The full extrapolation:
+    # Extrapolate the covariance
     c_sqrtm_ext, (c_sqrtm_bw, g_bw) = sqrtutil.correct_noisy(
         c_sqrtm=c_sqrtm, h=a, r_sqrtm=diff_sqrtm * q_sqrtm
     )
@@ -64,12 +65,13 @@ def attempt_step_forward_only(*, f, m, c_sqrtm, p, p_inv, a, q_sqrtm):
     Includes error estimation.
     Includes time-varying, scalar diffusion.
     """
-    # m is an (nu+1,d) array. c_sqrtm is a (nu+1,nu+1) array.
+    # todo: move the below to a docstring :)
+    #  m is an (nu+1,d) array. c_sqrtm is a (nu+1,nu+1) array.
 
     # Apply the pre-conditioner
     m, c_sqrtm = p_inv[:, None] * m, p_inv[:, None] * c_sqrtm
 
-    # Predict the mean.
+    # Extrapolate the mean.
     # Immediately undo the preconditioning,
     # because it's served its purpose for the mean.
     # (It is not really necessary for the mean, to be honest.)
@@ -79,7 +81,7 @@ def attempt_step_forward_only(*, f, m, c_sqrtm, p, p_inv, a, q_sqrtm):
     m_obs = m_ext[1, :] - f(m_ext[0, :])
     err, diff_sqrtm = _estimate_error(m_res=m_obs, q_sqrtm=p[:, None] * q_sqrtm)
 
-    # The full extrapolation:
+    # Extrapolate the covariance:
     c_sqrtm_ext = sqrtutil.sum_of_sqrtm_factors(S1=a @ c_sqrtm, S2=diff_sqrtm * q_sqrtm)
 
     # Un-apply the pre-conditioner.
