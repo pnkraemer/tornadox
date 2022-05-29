@@ -6,7 +6,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 
-from tornadox.blocks import sqrtutil, stepsizes
+from tornadox.blocks import stepsizes
 from tornadox.blocks.inits import autodiff_first_order
 from tornadox.blocks.sde import ibm
 from tornadox.blocks.step_impl import ek1_projmatfree_d_nu_first_order

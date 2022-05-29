@@ -3,7 +3,6 @@
 from functools import partial
 
 import jax
-import jax.numpy as jnp
 
 
 @partial(jax.jit, static_argnames=("f", "df", "solver"))
@@ -35,7 +34,8 @@ def solve_ivp_for_terminal_value(*, f, df, tspan, u0, solver, **solver_kwargs):
     Internally, we usually include `dt_proposed`, `u`, etc.
     in a single big (named)tuple.
 
-    solver_kwargs are atol, rtol, dt_min, etc., which are again quite unique to each solver.
+    solver_kwargs are atol, rtol, dt_min, etc.,
+    which are again quite unique to each solver.
     """  # todo: improve docstring :)
 
     init_fn, perform_step_fn, extract_qoi_fn = solver

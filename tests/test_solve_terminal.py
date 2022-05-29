@@ -2,7 +2,6 @@
 import jax
 import jax.numpy as jnp
 import pytest_cases
-import scipy.integrate
 
 from tornadox import ivp_examples, solve
 from tornadox.solvers import ek1
