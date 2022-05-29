@@ -52,7 +52,6 @@ def ek1_terminal_value(*, ode_dimension, num_derivatives=5):
         power_integral_unscaled=0.3,
         power_proportional_unscaled=0.4,
     ):
-        del df  # unused
 
         m0_mat = autodiff_fun(f=f, u0=u0, num_derivatives=num_derivatives)
         m0 = m0_mat.reshape((-1,), order="F")
