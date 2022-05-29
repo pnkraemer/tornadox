@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import pytest
 
 from tornadox.blocks.sde import ibm
-from tornadox.blocks.step_impl.first_order import ek1_projmatfree_d_nu
+from tornadox.blocks.step_impl import ek1_projmatfree_d_nu_first_order
 
 
 @partial(jax.jit, static_argnames=("n", "d"))
@@ -36,7 +36,7 @@ def _setup(*, n, d):
 @pytest.mark.parametrize("d", (2,))
 def test_ek1_attempt_step_projmatfree_d_nu_forward_only(n, d):
     (p, p_inv), (a, q_sqrtm), (m, c_sqrtm) = _setup(n=n, d=d)
-    out = ek1_projmatfree_d_nu.attempt_step_forward_only(
+    out = ek1_projmatfree_d_nu_first_order.attempt_step_forward_only(
         f=lambda x: jnp.flip(x) * (1 - x),
         df=lambda x: 1 - 2 * x,
         m=m,
@@ -65,7 +65,7 @@ def test_ek1_attempt_step_projmatfree_d_nu_forward_only(n, d):
 @pytest.mark.parametrize("d", (2,))
 def test_ek1_attempt_step_projmatfree_d_nu(n, d):
     (p, p_inv), (a, q_sqrtm), (m, c_sqrtm) = _setup(n=n, d=d)
-    out = ek1_projmatfree_d_nu.attempt_step(
+    out = ek1_projmatfree_d_nu_first_order.attempt_step(
         f=lambda x: jnp.flip(x) * (1 - x),
         df=lambda x: 1 - 2 * x,
         m=m,
