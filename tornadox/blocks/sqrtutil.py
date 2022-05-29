@@ -66,7 +66,7 @@ def correct_noisy_matfree(*, h_matmul_c_sqrtm, c_sqrtm, r_sqrtm):
 
 @jax.jit
 def sum_of_sqrtm_factors(*, S1, S2):
-    """Compute Cholesky factor of A @ SC @ SC.T @ A.T + SQ @ SQ.T"""
+    """Compute Cholesky factor of S1 @ S1.T + S2 @ S2.T"""
     stacked_up = jnp.vstack((S1.T, S2.T))
     return sqrtm_to_cholesky(St=stacked_up)
 
