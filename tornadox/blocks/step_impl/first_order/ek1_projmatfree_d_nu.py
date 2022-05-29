@@ -137,6 +137,8 @@ def _estimate_error_projmatfree(*, Jx, m_res, q_sqrtm, num_derivatives):
     diff = res_white.T @ res_white / res_white.size
     diff_sqrtm = jnp.sqrt(diff)
 
+    # todo:
+    #  do via diff_sqrtm * jnp.sum(s_chol**2, axis=1)?
     error_estimate = diff_sqrtm * jnp.sqrt(jnp.einsum("jk,jk->j", s_chol, s_chol))
     return error_estimate, diff_sqrtm
 
