@@ -2,6 +2,7 @@
 
 from collections import namedtuple
 from functools import partial
+from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -99,7 +100,7 @@ def ek1_terminal_value(*, ode_dimension, num_derivatives=5):
 
         @jax.jit
         def body_fun(s):
-            t, s_prev = s
+            _, s_prev = s
 
             # Never exceed the terminal value
             dt_clipped = jnp.minimum(s_prev.dt_proposed, t1 - t0)
