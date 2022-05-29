@@ -37,7 +37,7 @@ def _arange_to_hilbert_matrix(a):
 
 @jax.jit
 def _arange_to_pascal_matrix(a):
-    return _binom(a[:, None], a[None, :])
+    return _batch_gram(_binom)(a[:, None], a[None, :])
 
 
 def _batch_gram(k):
@@ -55,7 +55,6 @@ def _batch_gram(k):
     return jax.jit(k_vmapped_xy)
 
 
-@_batch_gram
 @jax.jit
 def _binom(n, k):
     a = _factorial(n)
