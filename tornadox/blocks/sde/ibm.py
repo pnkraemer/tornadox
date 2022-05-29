@@ -40,7 +40,7 @@ def _arange_to_pascal_matrix(a):
     return _batch_gram(_binom)(a[:, None], a[None, :])
 
 
-def _batch_gram(k):
+def _batch_gram(f):
     r"""Batch a function.
 
     A function :math:`f: R^k \times R^k \rightarrow R` becomes a function
@@ -50,9 +50,9 @@ def _batch_gram(k):
     The batching follows broadcasting rules:
     think `jnp.exp(x[:, None], y[None, :])` for 1d inputs.
     """
-    k_vmapped_x = jax.vmap(k, in_axes=(0, None), out_axes=-1)
-    k_vmapped_xy = jax.vmap(k_vmapped_x, in_axes=(None, 1), out_axes=-1)
-    return jax.jit(k_vmapped_xy)
+    f_vmapped_x = jax.vmap(f, in_axes=(0, None), out_axes=-1)
+    f_vmapped_xy = jax.vmap(f_vmapped_x, in_axes=(None, 1), out_axes=-1)
+    return jax.jit(f_vmapped_xy)
 
 
 @jax.jit
