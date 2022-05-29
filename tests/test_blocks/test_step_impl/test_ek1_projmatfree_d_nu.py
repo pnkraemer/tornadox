@@ -23,23 +23,19 @@ def _setup(*, n, d):
     a, q_sqrtm = ibm.system_matrices_1d(num_derivatives=n)
     a, q_sqrtm = jnp.kron(eye_d, a), jnp.kron(eye_d, a)
 
-    # Projection matrices
-    e0, e1, *_ = jnp.eye(n + 1)[:, None, :]
-    e0, e1 = jnp.kron(eye_d, e0), jnp.kron(eye_d, e1)
-
     # Some mean and covariance
     m = jnp.arange(1, 1 + d * (n + 1))
     c_sqrtm = jnp.arange(1, 1 + d**2 * (n + 1) ** 2).reshape(
         (d * (n + 1), d * (n + 1))
     )
 
-    return (p, p_inv), (a, q_sqrtm), (e0, e1), (m, c_sqrtm)
+    return (p, p_inv), (a, q_sqrtm), (m, c_sqrtm)
 
 
 @pytest.mark.parametrize("n", (3,))
 @pytest.mark.parametrize("d", (2,))
 def test_ek1_attempt_step_projmatfree_d_nu_forward_only(n, d):
-    (p, p_inv), (a, q_sqrtm), _, (m, c_sqrtm) = _setup(n=n, d=d)
+    (p, p_inv), (a, q_sqrtm), (m, c_sqrtm) = _setup(n=n, d=d)
     out = ek1_projmatfree_d_nu.attempt_step_forward_only(
         f=lambda x: jnp.flip(x) * (1 - x),
         df=lambda x: 1 - 2 * x,
@@ -68,7 +64,7 @@ def test_ek1_attempt_step_projmatfree_d_nu_forward_only(n, d):
 @pytest.mark.parametrize("n", (3,))
 @pytest.mark.parametrize("d", (2,))
 def test_ek1_attempt_step_projmatfree_d_nu(n, d):
-    (p, p_inv), (a, q_sqrtm), _, (m, c_sqrtm) = _setup(n=n, d=d)
+    (p, p_inv), (a, q_sqrtm), (m, c_sqrtm) = _setup(n=n, d=d)
     out = ek1_projmatfree_d_nu.attempt_step(
         f=lambda x: jnp.flip(x) * (1 - x),
         df=lambda x: 1 - 2 * x,
