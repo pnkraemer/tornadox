@@ -10,7 +10,7 @@ from tornadox.blocks import sqrtutil
 
 @partial(jax.jit, static_argnames=("f",))
 def attempt_step_forward_only(*, f, m, c_sqrtm, p, p_inv, a, q_sqrtm):
-    """A step with the 'BatchEK0'.
+    """A step with the 'DiagonalEK0'.
 
     Includes error estimation.
     Includes time-varying, multivariate diffusion.
