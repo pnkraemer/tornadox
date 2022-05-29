@@ -8,10 +8,6 @@ from tornadox import ivp_examples
 from tornadox.blocks.inits import autodiff_first_order, autodiff_second_order
 
 
-def case_forwardmode():
-    return autodiff_second_order.forwardmode
-
-
 def case_reversemode():
     return autodiff_second_order.reversemode
 

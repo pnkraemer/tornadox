@@ -15,10 +15,6 @@ def case_forwardmode_jvp():
     return autodiff_first_order.forwardmode_jvp
 
 
-def case_forwardmode():
-    return autodiff_first_order.forwardmode
-
-
 def case_reversemode():
     return autodiff_first_order.reversemode
 
