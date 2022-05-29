@@ -45,3 +45,10 @@ include_trailing_comma = "true"
 force_grid_wrap = "0"
 use_parentheses = "true"
 line_length = "88"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # "import jax" implies "import flatbuffers", which raises the following warning.
+    # Ignore similar to https://github.com/google/jax/blob/main/pytest.ini
+    "ignore:the imp module is deprecated in favour of importlib.*:DeprecationWarning:flatbuffers.*"
+]
