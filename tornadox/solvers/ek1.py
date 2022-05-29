@@ -2,7 +2,6 @@
 
 from collections import namedtuple
 from functools import partial
-from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
