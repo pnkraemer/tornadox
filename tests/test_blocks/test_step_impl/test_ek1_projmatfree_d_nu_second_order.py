@@ -13,7 +13,6 @@ from tornadox.blocks.step_impl import ek1_projmatfree_d_nu_second_order
 
 @partial(jax.jit, static_argnames=("n", "d"))
 def _setup(*, n, d):
-    """Setup for derivative-dimension ordering."""
 
     # Preconditioners
     p, p_inv = ibm.preconditioner_diagonal(dt=0.1, num_derivatives=n)
