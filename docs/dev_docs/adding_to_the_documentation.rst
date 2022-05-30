@@ -5,13 +5,11 @@ There is a multitude of ways you can add to the documentation.
 
 Building the docs
 -----------------
-Run ``tox -e autodoc_generate`` to update the ``*.rst`` files in ``docs/api_docs/``.
-If you added a new module/subpackage, a corresponding .rst file will be generated.
-If you deleted/renamed one, please delete the outdated file manually.
-There is no point in making changes to the .rst files, because they are automatically overwritten frequently anyway
-
-Once this is done, run ``tox -e build_docs`` to build the sphinx docs.
+Run ``tox -e build_docs`` to build the sphinx docs.
 If you see any errors, resolve them and repeat.
+This workflow automatically turns the modules into ``.rst`` files that are then used by sphinx to build the documentation.
+It uses ``sphinx-apidoc`` for this purpose.
+
 
 Making changes to a notebook
 ----------------------------

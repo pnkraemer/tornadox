@@ -1,4 +1,11 @@
+
+# These files are automatically generated. Don't track.
+docs/_api_docs/*.rst
+
+# Don't track the version number.
 tornadox/_version.py
+
+# Don't track IDE settings.
 .idea/
 
 # Byte-compiled / optimized / DLL files

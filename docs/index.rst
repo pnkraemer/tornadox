@@ -19,7 +19,7 @@ Welcome to tornadox's documentation!
    :maxdepth: 4
    :caption: API documentation
 
-   api_docs/tornadox
+   _api_docs/tornadox
 
 
 .. toctree::
