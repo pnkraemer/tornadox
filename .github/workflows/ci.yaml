@@ -58,5 +58,4 @@ jobs:
     - name: Check doc-build
       run: |
         pip install tox
-        tox -e autodoc_generate
         tox -e build_docs
