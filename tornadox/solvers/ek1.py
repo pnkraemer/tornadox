@@ -9,7 +9,7 @@ import jax.numpy as jnp
 from tornadox.blocks import stepsizes
 from tornadox.blocks.inits import autodiff_first_order
 from tornadox.blocks.sde import ibm
-from tornadox.blocks.step_impl import ek1_projmatfree_d_nu_first_order
+from tornadox.blocks.step_impl import ek1_projmatfree_d_nu
 
 
 def ek1_terminal_value(*, ode_dimension, num_derivatives=5):
@@ -113,7 +113,7 @@ def ek1_terminal_value(*, ode_dimension, num_derivatives=5):
             p_inv = jnp.tile(p_inv, ode_dimension)
 
             # Attempt step
-            x = ek1_projmatfree_d_nu_first_order.attempt_step_forward_only(
+            x = ek1_projmatfree_d_nu.attempt_step_forward_only(
                 f=f,
                 df=df,
                 m=m0,
