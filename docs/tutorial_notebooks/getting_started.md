@@ -44,7 +44,7 @@ print(f, tspan, u0)
 ```
 
 Next, we choose a solver.
-There are a couple of suggestions. For example, let us solve the ODE for the terminal value and use the Kronecker EK0 (the most efficient solver we have).
+There are a couple of suggestions. For example, let us solve the ODE for the terminal value and use the EK1.
 
 Solvers are tuples of an `init_fn` and a `perform_step_fn`, similar to how [optax](https://github.com/deepmind/optax) handles optimisers, and [blackjax](https://github.com/blackjax-devs/blackjax) handles samplers. The `perform_step_fn` has error estimation and calibration baked into the implementation.
 
@@ -101,8 +101,4 @@ odeint(
 )
 
 %timeit -n2 -r2 odeint(func=f_not_autonomous_swapped, y0=u0, t=jnp.array([tspan[0], tspan[1]]), atol=1e-4, rtol=1e-4)
-```
-
-```python
-
 ```
