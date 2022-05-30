@@ -22,10 +22,10 @@ How can I use the code in `odefilter` to solve ODEs?
 import jax
 import jax.numpy as jnp
 from jax.experimental.ode import odeint
-from tornadox import ivp_examples
-from tornadox import solve
-from tornadox.solvers import ek1
 from scipy.integrate import solve_ivp
+
+from tornadox import ivp_examples, solve
+from tornadox.solvers import ek1
 ```
 
 Let's create an example ODE problem: non-stiff van der Pol.
@@ -62,7 +62,6 @@ t, rv_terminal, _ = solve.solve_ivp_for_terminal_value(
 )
 m, c_sqrtm = rv_terminal
 
-print()
 print(m[0 :: (4 + 1)], t)
 ```
 

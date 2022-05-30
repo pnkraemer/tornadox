@@ -23,6 +23,19 @@ jobs:
         pip install tox
         tox -e lint
 
+  notebooks:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/setup-python@v2
+      with:
+        python-version: "3.x"
+    - uses: actions/checkout@v2
+    - name: Execute notebooks
+      run: |
+        pip install --upgrade pip
+        pip install tox
+        tox -e execute_notebooks
+
   tests:
     runs-on: ubuntu-latest
     steps:
