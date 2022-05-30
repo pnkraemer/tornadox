@@ -48,7 +48,7 @@ jobs:
         pip install tox
         tox -e py3
 
-  docs:
+  build-docs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/setup-python@v2

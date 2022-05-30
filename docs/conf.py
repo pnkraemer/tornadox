@@ -10,8 +10,8 @@
 # -- Project information -----------------------------------------------------
 
 project = "tornadox"
-copyright = "2022, Author"
-author = "Author"
+copyright = "2022, tornadox authors"
+author = "tornadox authors"
 
 
 # -- General configuration ---------------------------------------------------
