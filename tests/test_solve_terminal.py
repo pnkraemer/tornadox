@@ -4,13 +4,25 @@ import jax.numpy as jnp
 import pytest_cases
 
 from tornadox import ivp_examples, solve
-from tornadox.solvers import ek1
+from tornadox.solvers import ek0_diagonal, ek0_kronecker, ek1
 
 
 def case_ivp_vanderpol_nonstiff():
 
     f, tspan, u0 = ivp_examples.vanderpol(stiffness_constant=1.0)
     return f, tspan, u0
+
+
+@pytest_cases.parametrize("num_derivatives", [3, 6])
+def case_solver_ek0_kronecker(num_derivatives):
+
+    return ek0_kronecker.ek0_kronecker_terminal_value(num_derivatives=num_derivatives)
+
+
+@pytest_cases.parametrize("num_derivatives", [3, 6])
+def case_solver_ek0_diagonal(num_derivatives):
+
+    return ek0_diagonal.ek0_diagonal_terminal_value(num_derivatives=num_derivatives)
 
 
 @pytest_cases.parametrize("num_derivatives", [3, 6])
