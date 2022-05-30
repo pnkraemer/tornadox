@@ -24,7 +24,7 @@ def attempt_step_forward_only(
     # Apply the pre-conditioner
     m, c_sqrtm = p_inv * m, p_inv[:, None] * c_sqrtm
 
-    # Predict mean and compute error
+    # Extrapolate mean and compute error
     m_ext = p * (a @ m)
 
     # Linearise ODE and estimate error
@@ -39,7 +39,7 @@ def attempt_step_forward_only(
         num_derivatives=num_derivatives,
     )
 
-    # The full extrapolation:
+    # Extrapolate covariance
     c_sqrtm_ext = sqrtutil.sum_of_sqrtm_factors(S1=a @ c_sqrtm, S2=diff_sqrtm * q_sqrtm)
 
     # Un-apply the pre-conditioner
@@ -72,7 +72,7 @@ def attempt_step(*, f, df, m, c_sqrtm, p, p_inv, a, q_sqrtm, num_derivatives):
     # Apply the pre-conditioner
     m, c_sqrtm = p_inv * m, p_inv[:, None] * c_sqrtm
 
-    # Predict mean and compute error
+    # Extrapolate mean and compute error
     m_ext = a @ m
     fx, (Jx, Jy), m_obs = _linearise_ode_projmatfree(
         f=f, df=df, m_ext=p * m_ext, num_derivatives=num_derivatives
@@ -85,7 +85,7 @@ def attempt_step(*, f, df, m, c_sqrtm, p, p_inv, a, q_sqrtm, num_derivatives):
         num_derivatives=num_derivatives,
     )
 
-    # The full extrapolation:
+    # Extrapolate covariance
     c_sqrtm_ext, (c_sqrtm_bw, g_bw) = sqrtutil.correct_noisy(
         c_sqrtm=c_sqrtm, h=a, r_sqrtm=diff_sqrtm * q_sqrtm
     )
