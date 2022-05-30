@@ -15,7 +15,7 @@ jupyter:
 
 # Getting started
 
-How can I use the code in `odefilter` to solve ODEs?
+How can I use the code in `tornadox` to solve ODEs?
 
 
 ```python
@@ -101,4 +101,8 @@ odeint(
 )
 
 %timeit -n2 -r2 odeint(func=f_not_autonomous_swapped, y0=u0, t=jnp.array([tspan[0], tspan[1]]), atol=1e-4, rtol=1e-4)
+```
+
+```python
+
 ```
