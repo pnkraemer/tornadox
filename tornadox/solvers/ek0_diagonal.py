@@ -48,7 +48,6 @@ def ek0_diagonal_terminal_value(*, num_derivatives=5):
         power_integral_unscaled=0.3,
         power_proportional_unscaled=0.4,
     ):
-        del df  # unused
 
         m0_mat = autodiff_fun(f=f, u0=u0, num_derivatives=num_derivatives)
         c_sqrtm0 = jnp.zeros((u0.shape[0], num_derivatives + 1, num_derivatives + 1))
@@ -89,7 +88,6 @@ def ek0_diagonal_terminal_value(*, num_derivatives=5):
         power_proportional_unscaled=0.4,
     ):
         """Perform a successful step."""
-        del df  # unused
 
         m0, c_sqrtm0 = state0.u
         error_norm_previously_accepted = state0.error_norm
