@@ -47,3 +47,16 @@ jobs:
       run: |
         pip install tox
         tox -e py3
+
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/setup-python@v2
+      with:
+        python-version: "3.x"
+    - uses: actions/checkout@v2
+    - name: Check doc-build
+      run: |
+        sudo apt-get install pandoc
+        pip install tox
+        tox -e build_docs
