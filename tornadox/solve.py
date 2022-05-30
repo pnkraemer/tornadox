@@ -7,25 +7,23 @@ import jax
 
 @partial(jax.jit, static_argnames=("f", "df", "solver"))
 def solve_ivp_for_terminal_value(*, f, df, tspan, u0, solver, **solver_kwargs):
-    """Solve an initial value problem and only store the terminal value.
+    r"""Solve an initial value problem and only store the terminal value.
 
     The solver is a triple of functions:
     init_fn, perform_step_fn, extract_qoi_fn = solver
 
     This is similar to how Jax recommends to implement optimisers
-    https://jax.readthedocs.io/en/latest/jax.example_libraries.optimizers.html
+    ``https://jax.readthedocs.io/en/latest/jax.example_libraries.optimizers.html``
     which is done by e.g. optax. blackjax also follows a similar pattern.
     (And so does scipy.integrate.OdeSolver, coincidentally.)
 
     Signature:
 
-    init_fn(*, f, df, u0, tspan,  **solver_kwargs) -> (t, MyCustomState)
+    ``init_fn(*, f, df, u0, tspan,  **solver_kwargs) -> (t, MyCustomState)``
 
-    perform_step_fn(
-      t, custom_state, *, f, df, t1, u0, **solver_kwargs
-    ) -> (t, MyCustomState)
+    ``perform_step_fn(t, custom_state, *, f, df, t1, u0, **solver_kwargs) -> (t, MyCustomState)``
 
-    extract_qoi_fn(t, custom_state) -> Any
+    ``extract_qoi_fn(t, custom_state) -> Any``
 
 
     CustomState can really be anything and is purely internal,

@@ -60,7 +60,7 @@ html_theme_options = {
     "sidebar_hide_name": True,
 }
 
-html_logo = "img.png"
+html_logo = "logo.png"
 
 
 # Add any paths that contain custom static files (such as style sheets) here,

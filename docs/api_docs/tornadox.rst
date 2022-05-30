@@ -1,5 +1,5 @@
-API: tornadox package
-=====================
+tornadox package
+================
 
 .. automodule:: tornadox
    :members:

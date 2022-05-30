@@ -12,15 +12,21 @@ Welcome to tornadox's documentation!
    :maxdepth: 1
    :caption: Getting started
 
-   source/tutorial_notebooks/getting_started
+   tutorial_notebooks/getting_started
 
 
 .. toctree::
    :maxdepth: 4
    :caption: API documentation
 
-   source/tornadox
+   api_docs/tornadox
 
+
+.. toctree::
+   :maxdepth: 4
+   :caption: Developer documentation
+
+   dev_docs/adding_to_the_documentation
 
 .. toctree::
    :maxdepth: 1
