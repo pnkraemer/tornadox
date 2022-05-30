@@ -37,8 +37,8 @@ def _setup(*, n, d):
 def test_ek1_attempt_step_forward_only(n, d):
     (p, p_inv), (a, q_sqrtm), (m, c_sqrtm) = _setup(n=n, d=d)
     out = ek1_projmatfree_d_nu_second_order.attempt_step_forward_only(
-        f=lambda x, dx: jnp.flip(dx) * (1 - x),
-        df=lambda x, dx: (1 - 2 * x, dx),
+        f=lambda x, dx: dx**2 * x**2,
+        df=lambda x, dx: (2 * dx**2 * x, 2 * x**2 * dx),
         m=m,
         c_sqrtm=c_sqrtm,
         p=p,
@@ -65,8 +65,8 @@ def test_ek1_attempt_step_forward_only(n, d):
 def test_ek1_attempt_step(n, d):
     (p, p_inv), (a, q_sqrtm), (m, c_sqrtm) = _setup(n=n, d=d)
     out = ek1_projmatfree_d_nu_second_order.attempt_step(
-        f=lambda x, dx: jnp.flip(dx) * (1 - x),
-        df=lambda x, dx: (1 - 2 * x, dx),
+        f=lambda x, dx: dx**2 * x**2,
+        df=lambda x, dx: (2 * dx**2 * x, 2 * x**2 * dx),
         m=m,
         c_sqrtm=c_sqrtm,
         p=p,
