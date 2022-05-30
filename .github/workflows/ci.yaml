@@ -57,5 +57,6 @@ jobs:
     - uses: actions/checkout@v2
     - name: Check doc-build
       run: |
+        sudo apt-get install pandoc
         pip install tox
         tox -e build_docs
