@@ -34,7 +34,7 @@ def solve_ivp_for_terminal_value(*, f, df, tspan, u0, solver, **solver_kwargs):
 
     solver_kwargs are atol, rtol, dt_min, etc.,
     which are again quite unique to each solver.
-    """  # todo: improve docstring :)
+    """  # noqa: E501 # todo: improve docstring :)
 
     init_fn, perform_step_fn, extract_qoi_fn = solver
 
