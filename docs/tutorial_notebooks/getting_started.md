@@ -46,7 +46,7 @@ print(f, tspan, u0)
 Next, we choose a solver.
 There are a couple of suggestions. For example, let us solve the ODE for the terminal value and use the Kronecker EK0 (the most efficient solver we have).
 
-Solvers are tuples of an `init_fn` and a `perform_step_fn`, similar to how `optax` handles optimisers, and `blackjax` handles samplers. The `perform_step_fn` has error estimation and calibration baked into the implementation.
+Solvers are tuples of an `init_fn` and a `perform_step_fn`, similar to how [optax](https://github.com/deepmind/optax) handles optimisers, and [blackjax](https://github.com/blackjax-devs/blackjax) handles samplers. The `perform_step_fn` has error estimation and calibration baked into the implementation.
 
 ```python
 solver = ek1.ek1_terminal_value(ode_dimension=2, num_derivatives=4)
