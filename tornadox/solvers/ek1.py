@@ -413,7 +413,9 @@ def ek1_saveat(
 
 @jax.jit
 def _condense_linear_models(*, model_outer, model_inner):
-    """Two linear models applied subsequently can be condensed into a single linear model."""
+    """Two linear models applied subsequently
+    can be condensed into a single linear model.
+    """
     A, (b, B_sqrtm) = model_outer
     C, (d, D_sqrtm) = model_inner
     G = A @ C
