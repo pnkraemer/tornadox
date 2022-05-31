@@ -222,7 +222,9 @@ def ek1_saveat(
     # At each checkpoint, the backward model needs to be 'reset'.
     # This means that it is set to an identity, noise-free transition.
     # We just assemble this once and keep referencing it below.
-    bw_model_id = _backward_transition_id(n=ode_dimension * (num_derivatives + 1))
+    identity_transition_matrices = _identity_transition_matrices(
+        n=ode_dimension * (num_derivatives + 1)
+    )
 
     @partial(jax.jit, static_argnames=("f", "df"))
     def init_fn(
@@ -259,7 +261,7 @@ def ek1_saveat(
         u0 = (m0, c_sqrtm0)
         s0 = EK1State(
             u=u0,
-            backward_model=bw_model_id,
+            backward_model=identity_transition_matrices,
             dt_proposed=dt0,
             error_norm=1.0,
             stats=stats,
@@ -398,7 +400,7 @@ def ek1_saveat(
     def reset_state_at_checkpoint_fn(t, state):
         state_reset = EK1State(
             u=state.u,
-            backward_model=bw_model_id,
+            backward_model=identity_transition_matrices,
             dt_proposed=state.dt_proposed,
             error_norm=state.error_norm,
             stats=state.stats,
@@ -413,7 +415,7 @@ def ek1_saveat(
 
 
 @partial(jax.jit, static_argnames=("n",))
-def _backward_transition_id(*, n):
+def _identity_transition_matrices(*, n):
     a = jnp.eye(n)
     b = jnp.zeros((n,))
     q_sqrtm = jnp.zeros((n, n))
