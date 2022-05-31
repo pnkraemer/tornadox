@@ -6,7 +6,7 @@ from tornadox.blocks import sqrtutil
 
 
 def marginalize(*, m0, c_sqrtm0, A, b, Q_sqrtm, reverse):
-    """Compute the marginals of a linear model."""
+    """Compute the marginals of a linear state-space model."""
 
     @jax.jit
     def body_fn(s, model):

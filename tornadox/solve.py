@@ -69,6 +69,14 @@ def solve_ivp_saveat(*, f, df, u0, solver, saveat, **solver_kwargs):
     # The signatures of those functions are the same as in solve_ivp_terminal_value
     # with the exception of the additional reset_state_at_checkpoint_fn().
     # It maps (t,state) to (t, state), and replaces some internals accordingly.
+    # What does it do?
+    # It serves as some kind of callback, and basically returns whatever init_fn()
+    # returns but not taking into account the initial values.
+    # for example, when a solver tracks a quantity when solving from t0 to t1,
+    # but before solving from t1 to t2, this quantity has to be reset to 1,
+    # this happens in reset_state_at_checkpoint_fn().
+    #
+    #
     # There is probably a cleaner way of implementing this, but for now it works.
     init_fn, perform_step_fn, reset_state_at_checkpoint_fn, extract_qoi_fn = solver
 
@@ -81,7 +89,6 @@ def solve_ivp_saveat(*, f, df, u0, solver, saveat, **solver_kwargs):
     def solve_for_next_saveat(s, t1):
         t0, state0 = s
 
-        # Reset and solve on the next interval.
         t0, state0 = reset_state_at_checkpoint_fn(t0, state0)
         t, state = _solve_ivp_on_interval(
             f=f,

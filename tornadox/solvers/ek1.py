@@ -376,10 +376,10 @@ def ek1_saveat(
         #  for other solve_ivp()-style functions.
         A, (b, B_sqrtm) = init_val.backward_model
         C, (d, D_sqrtm) = state.backward_model
-        g = A @ C
+        G = A @ C
         xi = A @ d + b
         Xi = sqrtutil.sum_of_sqrtm_factors(S1=A @ D_sqrtm, S2=B_sqrtm)
-        backward_model_fp = (g, (xi, Xi))
+        backward_model_fp = (G, (xi, Xi))
 
         stats = state.stats
         stats["steps_accepted_count"] += 1
