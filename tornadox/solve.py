@@ -63,8 +63,10 @@ def solve_ivp_for_terminal_value(*, f, df, tspan, u0, solver, **solver_kwargs):
 def solve_ivp_saveat(*, f, df, u0, solver, saveat, **solver_kwargs):
     # assume t0 and tmax are the "boundary" elements in saveat.
     # As such, `saveat` makes `tspan` obsolete
-    # Also assume it is sorted.
-    # If not, anything could happen.
+    # todo:
+    #  At the moment, the code assumes 'saveat' is sorted.
+    #  If not, anything could happen.
+    #  One should communicate this to a user.
 
     # The signatures of those functions are the same as in solve_ivp_terminal_value
     # with the exception of the additional reset_state_at_checkpoint_fn().
