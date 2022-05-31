@@ -374,14 +374,11 @@ def ek1_saveat(
 
         # Condense both backward models into one.
         # (Technically speaking, this implements 'fixed-point smoothing')
-        # todo: if we do this somewhere else, perform_step_fn() can be reused
+        # todo: if we do this condensing somewhere else, perform_step_fn() can be reused
         #  for other solve_ivp()-style functions.
-        A, (b, B_sqrtm) = init_val.backward_model
-        C, (d, D_sqrtm) = state.backward_model
-        G = A @ C
-        xi = A @ d + b
-        Xi = sqrtutil.sum_of_sqrtm_factors(S1=A @ D_sqrtm, S2=B_sqrtm)
-        backward_model_fp = (G, (xi, Xi))
+        backward_model_fp = _condense_linear_models(
+            model_outer=init_val.backward_model, model_inner=state.backward_model
+        )
 
         stats = state.stats
         stats["steps_accepted_count"] += 1
@@ -412,6 +409,18 @@ def ek1_saveat(
         return t, state.u, state.backward_model, state.stats
 
     return init_fn, perform_step_fn, reset_state_at_checkpoint_fn, extract_qoi_fn
+
+
+@jax.jit
+def _condense_linear_models(*, model_outer, model_inner):
+    """Two linear models applied subsequently can be condensed into a single linear model."""
+    A, (b, B_sqrtm) = model_outer
+    C, (d, D_sqrtm) = model_inner
+    G = A @ C
+    xi = A @ d + b
+    Xi = sqrtutil.sum_of_sqrtm_factors(S1=A @ D_sqrtm, S2=B_sqrtm)
+    backward_model_fp = (G, (xi, Xi))
+    return backward_model_fp
 
 
 @partial(jax.jit, static_argnames=("n",))
