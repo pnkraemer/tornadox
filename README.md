@@ -52,15 +52,23 @@ for solver in [solver1, solver2, solver3, solver4, solver5]:
 
 
 ## Citation
-The efficient implementation of ODE filters is explained in the paper ([link](https://arxiv.org/abs/2110.11812))
+The efficient implementation of ODE filters is explained in the paper ([link](https://proceedings.mlr.press/v162/kramer22b.html))
 ```
-@misc{krämer2021probabilistic,
-      title={Probabilistic ODE Solutions in Millions of Dimensions}, 
-      author={Nicholas Krämer and Nathanael Bosch and Jonathan Schmidt and Philipp Hennig},
-      year={2021},
-      eprint={2110.11812},
-      archivePrefix={arXiv},
-      primaryClass={stat.ML}
+
+@InProceedings{pmlr-v162-kramer22b,
+  title = 	 {Probabilistic {ODE} Solutions in Millions of Dimensions},
+  author =       {Kr{\"a}mer, Nicholas and Bosch, Nathanael and Schmidt, Jonathan and Hennig, Philipp},
+  booktitle = 	 {Proceedings of the 39th International Conference on Machine Learning},
+  pages = 	 {11634--11649},
+  year = 	 {2022},
+  editor = 	 {Chaudhuri, Kamalika and Jegelka, Stefanie and Song, Le and Szepesvari, Csaba and Niu, Gang and Sabato, Sivan},
+  volume = 	 {162},
+  series = 	 {Proceedings of Machine Learning Research},
+  month = 	 {17--23 Jul},
+  publisher =    {PMLR},
+  pdf = 	 {https://proceedings.mlr.press/v162/kramer22b/kramer22b.pdf},
+  url = 	 {https://proceedings.mlr.press/v162/kramer22b.html}
 }
+
 ```
 Please consider citing it if you use this repository for your research.
