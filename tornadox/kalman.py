@@ -61,6 +61,6 @@ def smoother_step_sqrt(m, sc, m_fut, sc_fut, sgain, sq, mp, x):
             [zeros.T, sc_fut.T @ sgain.T],
         ]
     )
-    R = jax.scipy.linalg.qr(M, mode="r", pivoting=False)
+    (R,) = jax.scipy.linalg.qr(M, mode="r", pivoting=False)
     new_cov_cholesky = R[d : 2 * d, d:].T
     return new_mean, new_cov_cholesky
