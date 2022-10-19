@@ -60,7 +60,7 @@ def update_sqrt(transition_matrix, cov_cholesky):
             [zeros_bottomleft.T, zeros_bottomright.T],
         ]
     )
-    big_triu = jax.scipy.linalg.qr(blockmat, mode="r", pivoting=False)
+    (big_triu,) = jax.scipy.linalg.qr(blockmat, mode="r", pivoting=False)
     R3 = big_triu[
         output_dim : (output_dim + input_dim), output_dim : (output_dim + input_dim)
     ]
