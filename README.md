@@ -1,6 +1,12 @@
 # tornadox
 Lightweight, probabilistic ODE solvers. Fast like the wind. 🌪️ Powered by JAX.
 
+## Note!
+
+**We don't really work on Tornadox anymore. Instead, we recommend you check out [Probdiffeq](https://github.com/pnkraemer/probdiffeq) for JAX code or [ProbNumDiffEq.jl](https://github.com/nathanaelbosch/ProbNumDiffEq.jl) for Julia code.** These two are more actively maintained and both repositories can do almost everything that Tornadox does (and more!).
+
+
+That said, if you would like to work with Tornadox specifically and run into issues, feel free to reach out!
 
 ## Installation
 
