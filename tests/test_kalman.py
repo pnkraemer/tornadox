@@ -1,6 +1,5 @@
 """Tests for Gaussian filtering and smoothing routines."""
 
-
 import jax.numpy as jnp
 import pytest
 

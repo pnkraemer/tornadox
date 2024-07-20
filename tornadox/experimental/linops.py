@@ -1,6 +1,5 @@
 """Linear operators and sparse matrices."""
 
-
 import jax.numpy as jnp
 import jax.scipy.linalg
 
