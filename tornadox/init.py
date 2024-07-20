@@ -188,7 +188,14 @@ class RungeKutta(InitializationRoutine):
 
             # Make the next step but return ALL the intermediate quantities
             # (they are needed for efficient smoothing)
-            (m, sc, m_pred, sc_pred, sgain, x,) = RungeKutta._forward_filter_step(
+            (
+                m,
+                sc,
+                m_pred,
+                sc_pred,
+                sgain,
+                x,
+            ) = RungeKutta._forward_filter_step(
                 y, carry.sc, carry.m, sq_1d, p_1d_raw, p_inv_1d_raw, phi_1d
             )
 

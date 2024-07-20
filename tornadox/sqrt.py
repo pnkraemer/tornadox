@@ -78,7 +78,7 @@ def update_sqrt(transition_matrix, cov_cholesky):
 # Therefore, do this with a loop for now and let jax.jit do the magic if speed was desired.
 def batched_update_sqrt(batched_transition_matrix, batched_cov_cholesky):
     cov_chol, kgain, innov_chol = [], [], []
-    for (A, SC) in zip(batched_transition_matrix, batched_cov_cholesky):
+    for A, SC in zip(batched_transition_matrix, batched_cov_cholesky):
         c, k, s = update_sqrt(A, SC)
         cov_chol.append(c)
         kgain.append(k)
